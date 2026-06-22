@@ -127,6 +127,8 @@
     .btn-copy-notas { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); color: var(--preto); font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; }
     .btn-copy-notas:hover { background: var(--preto); color: #fff; border-color: var(--preto); }
     .btn-copy-notas.copiado { background: #f0fdf4; border-color: #16a34a; color: #16a34a; }
+    .btn-sugerir { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 8px; border: 1.5px solid var(--rosa); background: #fff0f6; color: var(--rosa); font-size: 11px; font-weight: 700; cursor: pointer; transition: all .15s; }
+    .btn-sugerir:hover { background: var(--rosa); color: #fff; }
 
     /* FOOTER */
     .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--borda); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
@@ -347,7 +349,10 @@
               <div class="notas-topo-title">Preparação semanal</div>
               <div class="notas-topo-sub">Semana ${semanaLabel(getMondayThisWeek())} · salvo no navegador</div>
             </div>
-            <span class="notas-saved-status" id="notas-saved">salvo ✓</span>
+            <div style="display:flex;align-items:center;gap:10px">
+              <button class="btn-sugerir" onclick="gerarSugestoes()" title="Preenche os bullets com base nos dados da semana">✦ Sugerir com dados</button>
+              <span class="notas-saved-status" id="notas-saved">salvo ✓</span>
+            </div>
           </div>
           <div class="notas-body">
             <div class="notas-secao">
@@ -429,6 +434,83 @@
   function updateBullet(tipo, index, value) {
     notas[tipo][index] = value;
     salvarNotas();
+  }
+
+  function gerarSugestoes() {
+    if (!dadosGestao) return;
+    const { semanas, meses } = dadosGestao;
+    const semanasKeys = Object.keys(semanas).sort();
+    const ultimas = semanasKeys.slice(-3);
+
+    /* tendência por agente nas últimas 2 semanas */
+    const comportamentos = [];
+
+    if (ultimas.length >= 2) {
+      const penultima = semanas[ultimas[ultimas.length - 2]]?.por_agente || {};
+      const ultima    = semanas[ultimas[ultimas.length - 1]]?.por_agente || {};
+      const agentes   = [...new Set([...Object.keys(penultima), ...Object.keys(ultima)])];
+
+      agentes.forEach(ag => {
+        const ant = penultima[ag] || 0;
+        const atu = ultima[ag]    || 0;
+        if (ant === 0 && atu === 0) return;
+        const nome = ag.split(' ')[0]; // primeiro nome
+
+        if (atu < ant && ant >= 5) {
+          comportamentos.push(`${nome} caiu de ${ant} para ${atu} negativos na última semana — entender o que mudou e reforçar`);
+        } else if (atu > ant && ant >= 3) {
+          comportamentos.push(`${nome} subiu de ${ant} para ${atu} — conversar o que está travando`);
+        } else if (atu >= 7) {
+          comportamentos.push(`${nome} segue com volume alto (${atu} negativos na semana) — acompanhar de perto`);
+        }
+      });
+    }
+
+    /* tags de comportamento (acareação, no_tag) */
+    const mesDados = meses[mesAtivo] || {};
+    const tags = mesDados.tags || {};
+
+    if ((tags['acareacao_nao_necessaria'] || 0) >= 3)
+      comportamentos.push(`Acareação não necessária aparece ${tags['acareacao_nao_necessaria']}x no mês — alinhar com o time quando deve e quando não deve abrir`);
+    if ((tags['no_tag'] || 0) >= 3)
+      comportamentos.push(`${tags['no_tag']} tickets sem tag no mês — reforçar que tagear é obrigatório em todo atendimento`);
+
+    /* fluxos: agrupa por categoria */
+    const fluxos = [];
+
+    const entregaTags = ['entrega_cep_incorreto','entrega_prazo','entrega_duvidas_problemas_2','entrega_duvidas_frete','pedido_parado_rastreio','rastreio_acao_remetente','problema_expedicao_pedido'];
+    const totalEntrega = entregaTags.reduce((s, t) => s + (tags[t] || 0), 0);
+    if (totalEntrega >= 5) {
+      const detalhes = entregaTags.filter(t => tags[t]).map(t => {
+        const label = t.replace('entrega_','').replace(/_/g,' ');
+        return `${label} (${tags[t]})`;
+      }).join(', ');
+      fluxos.push(`Entrega é o maior bloco de negativos: ${detalhes} — verificar se há macro clara para orientar o cliente antes de virar CSAT`);
+    }
+
+    const cadastroTags = ['cadastro_alteracao_dados','cadastro_alteracao_titularidade'];
+    const totalCadastro = cadastroTags.reduce((s, t) => s + (tags[t] || 0), 0);
+    if (totalCadastro >= 4)
+      fluxos.push(`Cadastro acumulou ${totalCadastro} negativos (alteração de dados + titularidade) — checar se a macro está resolvendo ou só respondendo`);
+
+    const trocaTags = ['troca_duvida_fluxo_trocas','troca_suporte_seller','troca_defeito_erro'];
+    const totalTroca = trocaTags.reduce((s, t) => s + (tags[t] || 0), 0);
+    if (totalTroca >= 4)
+      fluxos.push(`Troca somou ${totalTroca} negativos (fluxo, suporte seller, defeito) — fluxo de trocas está claro para as agentes?`);
+
+    const assinaturaTags = ['assinatura_erro_cobranca','assinatura_planos','assinatura_cancelamento','assinatura_dados_cadastro_negado_pendencia'];
+    const totalAssinatura = assinaturaTags.reduce((s, t) => s + (tags[t] || 0), 0);
+    if (totalAssinatura >= 3)
+      fluxos.push(`Assinatura com ${totalAssinatura} negativos — revisar macro e fluxo de tratamento`);
+
+    /* merge com notas existentes, evitando duplicar */
+    const jaExiste = (lista, texto) => lista.some(l => l.trim() === texto.trim());
+    comportamentos.forEach(b => { if (!jaExiste(notas.comportamentos, b)) notas.comportamentos.push(b); });
+    fluxos.forEach(b => { if (!jaExiste(notas.fluxos, b)) notas.fluxos.push(b); });
+
+    salvarNotas();
+    renderNotasLista('comportamentos');
+    renderNotasLista('fluxos');
   }
 
   function copiarParaReuniao() {
