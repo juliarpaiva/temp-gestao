@@ -1,0 +1,13 @@
+name = "csat-dashboard-worker"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# Roda todo dia útil às 7h da manhã (horário de Brasília = 10h UTC)
+[triggers]
+crons = ["0 10 * * MON-FRI"]
+
+# Armazenamento KV — o "armário" onde os relatórios diários ficam salvos
+# O ID será preenchido após criar o namespace no painel da Cloudflare
+[[kv_namespaces]]
+binding = "CSAT_KV"
+id = "5855ee32ebea4e0d89f919a89625ab04"

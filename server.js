@@ -100,6 +100,43 @@ app.delete('/indevida/:ticket_id', async (req, res) => {
   }
 });
 
+app.get('/gestao', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT date,
+              (data->>'total')::int AS total,
+              data->'por_agente'    AS por_agente,
+              data->'tags_resumo'   AS tags_resumo
+       FROM support_bi.csat_reports
+       WHERE date >= (CURRENT_DATE - INTERVAL '90 days')::text
+       ORDER BY date ASC`
+    );
+    const meses = {}, semanas = {};
+    for (const row of result.rows) {
+      const { date, total = 0, por_agente = {}, tags_resumo = {} } = row;
+      const mesChave = date.slice(0, 7);
+      if (!meses[mesChave]) meses[mesChave] = { total: 0, dias: 0, por_agente: {}, tags: {} };
+      meses[mesChave].total += total;
+      meses[mesChave].dias++;
+      for (const [a, c] of Object.entries(por_agente)) meses[mesChave].por_agente[a] = (meses[mesChave].por_agente[a] || 0) + c;
+      for (const [t, c] of Object.entries(tags_resumo))  meses[mesChave].tags[t]      = (meses[mesChave].tags[t]      || 0) + c;
+      const d   = new Date(date + 'T12:00:00Z');
+      const dow = d.getUTCDay();
+      const mon = new Date(d);
+      mon.setUTCDate(d.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+      const semChave = mon.toISOString().slice(0, 10);
+      if (!semanas[semChave]) semanas[semChave] = { total: 0, dias: 0, por_agente: {}, pior_dia: null, pior_total: 0 };
+      semanas[semChave].total += total;
+      semanas[semChave].dias++;
+      for (const [a, c] of Object.entries(por_agente)) semanas[semChave].por_agente[a] = (semanas[semChave].por_agente[a] || 0) + c;
+      if (total > semanas[semChave].pior_total) { semanas[semChave].pior_total = total; semanas[semChave].pior_dia = date; }
+    }
+    res.json({ meses, semanas });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/agent-history/:name', async (req, res) => {
   try {
     const result = await pool.query(

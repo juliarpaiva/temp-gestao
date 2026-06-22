@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Relatório CSAT — INK</title>
+  <style>
+    /* ── TOKENS ─────────────────────────────────────── */
+    :root {
+      --rosa:        #e91e8c;
+      --rosa-s:      rgba(233,30,140,.10);
+      --rosa-light:  #fce4ec;
+      --rosa-borda:  #f48dc1;
+      --preto:       #111111;
+      --preto-soft:  #1e1e1e;
+      --cinza-bg:    #f4f5f7;
+      --cinza-card:  #ffffff;
+      --cinza-borda: #e4e4e7;
+      --cinza-muted: #71717a;
+      --cinza-sub:   #a1a1aa;
+      --verde:       #16a34a;
+      --vermelho:    #dc2626;
+
+      --r:    10px;
+      --r-sm: 6px;
+      --r-lg: 14px;
+      --shadow: 0 1px 3px rgba(0,0,0,.07), 0 4px 12px rgba(0,0,0,.05);
+      --shadow-hov: 0 4px 16px rgba(0,0,0,.12);
+    }
+
+    /* ── RESET ───────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--cinza-bg);
+      color: var(--preto);
+      font-size: 14px;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--cinza-bg); }
+    ::-webkit-scrollbar-thumb { background: var(--cinza-borda); border-radius: 3px; }
+
+    /* ── HEADER ──────────────────────────────────────── */
+    .header {
+      background: var(--preto);
+      color: #fff;
+      position: sticky; top: 0; z-index: 100;
+      border-bottom: 3px solid var(--rosa);
+    }
+    .header-inner {
+      max-width: 1140px; margin: 0 auto;
+      padding: 0 32px; height: 66px;
+      display: flex; align-items: center; gap: 20px;
+    }
+    .logo {
+      font-size: 26px; font-weight: 900;
+      letter-spacing: -1px; line-height: 1;
+      color: #fff; flex-shrink: 0;
+    }
+    .logo b { color: var(--rosa); font-weight: 900; }
+    .hdr-sep { width: 1px; height: 28px; background: #333; flex-shrink: 0; }
+    .hdr-text h1 { font-size: 15px; font-weight: 700; color: #fff; }
+    .hdr-text p  { font-size: 12px; color: #888; margin-top: 2px; }
+    .hdr-badge {
+      margin-left: auto; flex-shrink: 0;
+      background: var(--rosa-s); color: var(--rosa);
+      border: 1px solid rgba(233,30,140,.30);
+      padding: 4px 12px; border-radius: 100px;
+      font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    }
+
+    /* ── LAYOUT ──────────────────────────────────────── */
+    .main { max-width: 1140px; margin: 0 auto; padding: 40px 32px 80px; }
+
+    /* ── SECTION TITLE ───────────────────────────────── */
+    .section-title {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 17px; font-weight: 800;
+      letter-spacing: -.3px;
+      color: var(--preto);
+      margin: 44px 0 18px;
+    }
+    .section-title::before {
+      content: ""; display: block;
+      width: 4px; height: 20px;
+      background: var(--rosa); border-radius: 2px; flex-shrink: 0;
+    }
+
+    /* ── KPI GRID ────────────────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 8px;
+    }
+    .kpi-card {
+      background: var(--cinza-card);
+      border: 1px solid var(--cinza-borda);
+      border-radius: var(--r-lg);
+      padding: 20px 22px;
+      position: relative; overflow: hidden;
+      box-shadow: var(--shadow);
+      transition: box-shadow .2s, transform .2s, border-color .2s;
+    }
+    .kpi-card:hover {
+      box-shadow: var(--shadow-hov);
+      transform: translateY(-2px);
+      border-color: var(--rosa-borda);
+    }
+    .kpi-card::after {
+      content: ""; position: absolute;
+      bottom: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--rosa) 0%, transparent 80%);
+    }
+    .kpi-icon {
+      width: 36px; height: 36px; border-radius: var(--r-sm);
+      background: var(--rosa-s); border: 1px solid rgba(233,30,140,.18);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 14px;
+    }
+    .kpi-icon svg { display: block; }
+    .kpi-label {
+      font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1px;
+      color: var(--cinza-muted); margin-bottom: 6px;
+    }
+    .kpi-value {
+      font-size: 34px; font-weight: 900;
+      letter-spacing: -1.5px; line-height: 1;
+      color: var(--preto); margin-bottom: 6px;
+    }
+    .kpi-desc { font-size: 12px; color: var(--cinza-sub); }
+
+    /* ── CARD GENÉRICO ───────────────────────────────── */
+    .card {
+      background: var(--cinza-card);
+      border: 1px solid var(--cinza-borda);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    .card-hdr {
+      background: var(--preto); color: #fff;
+      padding: 14px 22px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .card-hdr h2 { font-size: 14px; font-weight: 700; }
+    .card-body { padding: 20px 22px; }
+
+    /* ── RESUMO EXECUTIVO ────────────────────────────── */
+    .exec-card {
+      background: var(--cinza-card);
+      border: 1px solid var(--cinza-borda);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow);
+      padding: 22px 26px;
+      margin-bottom: 8px;
+      border-left: 4px solid var(--rosa);
+    }
+    .exec-card p { color: #444; margin-bottom: 12px; }
+    .exec-card p:last-child { margin-bottom: 0; }
+    .exec-list { list-style: none; padding: 0; margin: 10px 0 14px; }
+    .exec-list li {
+      padding: 5px 0 5px 20px;
+      position: relative; color: #444;
+      border-bottom: 1px solid #f0f0f0; font-size: 13.5px;
+    }
+    .exec-list li:last-child { border-bottom: none; }
+    .exec-list li::before {
+      content: "▸"; color: var(--rosa);
+      position: absolute; left: 0;
+    }
+
+    /* ── TABLES ──────────────────────────────────────── */
+    .table-wrap {
+      background: var(--cinza-card);
+      border: 1px solid var(--cinza-borda);
+      border-radius: var(--r-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      margin-bottom: 8px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    thead tr { background: var(--preto); color: #fff; }
+    thead th {
+      padding: 12px 16px; text-align: left;
+      font-weight: 700; font-size: 12px;
+      letter-spacing: .5px; text-transform: uppercase;
+      white-space: nowrap;
+    }
+    tbody tr { border-bottom: 1px solid #f0f0f0; transition: background .15s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--rosa-light); }
+    tbody td { padding: 11px 16px; vertical-align: top; color: #333; }
+    tbody td:first-child { font-weight: 700; color: var(--preto); }
+    .td-center { text-align: center; }
+    .td-num {
+      font-size: 16px; font-weight: 900;
+      color: var(--preto); text-align: center;
+    }
+
+    /* ── AGENT CARDS ─────────────────────────────────── */
+    .agent-card {
+      background: var(--cinza-card);
+      border: 1px solid var(--cinza-borda);
+      border-radius: var(--r-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+      transition: box-shadow .2s;
+    }
+    .agent-card:hover { box-shadow: var(--shadow-hov); }
+    .agent-header {
+      background: var(--preto); color: #fff;
+      padding: 16px 22px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .agent-avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: var(--rosa); color: #fff;
+      font-size: 16px; font-weight: 900;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; letter-spacing: -.5px;
+    }
+    .agent-info h2 { font-size: 16px; font-weight: 800; }
+    .agent-info p  { font-size: 12px; color: #aaa; margin-top: 1px; }
+    .badge-count {
+      margin-left: auto; flex-shrink: 0;
+      background: rgba(255,255,255,.10);
+      color: #fff; border: 1px solid rgba(255,255,255,.20);
+      font-size: 12px; font-weight: 700;
+      padding: 4px 12px; border-radius: 100px;
+    }
+    .agent-body { padding: 20px 22px; }
+
+    /* ── TAG BLOCK ───────────────────────────────────── */
+    .tag-block { margin-bottom: 20px; }
+    .tag-block:last-child { margin-bottom: 0; }
+    .tag-header {
+      display: flex; align-items: center;
+      gap: 8px; margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .tag-label {
+      display: inline-flex; align-items: center;
+      background: var(--preto); color: #fff;
+      font-size: 11px; font-weight: 700;
+      padding: 4px 10px; border-radius: 4px;
+      letter-spacing: .5px; font-family: "Courier New", monospace;
+    }
+    .indevida-tag {
+      display: inline-flex; align-items: center;
+      background: var(--rosa-light); color: var(--rosa);
+      font-size: 10px; font-weight: 700;
+      padding: 3px 9px; border-radius: 100px;
+      border: 1px solid var(--rosa-borda);
+      letter-spacing: .5px; white-space: nowrap;
+    }
+    .tag-items { list-style: none; padding: 0; }
+    .tag-items li {
+      padding: 8px 0 8px 20px;
+      position: relative; color: #444;
+      border-bottom: 1px solid #f5f5f5;
+      font-size: 13.5px; line-height: 1.6;
+    }
+    .tag-items li:last-child { border-bottom: none; }
+    .tag-items li::before {
+      content: "•"; color: var(--rosa);
+      position: absolute; left: 5px; top: 8px;
+      font-size: 16px; line-height: 1.4;
+    }
+    .ticket-id {
+      display: inline-block;
+      background: #f4f5f7; border: 1px solid #e4e4e7;
+      color: var(--preto); font-size: 11.5px; font-weight: 700;
+      padding: 1px 7px; border-radius: 4px;
+      font-family: "Courier New", monospace;
+      margin-right: 4px; vertical-align: middle;
+    }
+
+    /* ── OBSERVAÇÕES ─────────────────────────────────── */
+    .obs-block {
+      background: var(--cinza-card);
+      border: 1px solid var(--cinza-borda);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow);
+      padding: 18px 22px;
+      margin-bottom: 14px;
+    }
+    .obs-block h3 {
+      font-size: 14px; font-weight: 800;
+      color: var(--preto); margin-bottom: 10px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .obs-block h3::before {
+      content: ""; display: block;
+      width: 3px; height: 16px;
+      background: var(--rosa); border-radius: 2px; flex-shrink: 0;
+    }
+    .obs-block p { color: #444; font-size: 13.5px; }
+    .obs-list { list-style: none; padding: 0; margin-top: 10px; }
+    .obs-list li {
+      padding: 4px 0 4px 18px;
+      position: relative; color: #555; font-size: 13px;
+    }
+    .obs-list li::before {
+      content: "•"; color: var(--rosa);
+      position: absolute; left: 4px;
+    }
+
+    /* ── OPORTUNIDADES ───────────────────────────────── */
+    .op-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+    .op-item {
+      background: var(--cinza-card);
+      border: 1px solid var(--cinza-borda);
+      border-radius: var(--r-lg);
+      box-shadow: var(--shadow);
+      padding: 18px 20px;
+      display: flex; gap: 14px; align-items: flex-start;
+      transition: box-shadow .2s, border-color .2s;
+    }
+    .op-item:hover { box-shadow: var(--shadow-hov); border-color: var(--rosa-borda); }
+    .op-number {
+      background: var(--rosa); color: #fff;
+      font-size: 13px; font-weight: 900;
+      width: 30px; height: 30px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; margin-top: 1px;
+    }
+    .op-text strong {
+      display: block; font-weight: 800; font-size: 14px;
+      color: var(--preto); margin-bottom: 4px;
+    }
+    .op-text p { color: #555; font-size: 13px; line-height: 1.6; }
+
+    /* ── CONSIDERAÇÕES FINAIS ────────────────────────── */
+    .consideracoes {
+      background: var(--preto); color: #fff;
+      border-radius: var(--r-lg); padding: 28px 32px;
+      box-shadow: 0 4px 20px rgba(0,0,0,.15);
+    }
+    .consideracoes .section-title {
+      color: #fff; margin-top: 0; margin-bottom: 16px;
+    }
+    .consideracoes .section-title::before { background: var(--rosa); }
+    .consideracoes p { color: #bbb; font-size: 13.5px; margin-bottom: 14px; }
+    .consideracoes p:last-child { margin-bottom: 0; }
+    .cons-list { list-style: none; padding: 0; margin: 10px 0 18px; }
+    .cons-list li {
+      padding: 5px 0 5px 20px;
+      position: relative; color: #bbb; font-size: 13.5px;
+    }
+    .cons-list li::before {
+      content: "▸"; color: var(--rosa);
+      position: absolute; left: 0;
+    }
+
+    /* ── FOOTER ──────────────────────────────────────── */
+    .footer {
+      margin-top: 48px; padding-top: 24px;
+      border-top: 1px solid var(--cinza-borda);
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 12px; color: var(--cinza-sub);
+    }
+    .footer-brand { font-weight: 900; font-size: 14px; color: var(--preto); }
+    .footer-brand b { color: var(--rosa); }
+
+    /* ── PRINT ───────────────────────────────────────── */
+    @media print {
+      body { background: #fff; }
+      .header, .agent-header, thead tr, .consideracoes {
+        -webkit-print-color-adjust: exact; print-color-adjust: exact;
+      }
+      .agent-card, .op-item, .obs-block { break-inside: avoid; }
+      .header { position: static; }
+    }
+
+    /* ── RESPONSIVE ──────────────────────────────────── */
+    @media (max-width: 900px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .op-grid  { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .header-inner { padding: 0 20px; height: 58px; }
+      .hdr-text p   { display: none; }
+      .main         { padding: 28px 20px 60px; }
+      .kpi-grid     { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+      .kpi-value    { font-size: 28px; }
+      .consideracoes { padding: 22px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ HEADER ══════════════════════════════════════════ -->
+<header class="header">
+  <div class="header-inner">
+    <div class="logo">INK<b>.</b></div>
+    <div class="hdr-sep"></div>
+    <div class="hdr-text">
+      <h1>Relatório de CSAT — Avaliações Negativas</h1>
+      <p>Período: Últimos 90 dias &nbsp;·&nbsp; Critério: avaliações humanas negativas por tag</p>
+    </div>
+    <span class="hdr-badge">90 DIAS</span>
+  </div>
+</header>
+
+<main class="main">
+
+  <!-- ══ KPI CARDS ══════════════════════════════════════ -->
+  <div class="kpi-grid">
+
+    <div class="kpi-card">
+      <div class="kpi-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e91e8c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+      </div>
+      <div class="kpi-label">Tickets no Per&#237;odo</div>
+      <div class="kpi-value">635</div>
+      <div class="kpi-desc">Total de avalia&#231;&#245;es negativas recebidas</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e91e8c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+      </div>
+      <div class="kpi-label">Tickets Relevantes</div>
+      <div class="kpi-value">64</div>
+      <div class="kpi-desc">Diretamente atribu&#237;dos &#224;s atendentes (~10%)</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e91e8c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      </div>
+      <div class="kpi-label">Agentes Analisadas</div>
+      <div class="kpi-value">5</div>
+      <div class="kpi-desc">Fernanda, Luice, Mariana, Patricia, Rafaella</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e91e8c" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </div>
+      <div class="kpi-label">Padr&#245;es Recorrentes</div>
+      <div class="kpi-value">7</div>
+      <div class="kpi-desc">Comportamentos identificados no time</div>
+    </div>
+
+  </div>
+
+  <!-- ══ RESUMO EXECUTIVO ════════════════════════════════ -->
+  <div class="section-title">Resumo Executivo</div>
+  <div class="exec-card">
+    <p>Do total de <strong>635 avaliações negativas</strong> recebidas no período, <strong>64 foram identificadas como relevantes</strong> e diretamente atribuídas às atendentes — representando aproximadamente 10% do volume total. Os demais tickets foram desconsiderados por se tratarem de avaliações indevidas, problemas de plataforma ou fatores fora do controle do atendimento.</p>
+    <p>Os pontos de atenção foram distribuídos entre cinco agentes: <strong>Fernanda, Luice, Mariana, Patricia e Rafaella</strong>. Os padrões mais recorrentes foram:</p>
+    <ul class="exec-list">
+      <li>Tickets encerrados sem texto de finalização ou sem conclusão do atendimento</li>
+      <li>Falta de leitura das mensagens do seller antes de responder</li>
+      <li>Encerramento prematuro de tickets com pendências em aberto (Zoop, transportadoras)</li>
+      <li>Passagem de informações incorretas ao cliente</li>
+      <li>Tags incorretas aplicadas aos tickets</li>
+    </ul>
+    <p>Parte relevante das avaliações negativas foi classificada como <strong>indevida</strong> — relacionada à expectativa de atendimento imediato após transferência para N2, ou a questões da plataforma, e não ao atendimento em si.</p>
+  </div>
+
+  <!-- ══ VISÃO GERAL POR AGENTE ══════════════════════════ -->
+  <div class="section-title">Visão Geral por Agente</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Agente</th>
+          <th class="td-center">Tickets</th>
+          <th>Principais padrões</th>
+          <th class="td-center">Av. indevidas</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Fernanda</td>
+          <td class="td-num">19</td>
+          <td>Encerramento sem finalização, informação incorreta, leitura incompleta</td>
+          <td class="td-center">1</td>
+        </tr>
+        <tr>
+          <td>Luice</td>
+          <td class="td-num">20</td>
+          <td>Leitura incompleta, resposta fora de contexto, encerramento prematuro</td>
+          <td class="td-center">—</td>
+        </tr>
+        <tr>
+          <td>Mariana</td>
+          <td class="td-num">7</td>
+          <td>Encerramento prematuro, ação pendente não realizada, acompanhamento insuficiente</td>
+          <td class="td-center">1</td>
+        </tr>
+        <tr>
+          <td>Patricia</td>
+          <td class="td-num">11</td>
+          <td>Encerramento sem conclusão, não aguardar Zoop, falta de acompanhamento</td>
+          <td class="td-center">—</td>
+        </tr>
+        <tr>
+          <td>Rafaella</td>
+          <td class="td-num">7</td>
+          <td>Encerramento sem atendimento, não aguardar Zoop, orientação incompleta</td>
+          <td class="td-center">—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══ PADRÕES RECORRENTES ═════════════════════════════ -->
+  <div class="section-title">Padrões Recorrentes no Time</div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Padrão</th>
+          <th>Agentes envolvidas</th>
+          <th class="td-center">Aprox. tickets</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Ticket encerrado sem finalização ou atendimento incompleto</td>
+          <td>Fernanda, Luice, Mariana, Patricia, Rafaella</td>
+          <td class="td-center">~19</td>
+        </tr>
+        <tr>
+          <td>Não aguardar retorno de casos Zoop até confirmação</td>
+          <td>Luice, Mariana, Patricia, Rafaella</td>
+          <td class="td-center">~8</td>
+        </tr>
+        <tr>
+          <td>Solicitação do seller não lida antes de responder</td>
+          <td>Fernanda, Luice</td>
+          <td class="td-center">~7</td>
+        </tr>
+        <tr>
+          <td>Encerramento sem aguardar retorno de terceiros</td>
+          <td>Fernanda, Luice, Patricia, Rafaella</td>
+          <td class="td-center">~6</td>
+        </tr>
+        <tr>
+          <td>Informação incorreta passada ao seller</td>
+          <td>Fernanda, Luice</td>
+          <td class="td-center">~5</td>
+        </tr>
+        <tr>
+          <td>Resposta fora do contexto ou sem relação com a pergunta</td>
+          <td>Luice, Fernanda</td>
+          <td class="td-center">~4</td>
+        </tr>
+        <tr>
+          <td>Tag incorreta aplicada ao ticket</td>
+          <td>Todas as agentes</td>
+          <td class="td-center">Vários</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══ DETALHAMENTO POR AGENTE ═════════════════════════ -->
+  <div class="section-title">Detalhamento por Agente</div>
+
+  <!-- ── FERNANDA ── -->
+  <div class="agent-card">
+    <div class="agent-header">
+      <div class="agent-avatar">F</div>
+      <div class="agent-info">
+        <h2>Fernanda</h2>
+        <p>19 tickets analisados</p>
+      </div>
+      <span class="badge-count">19 tickets</span>
+    </div>
+    <div class="agent-body">
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">acareacao_nao_necessaria</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#19579</span> Encerrado logo após a interação de apresentação. O seller havia informado que o pedido constava como produzido, mas o ticket foi fechado sem nenhuma orientação ou texto — o atendimento não foi realizado.</li>
+          <li><span class="ticket-id">#25011</span> Ticket de reembolso parcial (cliente Botafogo). O atendimento foi realizado corretamente, porém encerrado sem texto de finalização.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">assinatura_planos</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#6869</span> As mensagens do seller não foram lidas. As dúvidas não foram respondidas e foi enviado um checkout que não correspondia ao que ele solicitava.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">cadastro_alteracao_titularidade</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#17427</span> Ticket encerrado cedo demais, antes da conclusão do atendimento.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">contato_lojista</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#3936</span> Ticket encerrado sem que o atendimento tivesse sido finalizado.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">entrega_acareacao</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#8348</span> Prazo informado ao seller, mas o ticket foi encerrado sem aguardar o retorno.</li>
+          <li><span class="ticket-id">#23115</span> Situação com prazo de entrega ultrapassado — o correto seria considerar o pedido como extraviado. Finalizado sem essa tratativa.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">entrega_cliente_ausente</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#13393</span> Realizado reembolso e cancelamento do produto. A conduta correta seria informar que esse procedimento não é realizado por atrasos logísticos e dar continuidade à tentativa de entrega.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">faq_entrega_dos_pedidos</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#16612</span> O conteúdo da solicitação do seller não foi lido antes de responder.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">faq_meu_lucro_e_financeiro_da_loja</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#8803</span> Ticket encerrado sem que o atendimento tivesse sido concluído.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">feedbacks_sellers</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#9488</span> Caso de correção de nota no sistema (Qualitor) com 1 mês para resolução. É necessário acionar o time responsável e não deixar o atendimento em aberto. Ponto a ser reforçado quanto aos processos internos.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">integracoes_outras</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#9067</span> Ticket encerrado enquanto o atendimento ainda estava sendo realizado.</li>
+          <li><span class="ticket-id">#25764</span> Retorno confuso ao seller, inclusive orientando que ele entrasse em contato com o suporte — quando o atendimento já estava sendo conduzido pelo próprio suporte.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">logistica_entrega</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#5923</span> Retorno dado com as informações do pedido errado.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">marketing_digital_facebook</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#21787</span> Informação incorreta passada ao seller. Temos a possibilidade de colocar produtos no YouTube Shopping, o que não foi mencionado.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">mensagem_de_erro</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#15445</span> Atendimento encerrado de forma incompleta.</li>
+          <li><span class="ticket-id">#4147</span> Não foram considerados os prazos maiores de reembolso aplicáveis a lojas API. Ponto importante a ser reforçado com toda a equipe.</li>
+          <li><span class="ticket-id">#3463</span> Ticket encerrado sem que qualquer retorno tivesse sido dado ao cliente.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">troca_erro_modelo</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#5004</span> O conteúdo da solicitação da seller não foi lido antes de responder.</li>
+          <li><span class="ticket-id">#20468</span> Ticket finalizado sem a realização do atendimento completo.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header">
+          <span class="tag-label">status_estoque</span>
+          <span class="indevida-tag">AVALIAÇÃO INDEVIDA</span>
+        </div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#17011</span> A Fernanda explicou a situação de forma adequada. A avaliação negativa refere-se à plataforma, não ao atendimento.</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── LUICE ── -->
+  <div class="agent-card">
+    <div class="agent-header">
+      <div class="agent-avatar">L</div>
+      <div class="agent-info">
+        <h2>Luice</h2>
+        <p>20 tickets analisados</p>
+      </div>
+      <span class="badge-count">20 tickets</span>
+    </div>
+    <div class="agent-body">
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">assinatura_cancelamento</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#17674</span> A situação de saldo negativo, gerada por problema na Zoop, não foi explicada de forma clara ao seller.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">assinatura_erro_cobranca</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#12081</span> O contato com o seller foi conduzido com linguagem informal e, em determinado momento, a agente parou de responder. O cliente finalizou a conversa por falta de retorno.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">cadastro_alteracao_dados</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#5695</span> Passada a informação incorreta de que seria possível realizar um downgrade.</li>
+          <li><span class="ticket-id">#20783</span> A resposta fornecida não correspondia ao que havia sido perguntado.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">configurar_loja_informacoes_gerais</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#21154</span> Chamado sobre integração finalizado antes do tempo adequado. Sellers estão sinalizando dificuldades e não estão tendo o apoio necessário.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">contato_lojista</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#4456</span> Cliente atritado com necessidade de direito de resposta — situação que exigia condução mais cuidadosa.</li>
+          <li><span class="ticket-id">#6566</span> Informação equivocada passada ao cliente.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">duvidas_como_funciona_a_ink</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#23548</span> A pergunta do seller não foi compreendida, gerando uma resposta fora do contexto.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">duvidas_ink</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#14603</span> Pedido despachado no dia anterior à previsão de entrega, sem uma explicação mais desenvolvida — apenas a informação de que o pedido havia sido despachado.</li>
+          <li><span class="ticket-id">#17675</span> As instruções da cliente eram claras (cancelamento e reembolso). A agente realizou o reenvio do pedido sem ler o que foi pedido, sendo necessário reabrir o chamado. Caso de falta de atenção na leitura.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">entrega_acareacao</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#4663</span> O conteúdo da solicitação não foi lido antes de responder.</li>
+          <li><span class="ticket-id">#19435</span> O conteúdo da solicitação não foi lido antes de responder.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">experts_contratar</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#19281</span> A solução apresentada não tinha relação com a pergunta feita pelo seller.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">faq_entrega_dos_pedidos</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#12090</span> O conteúdo da solicitação não foi lido antes de responder.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">financeiro_saque_titularidade_antiga</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#4538</span> O pedido estava confuso, mas havia espaço para desenvolver melhor o atendimento — a agente não perguntou ao seller se ele queria realizar o saque.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">logistica_entrega</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#7464</span> Ticket encerrado solicitando informações que já haviam sido fornecidas pelo seller.</li>
+          <li><span class="ticket-id">#5269</span> Pedido com entrega problemática sem o acompanhamento necessário.</li>
+          <li><span class="ticket-id">#5067</span> Retorno dado com as informações do pedido errado.</li>
+          <li><span class="ticket-id">#5066</span> Seller sinalizou problemas na entrega e o ticket foi encerrado com a informação de que o pedido seria finalizado em 2 semanas, sem nenhuma tratativa adicional.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">mensagem_de_erro</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#4848</span> A agente poderia ter auxiliado mais o seller na resolução.</li>
+          <li><span class="ticket-id">#20011</span> Ticket encerrado sem aguardar retorno da Zoop e sem finalizar a tratativa com o seller.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">ops_processo_producao_pedidos</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#5988</span> Chamado aberto com a fábrica apenas alguns dias após o início do atendimento, com registro de problema de máquina parada. Ponto de atenção quanto ao tempo de resposta e ao alinhamento com a produção.</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── MARIANA ── -->
+  <div class="agent-card">
+    <div class="agent-header">
+      <div class="agent-avatar">M</div>
+      <div class="agent-info">
+        <h2>Mariana</h2>
+        <p>7 tickets analisados</p>
+      </div>
+      <span class="badge-count">7 tickets</span>
+    </div>
+    <div class="agent-body">
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">cadastro_alteracao_dados</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#24486</span> Não foi aberto chamado na Zoop. A agente cobrou retorno do seller sem ter realizado a ação necessária.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">cadastro_negado</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#3714</span> A Mariana informou ao seller a possibilidade de reanálise, mas apenas realizou o estorno do pagamento, sem dar ao seller a opção de escolher entre reanálise e estorno.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">entrega_cep_incorreto</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#13787</span> O endereço estava incorreto e o pedido constou como entregue. O ticket foi encerrado sem verificação do endereço ou da situação real da entrega.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">faq_entrega_dos_pedidos</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#23498</span> A Mariana (N2) explicou corretamente a situação e orientou o melhor caminho ao seller. A avaliação negativa se deve ao encerramento do ticket sem tempo suficiente para retorno. Sugestão: incluir mensagem de follow-up antes do atalho de encerramento.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">financeiro_pagina_checkout</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#11455</span> A agente respondeu ao cliente sem aguardar o retorno dele, que havia sinalizado um bug no Pix.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">logistica_entrega</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#8216</span> Necessário aguardar pelo menos 24h para que o cliente confirme a situação antes de encerrar o ticket.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">rastreio_acao_remetente</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#17452</span> Ticket finalizado com uma entrega problemática ainda em andamento, antes da conclusão da entrega.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header">
+          <span class="tag-label">editar_endereco_entrega</span>
+          <span class="indevida-tag">AVALIAÇÃO INDEVIDA</span>
+        </div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#15155</span> O atendimento foi realizado corretamente. A avaliação negativa está mais relacionada à plataforma (ausência de notificação de nova mensagem) do que ao atendimento em si.</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── PATRICIA ── -->
+  <div class="agent-card">
+    <div class="agent-header">
+      <div class="agent-avatar">P</div>
+      <div class="agent-info">
+        <h2>Patricia</h2>
+        <p>11 tickets analisados</p>
+      </div>
+      <span class="badge-count">11 tickets</span>
+    </div>
+    <div class="agent-body">
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">assinatura_cancelamento</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#11035</span> Ticket encerrado sem que fosse solicitada reanálise na Zoop.</li>
+          <li><span class="ticket-id">#23303</span> O atendimento foi realizado conforme solicitado, mas deveria ter sido confirmado com o seller se uma reanálise era realmente desnecessária antes de encerrar.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">cadastro_alteracao_titularidade</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#26257, #12786, #23227</span> Diante dos problemas recorrentes com a Zoop, o ideal é aguardar o cliente finalizar o registro para verificar se o processo foi concluído com sucesso antes de encerrar o atendimento.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">logistica_entrega</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#6644</span> Após contato com a transportadora para ajuste de endereço, não houve acompanhamento para verificar se o ajuste foi realizado — o que era improvável, já que o pedido já estava em rota de entrega.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">marketing_digital_facebook</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#9130</span> Ticket finalizado possivelmente sem tratativa adequada.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">mensagem_de_erro</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#5278</span> A agente perguntou ao seller o motivo do chamado quando essa informação já havia sido fornecida na abertura do ticket.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">ops_processo_producao_pedidos</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#6317</span> Atendimento encerrado sem conclusão adequada.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">rastreio_acao_remetente</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#21943</span> Ticket finalizado com uma entrega problemática ainda em andamento, antes da conclusão da entrega.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">troca_suporte_seller</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#12587</span> Ticket encerrado sem que uma reclamação da cliente fosse respondida, contribuindo diretamente para o CSAT negativo.</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── RAFAELLA ── -->
+  <div class="agent-card">
+    <div class="agent-header">
+      <div class="agent-avatar">R</div>
+      <div class="agent-info">
+        <h2>Rafaella</h2>
+        <p>7 tickets analisados</p>
+      </div>
+      <span class="badge-count">7 tickets</span>
+    </div>
+    <div class="agent-body">
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">assinatura_cancelamento</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#11148</span> Ticket encerrado sem que nenhum atendimento fosse realizado.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">assinatura_loja_fora_do_ar / assinatura_planos</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#2147</span> Ticket encerrado sem aguardar o retorno do lojista, que estava com problema no cadastro Zoop.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">cadastro_alteracao_titularidade</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#26257, #12786, #23227</span> Assim como Patricia, o ideal era aguardar o cliente finalizar o registro diante dos problemas identificados com a Zoop.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">entrega_acareacao</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#16777</span> Identificado na análise para acompanhamento.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">faq_integracoes_com_outras_plataformas</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#3972</span> Foi enviado o link da central de ajuda sem responder diretamente à solicitação do cliente.</li>
+        </ul>
+      </div>
+
+      <div class="tag-block">
+        <div class="tag-header"><span class="tag-label">pe_pedido_sem_rastreio</span></div>
+        <ul class="tag-items">
+          <li><span class="ticket-id">#18094</span> A agente confundiu seller com cliente final. Embora a tag estivesse incorreta, o e-mail já continha indicação suficiente para identificar o tipo de contato.</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ OBSERVAÇÕES GERAIS ══════════════════════════════ -->
+  <div class="section-title">Observações Gerais</div>
+
+  <div class="obs-block">
+    <h3>Tags incorretas</h3>
+    <p>Em vários tickets, a tag aplicada não correspondia ao assunto tratado. Tags incorretas não comprometem a qualidade do atendimento, mas dificultam a análise de dados e os relatórios de performance.</p>
+    <ul class="obs-list">
+      <li>mensagem_de_erro</li>
+      <li>assinatura_cancelamento</li>
+      <li>assinatura_dados_cadastro_negado_pendencia</li>
+      <li>configurar_loja_aparencia</li>
+      <li>pe_pedido_sem_rastreio</li>
+      <li>acareacao_nao_necessaria (2 tickets duplicados)</li>
+    </ul>
+  </div>
+
+  <div class="obs-block">
+    <h3>Avaliações indevidas recorrentes</h3>
+    <p>Um padrão frequente foi a avaliação negativa por parte de sellers que aguardavam atendimento imediato após a transferência para N2. Reforçar desde o início do atendimento que haverá um tempo de espera pode reduzir esse tipo de avaliação.</p>
+    <ul class="obs-list">
+      <li>alterar_email — tickets 2134, 10898, 14303, 15351, 24223</li>
+      <li>aprovacao_experts — tickets 10407, 23338</li>
+      <li>assinatura_cadastro_alteracao_titularidade — ticket 8395</li>
+      <li>assinatura_planos — ticket 3394</li>
+      <li>editar_endereco_entrega — ticket 15155</li>
+      <li>status_estoque — ticket 17011</li>
+    </ul>
+  </div>
+
+  <div class="obs-block">
+    <h3>Encerramento sem confirmação de leitura</h3>
+    <p>Um padrão relevante foi o encerramento de tickets sem confirmação de que o seller leu a resposta. Como o chat não exibe indicador visual de mensagens não lidas, duas ações simples podem ajudar:</p>
+    <ul class="obs-list">
+      <li>Incluir mensagem de follow-up antes do atalho de encerramento</li>
+      <li>Garantir que todos os tickets sejam encerrados com texto de finalização padronizado</li>
+    </ul>
+  </div>
+
+  <div class="obs-block">
+    <h3>Tickets duplicados (acareacao_nao_necessaria)</h3>
+    <p>Os tickets 3481 e 24294 receberam avaliação negativa por serem duplicados de atendimentos já em andamento. Recomenda-se criar ou reforçar o uso de um atalho padronizado que informe ao seller o número do chamado original onde o atendimento está sendo conduzido.</p>
+  </div>
+
+  <!-- ══ OPORTUNIDADES ═══════════════════════════════════ -->
+  <div class="section-title">Oportunidades para o Time</div>
+  <div class="op-grid">
+
+    <div class="op-item">
+      <div class="op-number">1</div>
+      <div class="op-text">
+        <strong>Reforçar o critério de encerramento</strong>
+        <p>Não finalizar tickets enquanto houver pendências. Confirmar se o seller visualizou a orientação. Aguardar retorno quando a tratativa depender de terceiros.</p>
+      </div>
+    </div>
+
+    <div class="op-item">
+      <div class="op-number">2</div>
+      <div class="op-text">
+        <strong>Reforçar leitura do histórico</strong>
+        <p>Grande parte dos CSATs negativos ocorreu porque a solicitação inicial não foi totalmente compreendida.</p>
+      </div>
+    </div>
+
+    <div class="op-item">
+      <div class="op-number">3</div>
+      <div class="op-text">
+        <strong>Melhorar o acompanhamento de casos Zoop</strong>
+        <p>Casos envolvendo cadastro, reanálise e titularidade exigem acompanhamento até a confirmação da conclusão.</p>
+      </div>
+    </div>
+
+    <div class="op-item">
+      <div class="op-number">4</div>
+      <div class="op-text">
+        <strong>Desenvolver respostas mais completas</strong>
+        <p>Em alguns atendimentos a informação estava correta, porém faltou explicar o motivo da decisão, o que contribuiu para avaliações negativas.</p>
+      </div>
+    </div>
+
+    <div class="op-item">
+      <div class="op-number">5</div>
+      <div class="op-text">
+        <strong>Revisão das tags</strong>
+        <p>Foi identificado um número relevante de tickets categorizados incorretamente, impactando a análise dos indicadores.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══ CONSIDERAÇÕES FINAIS ════════════════════════════ -->
+  <div class="section-title">Considerações Finais</div>
+  <div class="consideracoes">
+    <p>A análise demonstra que uma parcela significativa das avaliações negativas não está diretamente relacionada à qualidade do atendimento, mas principalmente a:</p>
+    <ul class="cons-list">
+      <li>Expectativa de atendimento imediato após encaminhamento ao N2</li>
+      <li>Limitações da plataforma (ausência de notificação de novas mensagens)</li>
+      <li>Utilização incorreta de tags</li>
+      <li>Insatisfação com políticas da plataforma</li>
+    </ul>
+    <p>Entre as oportunidades de desenvolvimento da equipe, destacam-se:</p>
+    <ul class="cons-list">
+      <li>Evitar encerramentos prematuros</li>
+      <li>Realizar leitura completa do contexto antes de responder</li>
+      <li>Acompanhar tratativas até sua conclusão</li>
+      <li>Desenvolver respostas mais claras e completas</li>
+      <li>Revisar a categorização das tags</li>
+    </ul>
+  </div>
+
+  <!-- ══ FOOTER ══════════════════════════════════════════ -->
+  <div class="footer">
+    <span class="footer-brand">INK<b>.</b></span>
+    <span>Relatório gerado para uso interno &nbsp;·&nbsp; Últimos 90 dias</span>
+  </div>
+
+</main>
+</body>
+</html>

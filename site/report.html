@@ -81,21 +81,18 @@
     .section-head::before { content: ""; display: block; width: 3px; height: 14px; background: var(--rosa); border-radius: 2px; flex-shrink: 0; }
     .section-hint { font-weight: 400; text-transform: none; letter-spacing: 0; opacity: .65; font-size: 11px; margin-left: 2px; }
 
-    /* ── TAGS — clicáveis ───────────────────────────────── */
-    .tags-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-    .tag-item { display: inline-flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--borda); border-radius: 8px; padding: 6px 12px; box-shadow: var(--sh); font-size: 12px; cursor: pointer; transition: border-color .15s, background .15s, box-shadow .15s; }
-    .tag-item:hover { border-color: var(--rosa); box-shadow: var(--sh-lg); }
-    .tag-item.ativo { border-color: var(--rosa); background: var(--rosa-s); }
-    .tag-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .tag-nome { font-weight: 600; color: var(--preto); }
-    .tag-count { font-size: 11px; font-weight: 700; color: var(--muted); background: var(--bg); padding: 1px 7px; border-radius: 10px; }
-
-    /* ── FILTRO POR AGENTE ──────────────────────────────── */
-    .filtro-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    /* ── BARRA DE FILTROS UNIFICADA ────────────────────── */
+    .filtros-bar { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); padding: 12px 18px; margin-bottom: 14px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .filtro-grupo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .filtro-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+    .filtro-sep   { width: 1px; height: 22px; background: var(--borda); flex-shrink: 0; }
     .filtro-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); flex-shrink: 0; }
-    .filtro-pill { padding: 5px 14px; border-radius: 20px; border: 1px solid var(--borda); background: var(--card); font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; transition: all .15s; line-height: 1.6; }
+    .filtro-pill  { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 20px; border: 1px solid var(--borda); background: var(--card); font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; transition: all .15s; line-height: 1.6; }
     .filtro-pill:hover { border-color: var(--rosa); color: var(--rosa); }
     .filtro-pill.ativo { background: var(--rosa); border-color: var(--rosa); color: #fff; }
+    .filtro-pill.ativo .filtro-cnt { background: rgba(255,255,255,.25); color: #fff; }
+    .filtro-dot-f { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .filtro-cnt   { font-size: 10px; background: var(--bg); color: var(--muted); padding: 0 5px; border-radius: 8px; }
 
     /* ── GRUPOS DE AGENTE ───────────────────────────────── */
     .ticket-list { display: flex; flex-direction: column; gap: 12px; }
@@ -441,7 +438,7 @@
     if (activeTag === tag) {
       activeTag = ''; btn.classList.remove('ativo');
     } else {
-      document.querySelectorAll('.tag-item').forEach(b => b.classList.remove('ativo'));
+      document.querySelectorAll('.filtro-tag').forEach(b => b.classList.remove('ativo'));
       btn.classList.add('ativo'); activeTag = tag;
     }
     applyFilters();
@@ -709,25 +706,36 @@
         </div>`;
     }
 
-    /* Tags filtráveis */
+    /* Barra de filtros unificada */
     const TAG_COR = { Entrega:'#1d4ed8', Financeiro:'#15803d', Troca:'#b45309', Produto:'#7e22ce', Cancelamento:'#c2410c', Atendimento:'#0369a1' };
-    let tagsHtml = '';
-    if (tags.length > 0) {
-      tagsHtml = `
-        <div class="section">
-          <div class="section-head">Tags do dia <span class="section-hint">— clique para filtrar</span></div>
-          <div class="tags-grid">
-            ${tags.map(([tag,cnt]) => {
-              const cat = getCategoriaPrincipal([tag]) || 'default';
-              const cor = TAG_COR[cat] || '#475569';
-              return `<button class="tag-item" onclick="filterByTag(this,'${tag}')">
-                <div class="tag-dot" style="background:${cor}"></div>
-                <span class="tag-nome">${formatTag(tag)}</span>
-                <span class="tag-count">${cnt}</span>
-              </button>`;
-            }).join('')}
-          </div>
-        </div>`;
+    let filtrosHtml = '';
+    if (agentes.length > 1 || tags.length > 0) {
+      filtrosHtml = `<div class="filtros-bar">`;
+      if (agentes.length > 1) {
+        filtrosHtml += `
+          <div class="filtro-grupo">
+            <span class="filtro-label">Agente</span>
+            <div class="filtro-pills" id="filtro-agente">
+              <button class="filtro-pill ativo" data-agente="" onclick="filterByAgent(this)">Todas</button>
+              ${agentes.map(([n]) => `<button class="filtro-pill" data-agente="${n}" onclick="filterByAgent(this)">${n.split(' ')[0]}</button>`).join('')}
+            </div>
+          </div>`;
+      }
+      if (tags.length > 0) {
+        if (agentes.length > 1) filtrosHtml += `<div class="filtro-sep"></div>`;
+        filtrosHtml += `
+          <div class="filtro-grupo">
+            <span class="filtro-label">Tag</span>
+            <div class="filtro-pills">
+              ${tags.map(([tag,cnt]) => {
+                const cat = getCategoriaPrincipal([tag]) || 'default';
+                const cor = TAG_COR[cat] || '#475569';
+                return `<button class="filtro-pill filtro-tag" data-tag="${tag}" onclick="filterByTag(this,'${tag}')"><span class="filtro-dot-f" style="background:${cor}"></span>${formatTag(tag)}<span class="filtro-cnt">${cnt}</span></button>`;
+              }).join('')}
+            </div>
+          </div>`;
+      }
+      filtrosHtml += `</div>`;
     }
 
     /* Ordenação e agrupamento */
@@ -807,13 +815,6 @@
         </div>`;
     }).join('');
 
-    const filtroHtml = agentes.length > 1 ? `
-      <div class="filtro-bar" id="filtro-agente">
-        <span class="filtro-label">Agente:</span>
-        <button class="filtro-pill ativo" data-agente="" onclick="filterByAgent(this)">Todas</button>
-        ${agentes.map(([n]) => `<button class="filtro-pill" data-agente="${n}" onclick="filterByAgent(this)">${n.split(' ')[0]}</button>`).join('')}
-      </div>` : '';
-
     el.innerHTML = `
       <div class="date-hero">
         <div class="date-pill">Relatório do dia</div>
@@ -829,12 +830,10 @@
 
       <div class="kpi-grid">${kpis}</div>
 
-      ${tagsHtml}
-
       <div class="section">
         <div class="section-head">Tickets avaliados</div>
         ${tickets.length > 0
-          ? `${filtroHtml}<div class="ticket-list">${linhas}</div>`
+          ? `${filtrosHtml}<div class="ticket-list">${linhas}</div>`
           : '<div class="empty">Nenhum ticket registrado neste dia.</div>'}
       </div>`;
 

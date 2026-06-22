@@ -29,6 +29,8 @@
     .sep { width: 1px; height: 26px; background: #2a2a2a; }
     .hdr-meta h1 { font-size: 14px; font-weight: 700; }
     .hdr-meta p  { font-size: 11px; color: #666; margin-top: 1px; }
+    .btn-gestao { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; background: #1a1a1a; color: #aaa; font-size: 12px; font-weight: 600; text-decoration: none; border: 1px solid #2a2a2a; flex-shrink: 0; transition: all .15s; }
+    .btn-gestao:hover { background: var(--rosa); color: #fff; border-color: var(--rosa); }
 
     /* LAYOUT */
     .main { max-width: 1140px; margin: 0 auto; padding: 36px 32px 80px; }
@@ -131,6 +133,10 @@
       <h1>Painel de CSAT — Avaliações Negativas</h1>
       <p>Histórico diário por agente · Atualizado automaticamente todo dia útil às 7h</p>
     </div>
+    <a class="btn-gestao" href="gerencial.html">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17.5h7M17.5 14v7"/></svg>
+      Painel de Gestão
+    </a>
   </div>
 </header>
 
