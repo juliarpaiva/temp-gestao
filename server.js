@@ -63,6 +63,43 @@ app.get('/summary', async (req, res) => {
   }
 });
 
+app.get('/indevidas/:date', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT ticket_id, motivo, observacao, marcado_em FROM support_bi.csat_indevidas WHERE date = $1',
+      [req.params.date]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/indevida', express.json(), async (req, res) => {
+  const { ticket_id, date, motivo, observacao } = req.body;
+  if (!ticket_id || !date) return res.status(400).json({ error: 'ticket_id e date são obrigatórios' });
+  try {
+    await pool.query(
+      `INSERT INTO support_bi.csat_indevidas (ticket_id, date, motivo, observacao)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (ticket_id) DO UPDATE SET motivo=$3, observacao=$4, marcado_em=NOW()`,
+      [ticket_id, date, motivo || null, observacao || null]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/indevida/:ticket_id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM support_bi.csat_indevidas WHERE ticket_id = $1', [req.params.ticket_id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/data/:date', async (req, res) => {
   try {
     const result = await pool.query(
@@ -132,6 +169,9 @@ async function runDailyReport(dateOverride = null, force = false) {
       nota: t.csat_score,
       agente: t.agent_on_resolution_name,
       tags: labelsByTicket[t.display_ticket_id] || [],
+      cliente_nome: t.contact_name || null,
+      cliente_email: t.contact_email || null,
+      feedback: t.csat_feedback || null,
     })),
   };
 
@@ -220,11 +260,14 @@ async function getNegativeCsats(token, date, limit = 500) {
       'source-table': METABASE_TABLE_ID,
       filter,
       fields: [
-        ['field', 174172, null],
-        ['field', 174143, null],
-        ['field', 174139, null],
-        ['field', 174181, null],
-        ['field', 174167, null],
+        ['field', 174172, null], // display_ticket_id
+        ['field', 174143, null], // ticket_link
+        ['field', 174139, null], // created_date_id
+        ['field', 174181, null], // csat_score
+        ['field', 174167, null], // agent_on_resolution_name
+        ['field', 174169, null], // contact_name
+        ['field', 174174, null], // contact_email
+        ['field', 174140, null], // csat_feedback
       ],
       'order-by': [['desc', ['field', 174139, null]]],
       limit,
@@ -260,6 +303,15 @@ async function initDb() {
       date       VARCHAR(10) PRIMARY KEY,
       data       JSONB       NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS support_bi.csat_indevidas (
+      ticket_id  VARCHAR(50) PRIMARY KEY,
+      date       VARCHAR(10) NOT NULL,
+      motivo     VARCHAR(100),
+      observacao TEXT,
+      marcado_em TIMESTAMPTZ DEFAULT NOW()
     )
   `);
   console.log('Banco de dados pronto.');

@@ -8,7 +8,6 @@
     :root {
       --rosa:      #e91e8c;
       --rosa-s:    rgba(233,30,140,.08);
-      --rosa-h:    rgba(233,30,140,.18);
       --preto:     #0f0f0f;
       --bg:        #f0f2f5;
       --card:      #ffffff;
@@ -36,7 +35,6 @@
       text-decoration: none; border: 1px solid #2a2a2a; flex-shrink: 0; transition: all .15s;
     }
     .btn-back:hover { background: var(--rosa); color: #fff; border-color: var(--rosa); }
-    .btn-back svg { flex-shrink: 0; }
 
     /* LAYOUT */
     .main { max-width: 1140px; margin: 0 auto; padding: 36px 32px 80px; }
@@ -55,60 +53,40 @@
       box-shadow: var(--sh); padding: 24px 28px; margin-bottom: 24px;
       display: flex; align-items: center; gap: 20px;
     }
-    .date-pill {
-      background: var(--preto); color: #fff; font-size: 10px; font-weight: 800;
-      letter-spacing: 1px; text-transform: uppercase; padding: 5px 12px; border-radius: 20px; flex-shrink: 0;
-    }
+    .date-pill { background: var(--preto); color: #fff; font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; padding: 5px 12px; border-radius: 20px; flex-shrink: 0; }
     .date-info .dia { font-size: 22px; font-weight: 800; letter-spacing: -.4px; }
     .date-info .iso { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
     /* KPI GRID */
     .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; margin-bottom: 28px; }
-    .kpi {
-      background: var(--card); border: 1px solid var(--borda); border-radius: var(--r);
-      box-shadow: var(--sh); padding: 20px 22px; position: relative; overflow: hidden;
-    }
+    .kpi { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); padding: 20px 22px; position: relative; overflow: hidden; }
     .kpi.total { border-left: 4px solid var(--rosa); }
+    .kpi.indevida-kpi { border-left: 4px solid #94a3b8; }
+    .kpi.ajustado-kpi { border-left: 4px solid #10b981; }
     .kpi-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 10px; }
     .kpi-num { font-size: 40px; font-weight: 900; letter-spacing: -2px; line-height: 1; color: var(--preto); }
     .kpi.total .kpi-num { color: var(--rosa); }
+    .kpi.indevida-kpi .kpi-num { color: #64748b; }
+    .kpi.ajustado-kpi .kpi-num { color: #059669; }
     .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 8px; }
     .kpi-bar { position: absolute; bottom: 0; left: 0; height: 3px; background: linear-gradient(90deg, var(--rosa), transparent); border-radius: 0 2px 0 0; }
 
     /* SEÇÕES */
     .section { margin-bottom: 28px; }
-    .section-head {
-      display: flex; align-items: center; gap: 10px;
-      font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px;
-      color: var(--muted); margin-bottom: 14px;
-    }
-    .section-head::before {
-      content: ""; display: block; width: 3px; height: 14px;
-      background: var(--rosa); border-radius: 2px; flex-shrink: 0;
-    }
+    .section-head { display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 14px; }
+    .section-head::before { content: ""; display: block; width: 3px; height: 14px; background: var(--rosa); border-radius: 2px; flex-shrink: 0; }
+    .section-hint { font-size: 11px; color: var(--muted); margin-left: 4px; font-weight: 400; text-transform: none; letter-spacing: 0; opacity: .7; }
 
-    /* AGENTES */
-    .agentes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
-    .agente-card {
-      background: var(--card); border: 1px solid var(--borda); border-radius: var(--r);
-      box-shadow: var(--sh); padding: 16px 20px;
-      display: flex; align-items: center; justify-content: space-between;
-      transition: box-shadow .15s, transform .15s;
-    }
-    .agente-card:hover { box-shadow: var(--sh-lg); transform: translateY(-1px); }
-    .agente-nome { font-weight: 700; font-size: 14px; }
-    .agente-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
-    .agente-num  { font-size: 28px; font-weight: 900; color: var(--rosa); min-width: 36px; text-align: right; }
-
-    /* TAGS RESUMO */
+    /* TAGS — clicáveis como filtro */
     .tags-grid { display: flex; flex-wrap: wrap; gap: 8px; }
     .tag-item {
       display: inline-flex; align-items: center; gap: 8px;
-      background: var(--card); border: 1px solid var(--borda);
-      border-radius: 8px; padding: 6px 12px; box-shadow: var(--sh);
-      font-size: 12px; transition: box-shadow .15s;
+      background: var(--card); border: 1px solid var(--borda); border-radius: 8px; padding: 6px 12px;
+      box-shadow: var(--sh); font-size: 12px; cursor: pointer;
+      transition: border-color .15s, background .15s, box-shadow .15s;
     }
-    .tag-item:hover { box-shadow: var(--sh-lg); }
+    .tag-item:hover { border-color: var(--rosa); box-shadow: var(--sh-lg); }
+    .tag-item.ativo { border-color: var(--rosa); background: var(--rosa-s); }
     .tag-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .tag-nome { font-weight: 600; color: var(--preto); }
     .tag-count { font-size: 11px; font-weight: 700; color: var(--muted); background: var(--bg); padding: 1px 7px; border-radius: 10px; }
@@ -116,99 +94,117 @@
     /* FILTRO POR AGENTE */
     .filtro-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
     .filtro-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); flex-shrink: 0; }
-    .filtro-pill {
-      padding: 5px 14px; border-radius: 20px; border: 1px solid var(--borda);
-      background: var(--card); font-size: 12px; font-weight: 600; color: var(--muted);
-      cursor: pointer; transition: all .15s; line-height: 1.6;
-    }
+    .filtro-pill { padding: 5px 14px; border-radius: 20px; border: 1px solid var(--borda); background: var(--card); font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; transition: all .15s; line-height: 1.6; }
     .filtro-pill:hover { border-color: var(--rosa); color: var(--rosa); }
     .filtro-pill.ativo { background: var(--rosa); border-color: var(--rosa); color: #fff; }
 
-    /* LISTA DE TICKETS — painel de qualidade */
+    /* GRUPOS DE AGENTE */
     .ticket-list { display: flex; flex-direction: column; gap: 12px; }
-
-    /* Grupo por agente */
-    .agent-group {
-      background: var(--card); border: 1px solid var(--borda); border-radius: var(--r);
-      box-shadow: var(--sh); overflow: hidden;
-      transition: box-shadow .15s, transform .15s;
-    }
+    .agent-group { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; transition: box-shadow .15s, transform .15s; }
     .agent-group:hover { box-shadow: var(--sh-lg); transform: translateY(-1px); }
-
     .agent-group.n1 { border-left: 4px solid #fca5a5; }
     .agent-group.n2 { border-left: 4px solid #fdba74; }
     .agent-group.n3 { border-left: 4px solid #fde68a; }
-
-    /* Cabeçalho do agente dentro do grupo */
-    .agent-header {
-      padding: 12px 20px; display: flex; align-items: center; justify-content: space-between;
-      background: #fafbfc; border-bottom: 1px solid var(--borda);
-    }
+    .agent-header { padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; background: #fafbfc; border-bottom: 1px solid var(--borda); }
     .agent-header-nome { font-size: 14px; font-weight: 700; }
     .agent-header-count { font-size: 11px; color: var(--muted); font-weight: 600; }
 
-    /* Linha de cada ticket dentro do grupo */
-    .agent-ticket-row {
-      display: grid; grid-template-columns: 68px 1fr auto;
-      align-items: center; gap: 20px; padding: 14px 20px;
-      border-bottom: 1px solid #f1f5f9;
-    }
+    /* LINHA DE TICKET */
+    .agent-ticket-row { display: grid; grid-template-columns: 68px 1fr auto; align-items: start; gap: 20px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; transition: opacity .2s; }
     .agent-ticket-row:last-child { border-bottom: none; }
+    .agent-ticket-row.indevida { opacity: .42; }
 
-    /* Bloco CSAT — elemento visual principal */
-    .csat-bloco {
-      width: 64px; height: 64px; border-radius: 12px;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      flex-shrink: 0; gap: 3px;
-    }
+    /* CSAT BLOCO */
+    .csat-bloco { width: 64px; height: 64px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; gap: 3px; }
     .csat-bloco.n1 { background: #fef2f2; border: 2px solid #fca5a5; }
     .csat-bloco.n2 { background: #fff4f0; border: 2px solid #fdba74; }
     .csat-bloco.n3 { background: #fffbeb; border: 2px solid #fde68a; }
-
-    .csat-num {
-      font-size: 26px; font-weight: 900; letter-spacing: -1px; line-height: 1;
-    }
+    .csat-num { font-size: 26px; font-weight: 900; letter-spacing: -1px; line-height: 1; }
     .n1 .csat-num { color: #991b1b; }
     .n2 .csat-num { color: #c2410c; }
     .n3 .csat-num { color: #92400e; }
-
-    .csat-label {
-      font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; opacity: .55;
-    }
+    .csat-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; opacity: .55; }
     .n1 .csat-label { color: #991b1b; }
     .n2 .csat-label { color: #c2410c; }
     .n3 .csat-label { color: #92400e; }
 
-    /* Corpo central — agente + ID */
-    .ticket-corpo { min-width: 0; }
-    .ticket-agente { font-size: 15px; font-weight: 700; margin-bottom: 5px; }
-    .ticket-id-link {
-      display: inline-flex; align-items: center; gap: 4px;
-      font-family: monospace; font-size: 11px; color: var(--muted);
-      text-decoration: none; opacity: .65; transition: opacity .15s;
-    }
+    /* CORPO DO TICKET */
+    .ticket-corpo { min-width: 0; padding-top: 2px; }
+    .ticket-id-link { display: inline-flex; align-items: center; gap: 4px; font-family: monospace; font-size: 11px; color: var(--muted); text-decoration: none; opacity: .65; transition: opacity .15s; margin-bottom: 5px; }
     .ticket-id-link:hover { opacity: 1; color: var(--rosa); }
-    .ticket-id-link svg { flex-shrink: 0; }
+    .ticket-cliente { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+    .cliente-nome { font-size: 13px; font-weight: 700; color: var(--preto); }
+    .cliente-email { font-size: 11px; color: var(--muted); opacity: .75; }
+    .ticket-feedback { font-size: 11px; color: var(--muted); font-style: italic; line-height: 1.45; margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .ticket-feedback::before { content: '"'; }
+    .ticket-feedback::after { content: '"'; }
 
-    /* Tags — coluna direita, hierarquia reduzida */
-    .ticket-tags { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: 220px; flex-wrap: wrap; }
-    .tag-chip {
-      display: inline-block; padding: 2px 8px; border-radius: 5px;
-      font-size: 10px; font-weight: 500; color: var(--muted);
-      background: var(--bg); border: 1px solid var(--borda); opacity: .8;
-      white-space: nowrap;
-    }
+    /* COLUNA DIREITA: tags + indevida */
+    .ticket-direita { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 140px; }
+    .ticket-tags { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+    .tag-chip { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 500; color: var(--muted); background: var(--bg); border: 1px solid var(--borda); opacity: .8; white-space: nowrap; }
+    .badge-indevida { display: inline-block; padding: 2px 8px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .5px; }
+    .btn-indevida { padding: 4px 10px; border-radius: 6px; border: 1px dashed #cbd5e1; background: transparent; font-size: 10px; font-weight: 600; color: #94a3b8; cursor: pointer; transition: all .15s; white-space: nowrap; }
+    .btn-indevida:hover { border-color: var(--rosa); color: var(--rosa); border-style: solid; }
+    .btn-desfazer { padding: 4px 10px; border-radius: 6px; border: 1px solid #cbd5e1; background: transparent; font-size: 10px; font-weight: 600; color: #94a3b8; cursor: pointer; transition: all .15s; white-space: nowrap; }
+    .btn-desfazer:hover { border-color: #ef4444; color: #ef4444; }
 
-    /* FOOTER */
+    /* MODAL */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 500; display: none; align-items: center; justify-content: center; }
+    .modal-overlay.aberto { display: flex; }
+    .modal { background: #fff; border-radius: var(--r); box-shadow: var(--sh-lg); padding: 28px 32px; width: 440px; max-width: 92vw; }
+    .modal-title { font-size: 16px; font-weight: 800; margin-bottom: 3px; }
+    .modal-sub { font-size: 12px; color: var(--muted); margin-bottom: 22px; }
+    .modal-field { margin-bottom: 16px; }
+    .modal-field label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 6px; }
+    .modal-field select, .modal-field textarea { width: 100%; padding: 9px 12px; border: 1px solid var(--borda); border-radius: 8px; font-size: 13px; font-family: inherit; background: var(--card); transition: border-color .15s; }
+    .modal-field select:focus, .modal-field textarea:focus { outline: none; border-color: var(--rosa); }
+    .modal-field textarea { resize: vertical; min-height: 80px; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+    .btn-cancel { padding: 8px 18px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
+    .btn-cancel:hover { border-color: var(--preto); color: var(--preto); }
+    .btn-confirm { padding: 8px 18px; border-radius: 8px; border: none; background: var(--rosa); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+    .btn-confirm:hover { opacity: .85; }
+    .btn-confirm:disabled { opacity: .5; cursor: default; }
+
+    /* FOOTER / VAZIO */
     .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--borda); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
     .footer-brand { font-weight: 900; font-size: 14px; color: var(--preto); }
     .footer-brand b { color: var(--rosa); }
-
-    /* VAZIO */
     .empty { padding: 40px; text-align: center; color: var(--muted); font-size: 13px; }
   </style>
 </head>
 <body>
+
+<!-- Modal — marcar como indevida -->
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-title">Marcar como Avaliação Indevida</div>
+    <div class="modal-sub" id="modal-sub">Ticket #—</div>
+    <div class="modal-field">
+      <label>Motivo</label>
+      <select id="modal-motivo">
+        <option value="">Selecione o motivo...</option>
+        <option>Entrega / logística</option>
+        <option>Transportadora</option>
+        <option>Produto com defeito</option>
+        <option>Troca ou devolução</option>
+        <option>Cancelamento</option>
+        <option>Expectativa do cliente</option>
+        <option>Erro no sistema</option>
+        <option>Outro</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Observação <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
+      <textarea id="modal-obs" placeholder="Detalhe o motivo..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="btn-confirm" id="btn-confirmar" onclick="confirmarIndevida()">Confirmar</button>
+    </div>
+  </div>
+</div>
 
 <header class="header">
   <div class="header-inner">
@@ -229,14 +225,11 @@
   <div id="conteudo">
     <div class="loading">
       <div style="margin-bottom:12px">
-        <span class="loading-dot"></span>
-        <span class="loading-dot"></span>
-        <span class="loading-dot"></span>
+        <span class="loading-dot"></span><span class="loading-dot"></span><span class="loading-dot"></span>
       </div>
       Carregando relatório...
     </div>
   </div>
-
   <div class="footer">
     <span class="footer-brand">INK<b>.</b></span>
     <span>Atualizado automaticamente todo dia útil às 7h</span>
@@ -245,66 +238,150 @@
 
 <script>
   const API = 'https://csat-negativo-78f436cca6a0.herokuapp.com';
-
   const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
   const SEMANA = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
-
   const TAG_CORES = {
-    entrega:      { bg: '#eff6ff', txt: '#1d4ed8', borda: '#bfdbfe' },
-    troca:        { bg: '#fffbeb', txt: '#b45309', borda: '#fde68a' },
-    financeiro:   { bg: '#f0fdf4', txt: '#15803d', borda: '#bbf7d0' },
-    rastreio:     { bg: '#f5f3ff', txt: '#6d28d9', borda: '#ddd6fe' },
-    devolucao:    { bg: '#fef2f2', txt: '#b91c1c', borda: '#fecaca' },
-    cancelamento: { bg: '#fff7ed', txt: '#c2410c', borda: '#fed7aa' },
-    defeito:      { bg: '#fdf4ff', txt: '#7e22ce', borda: '#e9d5ff' },
-    default:      { bg: '#f8fafc', txt: '#475569', borda: '#e2e8f0' },
+    entrega:      { txt: '#1d4ed8' },
+    troca:        { txt: '#b45309' },
+    financeiro:   { txt: '#15803d' },
+    rastreio:     { txt: '#6d28d9' },
+    devolucao:    { txt: '#b91c1c' },
+    cancelamento: { txt: '#c2410c' },
+    defeito:      { txt: '#7e22ce' },
+    default:      { txt: '#475569' },
   };
+
+  // Estado global de filtros e modal
+  let currentDate = '';
+  let activeAgent = '';
+  let activeTag   = '';
+  let pendingTicket = null;
 
   function tagCor(nome) {
     const cat = (nome || '').split('_')[0].toLowerCase();
-    return TAG_CORES[cat] || TAG_CORES.default;
+    return (TAG_CORES[cat] || TAG_CORES.default).txt;
   }
-
-  function formatTag(nome) {
-    return (nome || '').replace(/_/g, ' ');
-  }
-
+  function formatTag(nome) { return (nome || '').replace(/_/g, ' '); }
   function formatarData(s) {
     const [ano, mes, dia] = s.split('-').map(Number);
-    const d = new Date(ano, mes - 1, dia);
-    return `${SEMANA[d.getDay()]}, ${dia} de ${MESES[mes - 1]} de ${ano}`;
+    return `${SEMANA[new Date(ano, mes-1, dia).getDay()]}, ${dia} de ${MESES[mes-1]} de ${ano}`;
   }
 
+  // ── Filtros ──────────────────────────────────────────────
+  function applyFilters() {
+    document.querySelectorAll('.agent-group').forEach(group => {
+      if (activeAgent && group.dataset.agente !== activeAgent) {
+        group.style.display = 'none';
+        return;
+      }
+      let visible = 0;
+      group.querySelectorAll('.agent-ticket-row').forEach(row => {
+        const rowTags = (row.dataset.tags || '').split(',').filter(Boolean);
+        const ok = !activeTag || rowTags.includes(activeTag);
+        row.style.display = ok ? '' : 'none';
+        if (ok) visible++;
+      });
+      group.style.display = visible ? '' : 'none';
+    });
+  }
+
+  function filterByAgent(pill) {
+    document.querySelectorAll('#filtro-agente .filtro-pill').forEach(p => p.classList.remove('ativo'));
+    pill.classList.add('ativo');
+    activeAgent = pill.dataset.agente;
+    applyFilters();
+  }
+
+  function filterByTag(btn, tag) {
+    if (activeTag === tag) {
+      activeTag = '';
+      btn.classList.remove('ativo');
+    } else {
+      document.querySelectorAll('.tag-item').forEach(b => b.classList.remove('ativo'));
+      btn.classList.add('ativo');
+      activeTag = tag;
+    }
+    applyFilters();
+  }
+
+  // ── Modal indevida ────────────────────────────────────────
+  function openModal(ticketId) {
+    pendingTicket = ticketId;
+    document.getElementById('modal-sub').textContent = 'Ticket #' + ticketId;
+    document.getElementById('modal-motivo').value = '';
+    document.getElementById('modal-obs').value = '';
+    document.getElementById('modal-overlay').classList.add('aberto');
+  }
+
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('aberto');
+    pendingTicket = null;
+  }
+
+  async function confirmarIndevida() {
+    if (!pendingTicket) return;
+    const motivo = document.getElementById('modal-motivo').value;
+    const obs    = document.getElementById('modal-obs').value;
+    const btn    = document.getElementById('btn-confirmar');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+    try {
+      const r = await fetch(`${API}/indevida`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticket_id: pendingTicket, date: currentDate, motivo, observacao: obs }),
+      });
+      if (r.ok) { closeModal(); location.reload(); }
+      else { alert('Erro ao salvar.'); }
+    } catch(e) { alert('Erro: ' + e.message); }
+    finally { btn.disabled = false; btn.textContent = 'Confirmar'; }
+  }
+
+  async function desfazerIndevida(ticketId) {
+    if (!confirm('Remover marcação de indevida?')) return;
+    const r = await fetch(`${API}/indevida/${ticketId}`, { method: 'DELETE' });
+    if (r.ok) location.reload();
+  }
+
+  // ── Inicialização ─────────────────────────────────────────
   async function init() {
     const params = new URLSearchParams(window.location.search);
     const date = params.get('date');
+    currentDate = date;
     const el = document.getElementById('conteudo');
 
     if (!date) {
       el.innerHTML = `<div class="erro">Data não informada. Use o calendário.</div>`;
       return;
     }
-
     document.title = `CSAT ${date} — INK`;
 
     try {
-      const resp = await fetch(`${API}/data/${date}`);
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
+      const [rData, rIndev] = await Promise.all([
+        fetch(`${API}/data/${date}`),
+        fetch(`${API}/indevidas/${date}`),
+      ]);
+      if (!rData.ok) {
+        const err = await rData.json().catch(() => ({}));
         el.innerHTML = `<div class="erro">Relatório não encontrado para <strong>${date}</strong>.<br>${err.error || ''}</div>`;
         return;
       }
-      render(await resp.json(), el);
+      const [data, indevidas] = await Promise.all([rData.json(), rIndev.json().catch(() => [])]);
+      const indevidaMap = {};
+      (Array.isArray(indevidas) ? indevidas : []).forEach(i => { indevidaMap[String(i.ticket_id)] = i; });
+      render(data, indevidaMap, el);
     } catch(e) {
       el.innerHTML = `<div class="erro">Erro ao carregar: ${e.message}</div>`;
     }
   }
 
-  function render(d, el) {
+  // ── Render ────────────────────────────────────────────────
+  function render(d, indevidaMap, el) {
     const { date, total = 0, por_agente = {}, tags_resumo = {}, tickets = [] } = d;
     const agentes = Object.entries(por_agente).sort((a,b) => b[1] - a[1]);
     const tags    = Object.entries(tags_resumo).sort((a,b) => b[1] - a[1]);
-    const maxAgente = agentes[0]?.[1] || 1;
+    const maxAg   = agentes[0]?.[1] || 1;
+    const indevidaCount = Object.keys(indevidaMap).length;
 
     // KPIs
     let kpis = `
@@ -314,45 +391,52 @@
         <div class="kpi-sub">Notas 1, 2 e 3</div>
       </div>`;
     for (const [nome, qtd] of agentes) {
-      const pct = Math.round((qtd / maxAgente) * 100);
       kpis += `
         <div class="kpi">
           <div class="kpi-label">${nome.split(' ')[0]}</div>
           <div class="kpi-num">${qtd}</div>
           <div class="kpi-sub">${qtd === 1 ? 'avaliação negativa' : 'avaliações negativas'}</div>
-          <div class="kpi-bar" style="width:${pct}%"></div>
+          <div class="kpi-bar" style="width:${Math.round(qtd/maxAg*100)}%"></div>
+        </div>`;
+    }
+    if (indevidaCount > 0) {
+      kpis += `
+        <div class="kpi indevida-kpi">
+          <div class="kpi-label">Indevidas</div>
+          <div class="kpi-num">${indevidaCount}</div>
+          <div class="kpi-sub">avaliações indevidas</div>
+        </div>
+        <div class="kpi ajustado-kpi">
+          <div class="kpi-label">Negativos reais</div>
+          <div class="kpi-num">${total - indevidaCount}</div>
+          <div class="kpi-sub">após auditoria</div>
         </div>`;
     }
 
-    // Tags resumo
+    // Tags (clicáveis como filtro)
     let tagsHtml = '';
     if (tags.length > 0) {
       tagsHtml = `
         <div class="section">
-          <div class="section-head">Tags do dia</div>
+          <div class="section-head">Tags do dia <span class="section-hint">— clique para filtrar</span></div>
           <div class="tags-grid">
-            ${tags.map(([tag, cnt]) => {
-              const c = tagCor(tag);
-              return `<div class="tag-item">
-                <div class="tag-dot" style="background:${c.txt}"></div>
+            ${tags.map(([tag, cnt]) => `
+              <button class="tag-item" onclick="filterByTag(this, '${tag}')">
+                <div class="tag-dot" style="background:${tagCor(tag)}"></div>
                 <span class="tag-nome">${formatTag(tag)}</span>
                 <span class="tag-count">${cnt}</span>
-              </div>`;
-            }).join('')}
+              </button>`).join('')}
           </div>
         </div>`;
     }
 
-    // Ordena tickets pela mesma sequência dos KPI cards (agente com mais negativos primeiro)
+    // Ordena e agrupa tickets por agente
     const ordemAgente = {};
     agentes.forEach(([nome], i) => { ordemAgente[nome] = i; });
     const ticketsOrdenados = [...tickets].sort((a, b) => {
-      const oa = ordemAgente[a.agente] ?? 99;
-      const ob = ordemAgente[b.agente] ?? 99;
+      const oa = ordemAgente[a.agente] ?? 99, ob = ordemAgente[b.agente] ?? 99;
       return oa !== ob ? oa - ob : (a.nota - b.nota);
     });
-
-    // Agrupa tickets por agente
     const grupoMap = {};
     ticketsOrdenados.forEach(t => {
       const key = t.agente || '—';
@@ -362,32 +446,44 @@
 
     function ticketRowHtml(t) {
       const nc = `n${t.nota}`;
+      const sid = String(t.id);
+      const isIndevida = !!indevidaMap[sid];
       const idHtml = t.link
-        ? `<a class="ticket-id-link" href="${t.link}" target="_blank" rel="noopener">
-            #${t.id}
-            <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
-           </a>`
+        ? `<a class="ticket-id-link" href="${t.link}" target="_blank" rel="noopener">#${t.id}<svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a>`
         : `<span class="ticket-id-link" style="cursor:default">#${t.id || '—'}</span>`;
-      const tagsHtml = (t.tags || []).map(tag =>
-        `<span class="tag-chip">${formatTag(tag)}</span>`
-      ).join('');
+      const clienteHtml = (t.cliente_nome || t.cliente_email) ? `
+        <div class="ticket-cliente">
+          ${t.cliente_nome ? `<span class="cliente-nome">${t.cliente_nome}</span>` : ''}
+          ${t.cliente_email ? `<span class="cliente-email">${t.cliente_email}</span>` : ''}
+        </div>` : '';
+      const feedbackHtml = t.feedback ? `<div class="ticket-feedback">${t.feedback}</div>` : '';
+      const tagsChips = (t.tags || []).map(tag => `<span class="tag-chip">${formatTag(tag)}</span>`).join('');
+      const indevidaCtrl = isIndevida
+        ? `<span class="badge-indevida">Indevida</span><button class="btn-desfazer" onclick="desfazerIndevida('${sid}')">Desfazer</button>`
+        : `<button class="btn-indevida" onclick="openModal('${sid}')">Marcar indevida</button>`;
       return `
-        <div class="agent-ticket-row">
+        <div class="agent-ticket-row${isIndevida ? ' indevida' : ''}" data-tags="${(t.tags||[]).join(',')}">
           <div class="csat-bloco ${nc}">
             <span class="csat-num">${t.nota}</span>
             <span class="csat-label">CSAT</span>
           </div>
-          <div class="ticket-corpo">${idHtml}</div>
-          <div class="ticket-tags">${tagsHtml}</div>
+          <div class="ticket-corpo">
+            ${idHtml}
+            ${clienteHtml}
+            ${feedbackHtml}
+          </div>
+          <div class="ticket-direita">
+            <div class="ticket-tags">${tagsChips}</div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-top:2px">${indevidaCtrl}</div>
+          </div>
         </div>`;
     }
 
     const linhas = Object.entries(grupoMap).map(([agente, agTickets]) => {
       const piorNota = Math.min(...agTickets.map(t => t.nota || 5));
-      const nc = `n${piorNota}`;
       const cnt = agTickets.length;
       return `
-        <div class="agent-group ${nc}" data-agente="${agente}">
+        <div class="agent-group n${piorNota}" data-agente="${agente}">
           <div class="agent-header">
             <span class="agent-header-nome">${agente}</span>
             <span class="agent-header-count">${cnt} ${cnt === 1 ? 'avaliação negativa' : 'avaliações negativas'}</span>
@@ -396,12 +492,12 @@
         </div>`;
     }).join('');
 
-    // Pills de filtro por agente
+    // Filtro por agente (apenas se houver mais de um)
     const filtroHtml = agentes.length > 1 ? `
-      <div class="filtro-bar" id="filtro-bar">
+      <div class="filtro-bar" id="filtro-agente">
         <span class="filtro-label">Agente:</span>
-        <button class="filtro-pill ativo" data-agente="">Todas</button>
-        ${agentes.map(([nome]) => `<button class="filtro-pill" data-agente="${nome}">${nome.split(' ')[0]}</button>`).join('')}
+        <button class="filtro-pill ativo" data-agente="" onclick="filterByAgent(this)">Todas</button>
+        ${agentes.map(([nome]) => `<button class="filtro-pill" data-agente="${nome}" onclick="filterByAgent(this)">${nome.split(' ')[0]}</button>`).join('')}
       </div>` : '';
 
     el.innerHTML = `
@@ -423,18 +519,6 @@
           ? `${filtroHtml}<div class="ticket-list">${linhas}</div>`
           : '<div class="empty">Nenhum ticket registrado neste dia.</div>'}
       </div>`;
-
-    // Ativa filtro por agente
-    document.getElementById('filtro-bar')?.querySelectorAll('.filtro-pill').forEach(pill => {
-      pill.addEventListener('click', () => {
-        document.getElementById('filtro-bar').querySelectorAll('.filtro-pill').forEach(p => p.classList.remove('ativo'));
-        pill.classList.add('ativo');
-        const filtro = pill.dataset.agente;
-        document.querySelectorAll('.agent-group').forEach(g => {
-          g.style.display = (!filtro || g.dataset.agente === filtro) ? '' : 'none';
-        });
-      });
-    });
   }
 
   init();
