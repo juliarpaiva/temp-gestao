@@ -105,6 +105,8 @@
     .semana-csat-item b { color: var(--preto); font-weight: 700; }
     .semana-csat-item.pos { color: #16a34a; border-color: #bbf7d0; background: #f0fdf4; }
     .semana-csat-item.neg { color: var(--rosa); border-color: #fce7f3; background: #fdf2f8; }
+    .section-head.pos::before { background: #16a34a; }
+    .painel.pos .painel-title::before { background: #16a34a; }
 
     /* NOTAS REUNIÃO */
     .notas-card { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; }
@@ -150,7 +152,7 @@
     <div class="sep"></div>
     <div class="hdr-meta">
       <h1>Painel de Gestão — CSAT</h1>
-      <p>Visão geral + monitoramento de negativos · Atualizado todo dia útil às 7h</p>
+      <p>Visão geral + monitoramento de positivos e negativos · Atualizado todo dia útil às 7h</p>
     </div>
     <a class="btn-back" href="/">
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -303,6 +305,28 @@
       </div>`;
     }).join('') : '<p style="color:var(--muted);font-size:12px">Sem tags</p>';
 
+    // ── Positivos por agente ──
+    const posAgentes = Object.entries(mesDados.por_agente_positivos || {}).sort((a,b) => b[1]-a[1]);
+    const maxPosAg   = posAgentes[0]?.[1] || 1;
+    const posRankingHtml = posAgentes.length ? posAgentes.map(([nome,cnt], i) => `
+      <div class="agente-row">
+        <span class="agente-pos">${i+1}</span>
+        <span class="agente-nome">${nome.split(' ')[0]}</span>
+        <div class="agente-bar-wrap"><div class="agente-bar" style="width:${Math.round(cnt/maxPosAg*100)}%;background:#16a34a"></div></div>
+        <span class="agente-num">${cnt}</span>
+      </div>`).join('') : '<p style="color:var(--muted);font-size:12px">Sem dados</p>';
+
+    // ── Top tags positivos ──
+    const topTagsPos = Object.entries(mesDados.tags_positivos || {}).sort((a,b) => b[1]-a[1]).slice(0,6);
+    const maxTagPos  = topTagsPos[0]?.[1] || 1;
+    const tagsPositivosHtml = topTagsPos.length ? topTagsPos.map(([tag,cnt]) => `
+      <div class="tag-row">
+        <span class="tag-dot" style="background:#16a34a"></span>
+        <span class="tag-nome">${formatTag(tag)}</span>
+        <div class="tag-bar-wrap"><div class="tag-bar" style="width:${Math.round(cnt/maxTagPos*100)}%;background:#16a34a"></div></div>
+        <span class="tag-cnt">${cnt}</span>
+      </div>`).join('') : '<p style="color:var(--muted);font-size:12px">Sem tags</p>';
+
     // ── Semanas (últimas 8 em ordem cronológica, mais antiga → mais recente) ──
     const semanasKeys = Object.keys(semanas).sort().slice(-8);
     const last = semanasKeys.length - 1;
@@ -357,6 +381,11 @@
           <div class="kpi-num">${taxaResposta !== null ? taxaResposta + '%' : '—'}</div>
           <div class="kpi-sub flat">${totalAvaliados} avaliaram</div>
         </div>
+        <div class="kpi" style="border-left:4px solid #16a34a">
+          <div class="kpi-label">Positivos no mês</div>
+          <div class="kpi-num" style="color:#16a34a">${totalPositivos || '—'}</div>
+          <div class="kpi-sub flat">avaliações positivas</div>
+        </div>
         <div class="kpi">
           <div class="kpi-label">Negativos no mês</div>
           <div class="kpi-num">${totalNegAll || mesDados.total}</div>
@@ -367,6 +396,18 @@
       <div class="painel" style="margin-bottom:32px">
         <div class="painel-title">Satisfação por agente — ${mesLabel(mesAtivo)}</div>
         ${satisfacaoHtml}
+      </div>
+
+      <div class="section-head pos">Monitoramento de positivos</div>
+      <div class="dois-col">
+        <div class="painel pos">
+          <div class="painel-title">Positivos por agente</div>
+          ${posRankingHtml}
+        </div>
+        <div class="painel pos">
+          <div class="painel-title">Top tags — positivos</div>
+          ${tagsPositivosHtml}
+        </div>
       </div>
 
       <div class="section-head">Monitoramento de negativos</div>
