@@ -26,6 +26,16 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Webhook do CloudChat — "Avaliação de CSAT é inválida?"
+// Em modo debug: ecoa o payload para inspeção
+app.post('/webhook/csat-invalida', express.json(), express.urlencoded({ extended: true }), async (req, res) => {
+  const payload = req.body;
+  console.log('[webhook] csat-invalida recebido:', JSON.stringify(payload, null, 2));
+  console.log('[webhook] headers:', JSON.stringify(req.headers, null, 2));
+  // Ecoa tudo para facilitar inspeção durante o teste
+  res.json({ ok: true, recebido: payload, headers: req.headers });
+});
+
 // ?date=YYYY-MM-DD para data específica, ?force=true para reprocessar
 app.get('/run', async (req, res) => {
   const dateParam = req.query.date || null;
