@@ -726,16 +726,22 @@
 
     /* Barra de filtros unificada */
     const TAG_COR = { Entrega:'#1d4ed8', Financeiro:'#15803d', Troca:'#b45309', Produto:'#7e22ce', Cancelamento:'#c2410c', Atendimento:'#0369a1' };
+
+    /* Todos os agentes (pos + neg) para o filtro */
+    const agentesNegNomes = agentes.map(([n]) => n);
+    const agentesPosList  = [...new Set(tickets_positivos.map(t => t.agente).filter(Boolean))];
+    const todosAgentesNomes = [...new Set([...agentesNegNomes, ...agentesPosList])];
+
     let filtrosHtml = '';
-    if (agentes.length > 1 || tags.length > 0) {
+    if (todosAgentesNomes.length > 1 || tags.length > 0) {
       filtrosHtml = `<div class="filtros-bar">`;
-      if (agentes.length > 1) {
+      if (todosAgentesNomes.length > 1) {
         filtrosHtml += `
           <div class="filtro-grupo">
             <span class="filtro-label">Agente</span>
             <div class="filtro-pills" id="filtro-agente">
               <button class="filtro-pill ativo" data-agente="" onclick="filterByAgent(this)">Todas</button>
-              ${agentes.map(([n]) => `<button class="filtro-pill" data-agente="${n}" onclick="filterByAgent(this)">${n.split(' ')[0]}</button>`).join('')}
+              ${todosAgentesNomes.map(n => `<button class="filtro-pill" data-agente="${n}" onclick="filterByAgent(this)">${n.split(' ')[0]}</button>`).join('')}
             </div>
           </div>`;
       }
@@ -873,19 +879,19 @@
           <div class="agent-header">
             <span class="agent-header-nome" onclick="openAgentHistory('${agente}')" title="Ver histórico de ${agente}">${agente}</span>
             <div class="agent-tabs">
-              <button class="agent-tab${agNeg.length?' ativo':''}" onclick="switchTab(this,'${tabNegId}','${tabPosId}')">
-                Negativas <span class="agent-tab-cnt">${agNeg.length}</span>
-              </button>
-              <button class="agent-tab pos${agPos.length&&!agNeg.length?' ativo':''}" onclick="switchTab(this,'${tabPosId}','${tabNegId}')">
+              <button class="agent-tab pos ativo" onclick="switchTab(this,'${tabPosId}','${tabNegId}')">
                 Positivas <span class="agent-tab-cnt pos">${agPos.length}</span>
+              </button>
+              <button class="agent-tab" onclick="switchTab(this,'${tabNegId}','${tabPosId}')">
+                Negativas <span class="agent-tab-cnt">${agNeg.length}</span>
               </button>
             </div>
           </div>
-          <div id="${tabNegId}" class="tab-content${agNeg.length?'':' hidden'}">
-            ${agNeg.length ? agNeg.map(ticketRowHtml).join('') : '<div style="padding:16px 24px;color:var(--muted);font-size:12px">Sem avaliações negativas nesse dia</div>'}
-          </div>
-          <div id="${tabPosId}" class="tab-content hidden">
+          <div id="${tabPosId}" class="tab-content">
             ${agPos.length ? agPos.map(posTicketRowHtml).join('') : '<div style="padding:16px 24px;color:var(--muted);font-size:12px">Sem avaliações positivas nesse dia</div>'}
+          </div>
+          <div id="${tabNegId}" class="tab-content hidden">
+            ${agNeg.length ? agNeg.map(ticketRowHtml).join('') : '<div style="padding:16px 24px;color:var(--muted);font-size:12px">Sem avaliações negativas nesse dia</div>'}
           </div>
         </div>`;
     }).join('');

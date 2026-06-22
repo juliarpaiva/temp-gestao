@@ -1,60 +1,82 @@
 # CSAT Dashboard — INK
 
 ## Objetivo
-Painel histórico de CSATs negativos, atualizado automaticamente todo dia
-útil às 7h da manhã. Os dados ficam salvos permanentemente e podem ser
-consultados por data no site.
+Painel histórico de todas as avaliações CSAT (positivas e negativas),
+atualizado automaticamente todo dia útil às 7h da manhã. Os dados ficam
+salvos permanentemente e podem ser consultados por data no site.
 
 ## Fonte de dados
-CloudChat / Explo API (conta 73) — mesmo fluxo de autenticação e consulta
-do projeto cloudchat-discord-report.
+Metabase HTTP API (DB 2, tabelas tickets 7375 e labels 7376) —
+autenticação via SESSION_TOKEN em variável de ambiente no Heroku.
 
 ## Arquitetura
-CloudChat/Explo API → Cloudflare Worker (cron diário) → KV → Site Netlify
+Metabase API → Node/Express no Heroku (cron diário) → PostgreSQL (support_bi.csat_reports) → Site estático (Netlify)
 
-1. Worker roda às 7h todo dia útil (seg–sex)
-2. Autentica no CloudChat e obtém token Explo
-3. Consulta o relatório de CSATs negativos do dia útil anterior
-4. Calcula métricas (total, por agente, por tag)
-5. Salva no KV com chave  csat:YYYY-MM-DD  (nunca sobrescreve)
-6. Expõe endpoints GET para o site consumir
+1. Cron roda às 7h todo dia útil (seg–sex) via `node-cron`
+2. Autentica no Metabase e busca TODAS as avaliações CSAT do dia útil anterior (sem filtro de nota)
+3. Separa: avaliados negativos (nota ≤ 3) e positivos (nota ≥ 4)
+4. Filtra para agentes monitoradas: Mari, Fernanda (Fer), Paty, Lu Almeida, Rafa
+5. Busca tags de todos os tickets (negativos + positivos das monitoradas)
+6. Calcula métricas e salva no PostgreSQL com chave `date` (nunca sobrescreve)
+7. Expõe endpoints GET para o site consumir
+
+## Agentes monitoradas
+Mari, Fernanda (Fer), Paty, Lu Almeida, Rafa — todas as demais agentes
+são excluídas dos dados por agente (mas contam nos totais globais).
+
+## Dados salvos por dia (JSONB na coluna `data`)
+- `total` — negativos das monitoradas
+- `total_recebidos` — total de tickets com nota, todas as agentes
+- `total_avaliados` — avaliações das monitoradas (pos + neg)
+- `total_positivos` — positivos das monitoradas
+- `por_agente` — negativos por agente monitorada
+- `por_agente_positivos` — positivos por agente monitorada
+- `tickets` — array de tickets negativos com tags
+- `tickets_positivos` — array de tickets positivos com tags
 
 ## Como executar localmente
-  cd worker
-  npx wrangler dev
+  node server.js
 
 ## Como publicar
-  cd worker
-  npx wrangler deploy
+  $env:PATH += ";C:\Program Files\Git\cmd"
+  git add -A
+  git commit -m "mensagem"
+  git push heroku master
+
+## Reprocessar data histórica
+  Acesse: https://csat-negativo-78f436cca6a0.herokuapp.com/run?date=YYYY-MM-DD&force=true
 
 ## Estrutura dos arquivos
   CLAUDE.md
-  worker/
-    wrangler.toml      <- configuração do Worker e KV
-    package.json
-    src/
-      index.js         <- código principal
+  server.js           <- API Node/Express + cron
+  Procfile            <- web: node server.js
+  package.json
   site/
-    index.html         <- calendário e navegação por mês
-    report.html        <- visualização do relatório de um dia
-    js/
-      app.js           <- busca dados do Worker e monta a tela
+    index.html        <- calendário + filtro por período
+    report.html       <- relatório de um dia (tabs Positivas/Negativas por agente)
+    gerencial.html    <- painel de gestão (ranking satisfação + monitoramento negativos + notas de reunião)
 
 ## Regras importantes
-- Nunca sobrescrever uma chave KV já existente (dados históricos são permanentes)
-- Credenciais apenas nos Secrets da Cloudflare — nunca no código
-- Usar previousBusinessDate() igual ao projeto de referência
-- O Worker busca o dia útil anterior, não o dia atual
-- Sem dependência de banco externo — tudo no Worker + KV
-- Descoberta do relatório CSAT correto acontece durante implementação do Worker
+- Nunca sobrescrever uma data já existente no PostgreSQL sem `force=true`
+- Credenciais apenas nos Config Vars do Heroku — nunca no código
+- Usar `previousBusinessDate()` para buscar o dia útil anterior
+- `getAllCsats()` busca sem filtro de nota (limit 2000) — separação pos/neg é feita no servidor
+- "Recebidas" no report.html = apenas tickets das agentes monitoradas (neg + pos das monitoradas)
+- Tabs em report.html: Positivas primeiro (padrão), Negativas segundo
+- Satisfação % = positivos / (positivos + negativos) por agente
 
 ## Checklist de desenvolvimento
-- [ ] Criar Worker base com cron
-- [ ] Implementar autenticação CloudChat (igual ao projeto de referência)
-- [ ] Identificar e testar o relatório Explo correto para CSAT
-- [ ] Salvar JSON no KV por data
-- [ ] Endpoint GET /data/:date  (retorna dados de um dia)
-- [ ] Endpoint GET /index  (retorna lista de datas disponíveis)
-- [ ] Construir site (calendário por mês)
-- [ ] Conectar site ao Worker
-- [ ] Deploy e teste end-to-end
+- [x] Cron diário no Heroku
+- [x] Autenticação Metabase
+- [x] Busca de todas as avaliações (pos + neg)
+- [x] Filtro por agentes monitoradas
+- [x] Tags para tickets negativos e positivos
+- [x] Salvar JSON no PostgreSQL por data
+- [x] Endpoint GET /data/:date
+- [x] Endpoint GET /summary (lista de datas + métricas)
+- [x] Endpoint GET /gestao (dados agregados por semana e mês)
+- [x] Calendário com satisfação % por cor
+- [x] Filtro de período em index.html
+- [x] report.html com tabs por agente (Positivas/Negativas)
+- [x] gerencial.html com ranking de satisfação + monitoramento de negativos + notas de reunião
+- [x] Deploy e teste end-to-end
