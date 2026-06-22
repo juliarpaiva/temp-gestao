@@ -380,22 +380,22 @@
         <div class="kpi destaque">
           <div class="kpi-label">% Satisfação</div>
           <div class="kpi-num">${pctSatisfacao !== null ? pctSatisfacao + '%' : '—'}</div>
-          <div class="kpi-sub flat">${totalPositivos} pos · ${totalNegAll} neg</div>
+          <div class="kpi-sub flat">${totalPositivos}↑ · ${totalNegAll}↓ · monitoradas</div>
         </div>
         <div class="kpi">
           <div class="kpi-label">Avaliações recebidas</div>
           <div class="kpi-num">${totalRecebidos || '—'}</div>
-          <div class="kpi-sub flat">tickets com CSAT enviado</div>
+          <div class="kpi-sub flat">todas as agentes</div>
         </div>
         <div class="kpi">
-          <div class="kpi-label">Taxa de resposta</div>
+          <div class="kpi-label">Monitoradas / Total</div>
           <div class="kpi-num">${taxaResposta !== null ? taxaResposta + '%' : '—'}</div>
-          <div class="kpi-sub flat">${totalAvaliados} avaliaram</div>
+          <div class="kpi-sub flat">${totalAvaliados} monitoradas de ${totalRecebidos}</div>
         </div>
         <div class="kpi" style="border-left:4px solid #16a34a">
           <div class="kpi-label">Positivos no mês</div>
           <div class="kpi-num" style="color:#16a34a">${totalPositivos || '—'}</div>
-          <div class="kpi-sub flat">avaliações positivas</div>
+          <div class="kpi-sub flat">monitoradas</div>
         </div>
         <div class="kpi">
           <div class="kpi-label">Negativos no mês</div>
