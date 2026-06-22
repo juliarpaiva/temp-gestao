@@ -197,6 +197,21 @@
         const piorDia    = datasDoMes.sort((a, b) => (totaisMap[b] || 0) - (totaisMap[a] || 0))[0];
         const piorLabel  = piorDia ? `${Number(piorDia.slice(8))}/${MESES_ABREV[mes-1]}` : '—';
 
+        const prevMes    = mes === 1 ? 12 : mes - 1;
+        const prevAno    = mes === 1 ? ano - 1 : ano;
+        const prevChave  = `${prevAno}-${String(prevMes).padStart(2,'0')}`;
+        const totalAnterior = Object.keys(totaisMap).filter(d => d.startsWith(prevChave))
+                                .reduce((s,d) => s + (totaisMap[d]||0), 0);
+        let vsHtml = '<div class="resumo-sub">CSATs negativos</div>';
+        if (totalAnterior > 0) {
+          const diff = totalMes - totalAnterior;
+          const pct  = Math.round(Math.abs(diff) / totalAnterior * 100);
+          const cor  = diff > 0 ? '#dc2626' : diff < 0 ? '#16a34a' : '#64748b';
+          const seta = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
+          const txt  = diff === 0 ? 'igual ao mês anterior' : `${seta} ${pct}% vs. ${MESES_ABREV[prevMes-1]}`;
+          vsHtml = `<div class="resumo-sub" style="color:${cor};font-weight:700">${txt}</div>`;
+        }
+
         html += `
           <div class="month-section">
             <div class="month-title">${MESES_PT[mes - 1]} ${ano}</div>
@@ -205,7 +220,7 @@
               <div class="resumo-card destaque">
                 <div class="resumo-label">Total do mês</div>
                 <div class="resumo-valor">${totalMes}</div>
-                <div class="resumo-sub">CSATs negativos</div>
+                ${vsHtml}
               </div>
               <div class="resumo-card">
                 <div class="resumo-label">Dias registrados</div>
