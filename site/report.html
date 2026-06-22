@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Relatório CSAT — INK</title>
+  <style>
+    :root {
+      --rosa: #e91e8c;
+      --rosa-s: rgba(233,30,140,.10);
+      --rosa-borda: #f48dc1;
+      --preto: #111111;
+      --cinza-bg: #f4f5f7;
+      --cinza-card: #ffffff;
+      --cinza-borda: #e4e4e7;
+      --cinza-muted: #71717a;
+      --r: 10px;
+      --shadow: 0 1px 3px rgba(0,0,0,.07), 0 4px 12px rgba(0,0,0,.05);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--cinza-bg); color: var(--preto); font-size: 14px; line-height: 1.6; }
+
+    /* HEADER */
+    .header { background: var(--preto); color: #fff; border-bottom: 3px solid var(--rosa); position: sticky; top: 0; z-index: 100; }
+    .header-inner { max-width: 1100px; margin: 0 auto; padding: 0 32px; height: 66px; display: flex; align-items: center; gap: 16px; }
+    .logo { font-size: 26px; font-weight: 900; letter-spacing: -1px; color: #fff; flex-shrink: 0; }
+    .logo b { color: var(--rosa); }
+    .hdr-sep { width: 1px; height: 28px; background: #333; flex-shrink: 0; }
+    .hdr-text { flex: 1; min-width: 0; }
+    .hdr-text h1 { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hdr-text p  { font-size: 12px; color: #888; margin-top: 2px; }
+    .btn-back {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 14px; border-radius: 8px;
+      background: #1e1e1e; color: #ccc; font-size: 13px; font-weight: 600;
+      text-decoration: none; border: 1px solid #333; flex-shrink: 0;
+      transition: background .15s, color .15s;
+    }
+    .btn-back:hover { background: var(--rosa); color: #fff; border-color: var(--rosa); }
+
+    /* LAYOUT */
+    .main { max-width: 1100px; margin: 0 auto; padding: 40px 32px 80px; }
+
+    /* LOADING / ERRO */
+    .loading { text-align: center; padding: 80px 0; color: var(--cinza-muted); font-size: 15px; }
+    .loading span { display: block; font-size: 32px; margin-bottom: 12px; }
+    .erro { text-align: center; padding: 60px; background: #fff3f3; border: 1px solid #ffd0d0; border-radius: var(--r); color: #c0392b; }
+
+    /* DATA DO RELATÓRIO */
+    .report-date {
+      display: flex; align-items: center; gap: 16px; margin-bottom: 32px;
+      padding: 20px 28px; background: var(--cinza-card); border-radius: var(--r);
+      box-shadow: var(--shadow); border: 1px solid var(--cinza-borda);
+    }
+    .report-date .data-badge {
+      background: var(--preto); color: #fff; font-size: 11px; font-weight: 700;
+      padding: 4px 10px; border-radius: 20px; letter-spacing: .5px; text-transform: uppercase;
+    }
+    .report-date .data-texto { font-size: 20px; font-weight: 800; letter-spacing: -.3px; }
+    .report-date .data-subtexto { font-size: 13px; color: var(--cinza-muted); margin-top: 2px; }
+
+    /* KPI CARDS */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .kpi-card {
+      background: var(--cinza-card); border: 1px solid var(--cinza-borda);
+      border-radius: var(--r); padding: 20px 22px; box-shadow: var(--shadow);
+      position: relative; overflow: hidden;
+    }
+    .kpi-card.destaque { border-left: 3px solid var(--rosa); }
+    .kpi-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--cinza-muted); margin-bottom: 8px; }
+    .kpi-valor { font-size: 36px; font-weight: 900; letter-spacing: -1px; color: var(--preto); line-height: 1; }
+    .kpi-card.destaque .kpi-valor { color: var(--rosa); }
+    .kpi-sub { font-size: 12px; color: var(--cinza-muted); margin-top: 6px; }
+
+    /* SEÇÕES */
+    .section { margin-bottom: 32px; }
+    .section-title {
+      font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px;
+      color: var(--cinza-muted); margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .section-title::before {
+      content: ""; display: block; width: 3px; height: 16px;
+      background: var(--rosa); border-radius: 2px;
+    }
+
+    /* TABELA DE AGENTES */
+    .agentes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+    .agente-card {
+      background: var(--cinza-card); border: 1px solid var(--cinza-borda);
+      border-radius: var(--r); padding: 16px 20px; box-shadow: var(--shadow);
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    }
+    .agente-nome { font-weight: 700; font-size: 14px; }
+    .agente-qtd {
+      font-size: 22px; font-weight: 900; color: var(--rosa);
+      min-width: 32px; text-align: right;
+    }
+    .agente-label { font-size: 11px; color: var(--cinza-muted); margin-top: 2px; }
+
+    /* TABELA DE TICKETS */
+    .table-wrap { overflow-x: auto; background: var(--cinza-card); border: 1px solid var(--cinza-borda); border-radius: var(--r); box-shadow: var(--shadow); }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      background: var(--preto); color: #888; font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .8px; padding: 12px 16px; text-align: left;
+    }
+    tbody tr { border-bottom: 1px solid #f0f0f0; transition: background .1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--rosa-s); }
+    tbody td { padding: 12px 16px; vertical-align: middle; }
+    .ticket-id { font-family: monospace; font-size: 12px; color: var(--cinza-muted); }
+    .ticket-link {
+      display: inline-flex; align-items: center; gap: 5px;
+      color: var(--rosa); text-decoration: none; font-weight: 600; font-size: 13px;
+    }
+    .ticket-link:hover { text-decoration: underline; }
+    .ticket-link svg { flex-shrink: 0; }
+    .nota-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 20px;
+      font-size: 12px; font-weight: 700;
+    }
+    .nota-1 { background: #fde8e8; color: #c0392b; }
+    .nota-2 { background: #fef3e0; color: #d68910; }
+    .nota-3 { background: #fef9e7; color: #b7950b; }
+    .agente-chip {
+      display: inline-block; background: var(--cinza-bg); border: 1px solid var(--cinza-borda);
+      border-radius: 20px; padding: 2px 10px; font-size: 12px; font-weight: 600;
+    }
+
+    /* FOOTER */
+    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--cinza-borda); font-size: 12px; color: var(--cinza-muted); display: flex; justify-content: space-between; align-items: center; }
+    .footer-brand { font-weight: 900; font-size: 14px; color: var(--preto); }
+    .footer-brand b { color: var(--rosa); }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-inner">
+    <div class="logo">INK<b>.</b></div>
+    <div class="hdr-sep"></div>
+    <div class="hdr-text">
+      <h1>Relatório de CSAT — Avaliações Negativas</h1>
+      <p>Notas 1, 2 e 3 · Agentes monitoradas</p>
+    </div>
+    <a class="btn-back" href="index.html">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Voltar
+    </a>
+  </div>
+</header>
+
+<main class="main">
+  <div id="conteudo">
+    <div class="loading"><span>⏳</span>Carregando relatório...</div>
+  </div>
+
+  <div class="footer">
+    <span class="footer-brand">INK<b>.</b></span>
+    <span>Dados atualizados todo dia útil às 7h</span>
+  </div>
+</main>
+
+<script>
+  const WORKER_URL = 'https://csat-dashboard-worker.julia-paiva.workers.dev';
+
+  const MESES_PT = [
+    'janeiro','fevereiro','março','abril','maio','junho',
+    'julho','agosto','setembro','outubro','novembro','dezembro'
+  ];
+
+  function formatarData(dataStr) {
+    const [ano, mes, dia] = dataStr.split('-').map(Number);
+    const d = new Date(ano, mes - 1, dia);
+    const semanas = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+    return `${semanas[d.getDay()]}, ${dia} de ${MESES_PT[mes - 1]} de ${ano}`;
+  }
+
+  async function init() {
+    const params = new URLSearchParams(window.location.search);
+    const date = params.get('date');
+
+    const conteudo = document.getElementById('conteudo');
+
+    if (!date) {
+      conteudo.innerHTML = `<div class="erro"><strong>Data não informada.</strong><br>Use o calendário para escolher um dia.</div>`;
+      return;
+    }
+
+    document.title = `CSAT ${date} — INK`;
+
+    try {
+      const resp = await fetch(`${WORKER_URL}/data/${date}`);
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        conteudo.innerHTML = `<div class="erro"><strong>Relatório não encontrado para ${date}.</strong><br>${err.error || ''}</div>`;
+        return;
+      }
+      const dados = await resp.json();
+      renderRelatorio(dados, conteudo);
+    } catch (e) {
+      conteudo.innerHTML = `<div class="erro"><strong>Erro ao carregar dados.</strong><br>${e.message}</div>`;
+    }
+  }
+
+  function renderRelatorio(dados, container) {
+    const { date, total, por_agente = {}, tickets = [] } = dados;
+    const dataFormatada = formatarData(date);
+
+    // Agentes ordenados por quantidade (maior primeiro)
+    const agentesOrdenados = Object.entries(por_agente)
+      .sort((a, b) => b[1] - a[1]);
+
+    // Cards de KPI
+    let kpiHtml = `
+      <div class="kpi-card destaque">
+        <div class="kpi-label">Total de CSATs negativos</div>
+        <div class="kpi-valor">${total}</div>
+        <div class="kpi-sub">Notas 1, 2 e 3 no dia</div>
+      </div>
+    `;
+
+    for (const [nome, qtd] of agentesOrdenados) {
+      kpiHtml += `
+        <div class="kpi-card">
+          <div class="kpi-label">${primeiroNome(nome)}</div>
+          <div class="kpi-valor">${qtd}</div>
+          <div class="kpi-sub">avaliação${qtd !== 1 ? 'ões' : ''} negativa${qtd !== 1 ? 's' : ''}</div>
+        </div>
+      `;
+    }
+
+    // Cards de agentes detalhados
+    let agentesHtml = '';
+    for (const [nome, qtd] of agentesOrdenados) {
+      agentesHtml += `
+        <div class="agente-card">
+          <div>
+            <div class="agente-nome">${nome}</div>
+            <div class="agente-label">avaliações negativas no dia</div>
+          </div>
+          <div class="agente-qtd">${qtd}</div>
+        </div>
+      `;
+    }
+
+    // Tabela de tickets
+    let ticketsHtml = '';
+    for (const t of tickets) {
+      const notaClasse = `nota-${t.nota}`;
+      const linkHtml = t.link
+        ? `<a class="ticket-link" href="${t.link}" target="_blank" rel="noopener">
+            ${t.id || 'Ver ticket'}
+            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
+           </a>`
+        : `<span class="ticket-id">${t.id || '—'}</span>`;
+
+      ticketsHtml += `
+        <tr>
+          <td>${linkHtml}</td>
+          <td><span class="nota-badge ${notaClasse}">Nota ${t.nota}</span></td>
+          <td><span class="agente-chip">${t.agente || '—'}</span></td>
+        </tr>
+      `;
+    }
+
+    container.innerHTML = `
+      <div class="report-date">
+        <div>
+          <span class="data-badge">Relatório do dia</span>
+          <div class="data-texto">${dataFormatada}</div>
+          <div class="data-subtexto">${date}</div>
+        </div>
+      </div>
+
+      <div class="kpi-grid">${kpiHtml}</div>
+
+      ${agentesOrdenados.length > 0 ? `
+        <div class="section">
+          <div class="section-title">Detalhamento por agente</div>
+          <div class="agentes-grid">${agentesHtml}</div>
+        </div>
+      ` : ''}
+
+      ${tickets.length > 0 ? `
+        <div class="section">
+          <div class="section-title">Tickets avaliados</div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Ticket</th>
+                  <th>Nota</th>
+                  <th>Agente</th>
+                </tr>
+              </thead>
+              <tbody>${ticketsHtml}</tbody>
+            </table>
+          </div>
+        </div>
+      ` : `<div class="section"><p style="color:var(--cinza-muted)">Nenhum ticket registrado neste dia.</p></div>`}
+    `;
+  }
+
+  function primeiroNome(nomeCompleto) {
+    return nomeCompleto ? nomeCompleto.split(' ')[0] : '—';
+  }
+
+  init();
+</script>
+</body>
+</html>

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel CSAT — INK</title>
+  <style>
+    :root {
+      --rosa: #e91e8c;
+      --rosa-s: rgba(233,30,140,.10);
+      --rosa-borda: #f48dc1;
+      --preto: #111111;
+      --cinza-bg: #f4f5f7;
+      --cinza-card: #ffffff;
+      --cinza-borda: #e4e4e7;
+      --cinza-muted: #71717a;
+      --r: 10px;
+      --shadow: 0 1px 3px rgba(0,0,0,.07), 0 4px 12px rgba(0,0,0,.05);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--cinza-bg); color: var(--preto); font-size: 14px; line-height: 1.6; }
+
+    /* HEADER */
+    .header { background: var(--preto); color: #fff; border-bottom: 3px solid var(--rosa); position: sticky; top: 0; z-index: 100; }
+    .header-inner { max-width: 1100px; margin: 0 auto; padding: 0 32px; height: 66px; display: flex; align-items: center; gap: 20px; }
+    .logo { font-size: 26px; font-weight: 900; letter-spacing: -1px; color: #fff; }
+    .logo b { color: var(--rosa); }
+    .hdr-sep { width: 1px; height: 28px; background: #333; }
+    .hdr-text h1 { font-size: 15px; font-weight: 700; }
+    .hdr-text p  { font-size: 12px; color: #888; margin-top: 2px; }
+
+    /* LAYOUT */
+    .main { max-width: 1100px; margin: 0 auto; padding: 40px 32px 80px; }
+
+    /* ESTADO DE CARREGAMENTO */
+    .loading { text-align: center; padding: 80px 0; color: var(--cinza-muted); font-size: 15px; }
+    .loading span { display: block; font-size: 32px; margin-bottom: 12px; }
+
+    /* MESES */
+    .month-section { margin-bottom: 48px; }
+    .month-title {
+      font-size: 18px; font-weight: 800; letter-spacing: -.3px;
+      margin-bottom: 16px; display: flex; align-items: center; gap: 10px;
+    }
+    .month-title::before {
+      content: ""; display: block; width: 4px; height: 22px;
+      background: var(--rosa); border-radius: 2px;
+    }
+
+    /* CALENDÁRIO */
+    .calendar { background: var(--cinza-card); border: 1px solid var(--cinza-borda); border-radius: var(--r); box-shadow: var(--shadow); overflow: hidden; }
+    .cal-header { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--preto); }
+    .cal-header span { padding: 10px; text-align: center; font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+    .cal-grid { display: grid; grid-template-columns: repeat(5, 1fr); }
+    .cal-cell { min-height: 56px; border: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: center; }
+    .cal-cell.empty { background: #fafafa; }
+    .cal-day {
+      width: 44px; height: 44px; border-radius: 8px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 15px; gap: 2px; cursor: default;
+      color: var(--cinza-muted);
+    }
+    .cal-day.tem-dados {
+      background: var(--rosa); color: #fff;
+      cursor: pointer; transition: transform .15s, box-shadow .15s;
+      text-decoration: none;
+    }
+    .cal-day.tem-dados:hover { transform: scale(1.08); box-shadow: 0 4px 14px rgba(233,30,140,.40); }
+    .cal-day.tem-dados .cal-dot { font-size: 9px; opacity: .85; }
+
+    /* VAZIO */
+    .empty-state { text-align: center; padding: 60px; color: var(--cinza-muted); }
+    .empty-state p { margin-top: 8px; font-size: 13px; }
+
+    /* FOOTER */
+    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--cinza-borda); font-size: 12px; color: var(--cinza-muted); display: flex; justify-content: space-between; align-items: center; }
+    .footer-brand { font-weight: 900; font-size: 14px; color: var(--preto); }
+    .footer-brand b { color: var(--rosa); }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-inner">
+    <div class="logo">INK<b>.</b></div>
+    <div class="hdr-sep"></div>
+    <div class="hdr-text">
+      <h1>Painel de CSAT — Avaliações Negativas</h1>
+      <p>Histórico diário por agente · Atualizado automaticamente todo dia útil</p>
+    </div>
+  </div>
+</header>
+
+<main class="main">
+  <div id="conteudo">
+    <div class="loading"><span>⏳</span>Carregando histórico...</div>
+  </div>
+
+  <div class="footer">
+    <span class="footer-brand">INK<b>.</b></span>
+    <span>Dados atualizados todo dia útil às 7h</span>
+  </div>
+</main>
+
+<script>
+  const WORKER_URL = 'https://csat-dashboard-worker.julia-paiva.workers.dev';
+
+  const MESES_PT = [
+    'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+    'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'
+  ];
+  const DIAS_SEMANA = ['Seg','Ter','Qua','Qui','Sex'];
+
+  async function init() {
+    try {
+      const resp = await fetch(`${WORKER_URL}/index`);
+      const datas = await resp.json();
+
+      const conteudo = document.getElementById('conteudo');
+
+      if (!datas || datas.length === 0) {
+        conteudo.innerHTML = `
+          <div class="empty-state">
+            <strong>Nenhum relatório disponível ainda.</strong>
+            <p>Os dados aparecerão aqui após o primeiro dia útil de funcionamento.</p>
+          </div>`;
+        return;
+      }
+
+      // Agrupa datas por ano-mês
+      const grupos = {};
+      for (const d of datas) {
+        const chave = d.slice(0, 7); // "2026-06"
+        if (!grupos[chave]) grupos[chave] = new Set();
+        grupos[chave].add(d);
+      }
+
+      const datasSet = new Set(datas);
+      let html = '';
+
+      for (const [mesAno, _] of Object.entries(grupos).sort((a, b) => b[0].localeCompare(a[0]))) {
+        const [ano, mes] = mesAno.split('-').map(Number);
+        html += renderMes(ano, mes, datasSet);
+      }
+
+      conteudo.innerHTML = html;
+    } catch (e) {
+      document.getElementById('conteudo').innerHTML =
+        `<div class="empty-state"><strong>Erro ao carregar dados.</strong><p>${e.message}</p></div>`;
+    }
+  }
+
+  function renderMes(ano, mes, datasComDados) {
+    const nomeMes = MESES_PT[mes - 1];
+
+    // Descobre quantos dias tem o mês
+    const totalDias = new Date(ano, mes, 0).getDate();
+
+    // Dia da semana do dia 1 (0=dom, 1=seg ... 6=sab)
+    const diaSemana1 = new Date(ano, mes - 1, 1).getDay();
+
+    // Quantas células Mon-Sex ficam vazias antes do primeiro dia útil do mês
+    // Sáb e Dom → 0 (o primeiro dia útil já cai na segunda-feira seguinte)
+    const offsetMap = { 1:0, 2:1, 3:2, 4:3, 5:4, 6:0, 0:0 };
+    const offset = offsetMap[diaSemana1];
+
+    let cells = '';
+
+    // Células vazias do início
+    for (let i = 0; i < offset; i++) {
+      cells += `<div class="cal-cell empty"></div>`;
+    }
+
+    for (let dia = 1; dia <= totalDias; dia++) {
+      const data = new Date(ano, mes - 1, dia);
+      const diaDaSemana = data.getDay(); // 0=dom, 6=sab
+
+      // Pula fins de semana
+      if (diaDaSemana === 0 || diaDaSemana === 6) continue;
+
+      const dataStr = `${ano}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+      const temDados = datasComDados.has(dataStr);
+
+      if (temDados) {
+        cells += `
+          <div class="cal-cell">
+            <a class="cal-day tem-dados" href="report.html?date=${dataStr}">
+              <span>${dia}</span>
+              <span class="cal-dot">ver</span>
+            </a>
+          </div>`;
+      } else {
+        cells += `
+          <div class="cal-cell">
+            <div class="cal-day">${dia}</div>
+          </div>`;
+      }
+    }
+
+    return `
+      <div class="month-section">
+        <div class="month-title">${nomeMes} ${ano}</div>
+        <div class="calendar">
+          <div class="cal-header">
+            ${DIAS_SEMANA.map(d => `<span>${d}</span>`).join('')}
+          </div>
+          <div class="cal-grid">${cells}</div>
+        </div>
+      </div>`;
+  }
+
+  init();
+</script>
+</body>
+</html>
