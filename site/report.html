@@ -113,42 +113,58 @@
     .tag-nome { font-weight: 600; color: var(--preto); }
     .tag-count { font-size: 11px; font-weight: 700; color: var(--muted); background: var(--bg); padding: 1px 7px; border-radius: 10px; }
 
-    /* TABELA */
-    .table-wrap {
-      background: var(--card); border: 1px solid var(--borda);
-      border-radius: var(--r); box-shadow: var(--sh); overflow: hidden;
+    /* LISTA DE TICKETS — painel de qualidade */
+    .ticket-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .ticket-card {
+      background: var(--card); border: 1px solid var(--borda); border-radius: var(--r);
+      box-shadow: var(--sh); padding: 18px 22px;
+      display: grid; grid-template-columns: 72px 1fr auto;
+      align-items: center; gap: 20px;
+      transition: box-shadow .15s, transform .15s;
     }
-    .table-scroll { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; min-width: 600px; }
-    thead th {
-      background: var(--preto); color: #555; font-size: 10px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: .8px; padding: 12px 16px; text-align: left;
-      white-space: nowrap;
+    .ticket-card:hover { box-shadow: var(--sh-lg); transform: translateY(-1px); }
+
+    /* Bloco CSAT — elemento visual principal */
+    .csat-bloco {
+      width: 64px; height: 64px; border-radius: 12px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      flex-shrink: 0; gap: 3px;
     }
-    tbody tr { border-bottom: 1px solid #f1f5f9; transition: background .1s; }
-    tbody tr:last-child { border-bottom: none; }
-    tbody tr:hover { background: var(--rosa-s); }
-    tbody td { padding: 12px 16px; vertical-align: middle; }
-
-    .ticket-link {
-      display: inline-flex; align-items: center; gap: 5px; color: var(--rosa);
-      text-decoration: none; font-weight: 700; font-size: 13px; font-family: monospace;
+    .csat-bloco.n1 { background: #fef2f2; border: 1.5px solid #fecaca; }
+    .csat-bloco.n2 { background: #fffbeb; border: 1.5px solid #fde68a; }
+    .csat-bloco.n3 { background: #fefce8; border: 1.5px solid #fef08a; }
+    .csat-num {
+      font-size: 26px; font-weight: 900; letter-spacing: -1px; line-height: 1;
     }
-    .ticket-link:hover { text-decoration: underline; }
-    .ticket-link svg { flex-shrink: 0; opacity: .7; }
+    .n1 .csat-num { color: #b91c1c; }
+    .n2 .csat-num { color: #b45309; }
+    .n3 .csat-num { color: #92400e; }
+    .csat-label {
+      font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; opacity: .55;
+    }
+    .n1 .csat-label { color: #b91c1c; }
+    .n2 .csat-label { color: #b45309; }
+    .n3 .csat-label { color: #92400e; }
 
-    .nota-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
-    .nota-1 { background: #fde8e8; color: #b91c1c; }
-    .nota-2 { background: #fef3c7; color: #b45309; }
-    .nota-3 { background: #fef9c3; color: #92400e; }
-    .nota-estrela { font-size: 10px; }
+    /* Corpo central — agente + ID */
+    .ticket-corpo { min-width: 0; }
+    .ticket-agente { font-size: 15px; font-weight: 700; margin-bottom: 5px; }
+    .ticket-id-link {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-family: monospace; font-size: 11px; color: var(--muted);
+      text-decoration: none; opacity: .65; transition: opacity .15s;
+    }
+    .ticket-id-link:hover { opacity: 1; color: var(--rosa); }
+    .ticket-id-link svg { flex-shrink: 0; }
 
-    .agente-chip { display: inline-block; background: #f1f5f9; border: 1px solid var(--borda); border-radius: 20px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
-
-    .tags-cell { display: flex; flex-wrap: wrap; gap: 4px; }
+    /* Tags — coluna direita, hierarquia reduzida */
+    .ticket-tags { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: 220px; flex-wrap: wrap; }
     .tag-chip {
-      display: inline-block; padding: 2px 8px; border-radius: 6px;
-      font-size: 11px; font-weight: 600; border: 1px solid transparent;
+      display: inline-block; padding: 2px 8px; border-radius: 5px;
+      font-size: 10px; font-weight: 500; color: var(--muted);
+      background: var(--bg); border: 1px solid var(--borda); opacity: .8;
+      white-space: nowrap;
     }
 
     /* FOOTER */
@@ -306,28 +322,32 @@
         </div>`;
     }
 
-    // Tabela
+    // Cards de tickets
     const linhas = tickets.map(t => {
-      const notaCls = `nota-${t.nota}`;
-      const estrelas = '★'.repeat(t.nota) + '☆'.repeat(5 - t.nota);
-      const linkHtml = t.link
-        ? `<a class="ticket-link" href="${t.link}" target="_blank" rel="noopener">
+      const nc = `n${t.nota}`;
+      const idHtml = t.link
+        ? `<a class="ticket-id-link" href="${t.link}" target="_blank" rel="noopener">
             #${t.id}
-            <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
+            <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
            </a>`
-        : `<span style="font-family:monospace;font-weight:700">#${t.id || '—'}</span>`;
+        : `<span class="ticket-id-link" style="cursor:default">#${t.id || '—'}</span>`;
 
-      const tagsTicket = (t.tags || []).map(tag => {
-        const c = tagCor(tag);
-        return `<span class="tag-chip" style="background:${c.bg};color:${c.txt};border-color:${c.borda}">${formatTag(tag)}</span>`;
-      }).join('');
+      const tagsHtml = (t.tags || []).map(tag =>
+        `<span class="tag-chip">${formatTag(tag)}</span>`
+      ).join('');
 
-      return `<tr>
-        <td>${linkHtml}</td>
-        <td><span class="nota-badge ${notaCls}"><span class="nota-estrela">${estrelas}</span> Nota ${t.nota}</span></td>
-        <td><span class="agente-chip">${t.agente || '—'}</span></td>
-        <td><div class="tags-cell">${tagsTicket || '<span style="color:var(--muted);font-size:11px">—</span>'}</div></td>
-      </tr>`;
+      return `
+        <div class="ticket-card">
+          <div class="csat-bloco ${nc}">
+            <span class="csat-num">${t.nota}</span>
+            <span class="csat-label">CSAT</span>
+          </div>
+          <div class="ticket-corpo">
+            <div class="ticket-agente">${t.agente || '—'}</div>
+            ${idHtml}
+          </div>
+          <div class="ticket-tags">${tagsHtml}</div>
+        </div>`;
     }).join('');
 
     el.innerHTML = `
@@ -351,17 +371,9 @@
 
       <div class="section">
         <div class="section-head">Tickets avaliados</div>
-        ${tickets.length > 0 ? `
-          <div class="table-wrap">
-            <div class="table-scroll">
-              <table>
-                <thead><tr>
-                  <th>Ticket</th><th>Nota</th><th>Agente</th><th>Tags</th>
-                </tr></thead>
-                <tbody>${linhas}</tbody>
-              </table>
-            </div>
-          </div>` : '<div class="empty">Nenhum ticket registrado neste dia.</div>'}
+        ${tickets.length > 0
+          ? `<div class="ticket-list">${linhas}</div>`
+          : '<div class="empty">Nenhum ticket registrado neste dia.</div>'}
       </div>`;
   }
 
