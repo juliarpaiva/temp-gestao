@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Painel CSAT — INK</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     :root {
       --rosa:   #e91e8c;
@@ -65,6 +66,12 @@
       background: var(--rosa); border-radius: 2px;
     }
 
+    /* GRÁFICO */
+    .chart-card {
+      background: var(--card); border: 1px solid var(--borda); border-radius: var(--r);
+      box-shadow: var(--sh); padding: 20px 24px; margin-bottom: 16px;
+    }
+
     /* CALENDÁRIO */
     .calendar { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; }
     .cal-header { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--preto); }
@@ -88,9 +95,9 @@
     .cal-day.tem-dados:hover { transform: scale(1.1); box-shadow: 0 4px 16px rgba(233,30,140,.35); filter: brightness(1.08); }
 
     /* Intensidade baseada no total de CSATs */
-    .cal-day.vol-baixo  { background: #f48dc1; }   /* 1–3  */
-    .cal-day.vol-medio  { background: #e91e8c; }   /* 4–7  */
-    .cal-day.vol-alto   { background: #b8136e; }   /* 8+   */
+    .cal-day.vol-baixo  { background: #f48dc1; }
+    .cal-day.vol-medio  { background: #e91e8c; }
+    .cal-day.vol-alto   { background: #b8136e; }
 
     .cal-num  { font-size: 16px; font-weight: 900; line-height: 1; }
     .cal-csat { font-size: 10px; font-weight: 700; opacity: .85; margin-top: 2px; letter-spacing: .3px; }
@@ -160,18 +167,16 @@
     const el = document.getElementById('conteudo');
     try {
       const resp = await fetch(`${API}/summary`);
-      const resumo = await resp.json(); // [{date, total}, ...]
+      const resumo = await resp.json();
 
       if (!resumo || resumo.length === 0) {
         el.innerHTML = `<div class="empty-state"><strong>Nenhum relatório disponível ainda.</strong></div>`;
         return;
       }
 
-      // Map date → total
       const totaisMap = {};
       resumo.forEach(r => { totaisMap[r.date] = r.total; });
 
-      // Agrupa por mês
       const grupos = {};
       resumo.forEach(r => {
         const chave = r.date.slice(0, 7);
@@ -184,12 +189,10 @@
       for (const [mesAno] of Object.entries(grupos).sort((a, b) => b[0].localeCompare(a[0]))) {
         const [ano, mes] = mesAno.split('-').map(Number);
 
-        // Calcula resumo do mês
         const datasDoMes = Object.keys(totaisMap).filter(d => d.startsWith(mesAno));
         const totalMes   = datasDoMes.reduce((s, d) => s + (totaisMap[d] || 0), 0);
         const mediaMes   = datasDoMes.length ? (totalMes / datasDoMes.length).toFixed(1) : 0;
         const piorDia    = datasDoMes.sort((a, b) => (totaisMap[b] || 0) - (totaisMap[a] || 0))[0];
-        const piorTotal  = piorDia ? totaisMap[piorDia] : 0;
         const piorLabel  = piorDia ? `${Number(piorDia.slice(8))}/${MESES_ABREV[mes-1]}` : '—';
 
         html += `
@@ -218,6 +221,10 @@
               </div>
             </div>
 
+            <div class="chart-card">
+              <canvas id="chart-${mesAno}" height="80"></canvas>
+            </div>
+
             ${renderCalendario(ano, mes, totaisMap)}
 
             <div class="legenda">
@@ -230,6 +237,52 @@
       }
 
       el.innerHTML = html;
+
+      // Gráficos de evolução temporal por mês
+      for (const [mesAno] of Object.entries(grupos).sort((a, b) => b[0].localeCompare(a[0]))) {
+        const [ano, mes] = mesAno.split('-').map(Number);
+        const canvas = document.getElementById('chart-' + mesAno);
+        if (!canvas || typeof Chart === 'undefined') continue;
+
+        const totalDias = new Date(ano, mes, 0).getDate();
+        const labels = [], dados = [];
+        for (let dia = 1; dia <= totalDias; dia++) {
+          const dow = new Date(ano, mes - 1, dia).getDay();
+          if (dow === 0 || dow === 6) continue;
+          const ds = ano + '-' + String(mes).padStart(2, '0') + '-' + String(dia).padStart(2, '0');
+          if (totaisMap[ds] !== undefined) { labels.push(dia); dados.push(totaisMap[ds]); }
+        }
+
+        new Chart(canvas, {
+          type: 'line',
+          data: {
+            labels,
+            datasets: [{
+              data: dados,
+              borderColor: '#e91e8c',
+              backgroundColor: 'rgba(233,30,140,.08)',
+              pointBackgroundColor: '#e91e8c',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2,
+              pointRadius: 5,
+              tension: 0.3,
+              fill: true,
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: ctx => ctx.raw + ' neg' } }
+            },
+            scales: {
+              x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#94a3b8' } },
+              y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 }, color: '#94a3b8', precision: 0 } }
+            }
+          }
+        });
+      }
+
     } catch(e) {
       el.innerHTML = `<div class="empty-state"><strong>Erro ao carregar dados.</strong><br>${e.message}</div>`;
     }

@@ -113,6 +113,17 @@
     .tag-nome { font-weight: 600; color: var(--preto); }
     .tag-count { font-size: 11px; font-weight: 700; color: var(--muted); background: var(--bg); padding: 1px 7px; border-radius: 10px; }
 
+    /* FILTRO POR AGENTE */
+    .filtro-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .filtro-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); flex-shrink: 0; }
+    .filtro-pill {
+      padding: 5px 14px; border-radius: 20px; border: 1px solid var(--borda);
+      background: var(--card); font-size: 12px; font-weight: 600; color: var(--muted);
+      cursor: pointer; transition: all .15s; line-height: 1.6;
+    }
+    .filtro-pill:hover { border-color: var(--rosa); color: var(--rosa); }
+    .filtro-pill.ativo { background: var(--rosa); border-color: var(--rosa); color: #fff; }
+
     /* LISTA DE TICKETS — painel de qualidade */
     .ticket-list { display: flex; flex-direction: column; gap: 12px; }
 
@@ -124,12 +135,6 @@
     }
     .agent-group:hover { box-shadow: var(--sh-lg); transform: translateY(-1px); }
 
-    /*
-      Faixas de satisfação (pela pior nota do agente):
-        n1 → baixa — vermelho
-        n2 → baixa mod. — laranja
-        n3 → neutra — âmbar
-    */
     .agent-group.n1 { border-left: 4px solid #fca5a5; }
     .agent-group.n2 { border-left: 4px solid #fdba74; }
     .agent-group.n3 { border-left: 4px solid #fde68a; }
@@ -156,11 +161,8 @@
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       flex-shrink: 0; gap: 3px;
     }
-    /* n1 — baixa (vermelho mais intenso) */
     .csat-bloco.n1 { background: #fef2f2; border: 2px solid #fca5a5; }
-    /* n2 — baixa moderada (vermelho-laranja) */
     .csat-bloco.n2 { background: #fff4f0; border: 2px solid #fdba74; }
-    /* n3 — neutra (âmbar suave) */
     .csat-bloco.n3 { background: #fffbeb; border: 2px solid #fde68a; }
 
     .csat-num {
@@ -247,7 +249,6 @@
   const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
   const SEMANA = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
 
-  // Cores por categoria de tag (primeiro segmento antes do _)
   const TAG_CORES = {
     entrega:      { bg: '#eff6ff', txt: '#1d4ed8', borda: '#bfdbfe' },
     troca:        { bg: '#fffbeb', txt: '#b45309', borda: '#fde68a' },
@@ -323,16 +324,6 @@
         </div>`;
     }
 
-    // Agentes
-    let agentesHtml = agentes.map(([nome, qtd]) => `
-      <div class="agente-card">
-        <div>
-          <div class="agente-nome">${nome}</div>
-          <div class="agente-sub">${qtd === 1 ? 'avaliação negativa' : 'avaliações negativas'} no dia</div>
-        </div>
-        <div class="agente-num">${qtd}</div>
-      </div>`).join('');
-
     // Tags resumo
     let tagsHtml = '';
     if (tags.length > 0) {
@@ -361,7 +352,7 @@
       return oa !== ob ? oa - ob : (a.nota - b.nota);
     });
 
-    // Agrupa tickets por agente (mantendo a ordem dos KPI cards)
+    // Agrupa tickets por agente
     const grupoMap = {};
     ticketsOrdenados.forEach(t => {
       const key = t.agente || '—';
@@ -396,7 +387,7 @@
       const nc = `n${piorNota}`;
       const cnt = agTickets.length;
       return `
-        <div class="agent-group ${nc}">
+        <div class="agent-group ${nc}" data-agente="${agente}">
           <div class="agent-header">
             <span class="agent-header-nome">${agente}</span>
             <span class="agent-header-count">${cnt} ${cnt === 1 ? 'avaliação negativa' : 'avaliações negativas'}</span>
@@ -404,6 +395,14 @@
           ${agTickets.map(ticketRowHtml).join('')}
         </div>`;
     }).join('');
+
+    // Pills de filtro por agente
+    const filtroHtml = agentes.length > 1 ? `
+      <div class="filtro-bar" id="filtro-bar">
+        <span class="filtro-label">Agente:</span>
+        <button class="filtro-pill ativo" data-agente="">Todas</button>
+        ${agentes.map(([nome]) => `<button class="filtro-pill" data-agente="${nome}">${nome.split(' ')[0]}</button>`).join('')}
+      </div>` : '';
 
     el.innerHTML = `
       <div class="date-hero">
@@ -416,15 +415,26 @@
 
       <div class="kpi-grid">${kpis}</div>
 
-
       ${tagsHtml}
 
       <div class="section">
         <div class="section-head">Tickets avaliados</div>
         ${tickets.length > 0
-          ? `<div class="ticket-list">${linhas}</div>`
+          ? `${filtroHtml}<div class="ticket-list">${linhas}</div>`
           : '<div class="empty">Nenhum ticket registrado neste dia.</div>'}
       </div>`;
+
+    // Ativa filtro por agente
+    document.getElementById('filtro-bar')?.querySelectorAll('.filtro-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        document.getElementById('filtro-bar').querySelectorAll('.filtro-pill').forEach(p => p.classList.remove('ativo'));
+        pill.classList.add('ativo');
+        const filtro = pill.dataset.agente;
+        document.querySelectorAll('.agent-group').forEach(g => {
+          g.style.display = (!filtro || g.dataset.agente === filtro) ? '' : 'none';
+        });
+      });
+    });
   }
 
   init();
