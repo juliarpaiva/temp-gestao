@@ -339,8 +339,17 @@
         </div>`;
     }
 
+    // Ordena tickets pela mesma sequência dos KPI cards (agente com mais negativos primeiro)
+    const ordemAgente = {};
+    agentes.forEach(([nome], i) => { ordemAgente[nome] = i; });
+    const ticketsOrdenados = [...tickets].sort((a, b) => {
+      const oa = ordemAgente[a.agente] ?? 99;
+      const ob = ordemAgente[b.agente] ?? 99;
+      return oa !== ob ? oa - ob : (a.nota - b.nota);
+    });
+
     // Cards de tickets
-    const linhas = tickets.map(t => {
+    const linhas = ticketsOrdenados.map(t => {
       const nc = `n${t.nota}`;
       const idHtml = t.link
         ? `<a class="ticket-id-link" href="${t.link}" target="_blank" rel="noopener">
