@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
@@ -307,7 +307,7 @@
     return formatTag(tags[0]);
   }
 
-  function getMotivoP rincipal(tags) {
+  function getMotivoPrincipal(tags) {
     if (!tags || !tags.length) return null;
     return formatTag(sortTagsByRelevance(tags)[0]);
   }
@@ -356,7 +356,7 @@
     ttTimer = setTimeout(() => {
       const crit   = calcularCriticidade(ticket);
       const cat    = getCategoriaPrincipal(ticket.tags) || '—';
-      const motivo = getMotivoP rincipal(ticket.tags);
+      const motivo = getMotivoPrincipal(ticket.tags);
       const fb     = ticket.feedback;
 
       ttEl.innerHTML = `
