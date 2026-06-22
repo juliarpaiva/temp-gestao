@@ -214,7 +214,10 @@ async function runDailyReport(dateOverride = null, force = false) {
   const positivosAll  = comNota.filter(t => t.csat_score >= 4);
   const tickets       = negativosAll.filter(t => isAgentMonitorada(t.agent_on_resolution_name));
 
-  const ticketIds = tickets.map(t => t.display_ticket_id).filter(Boolean);
+  const ticketIds = [
+    ...tickets.map(t => t.display_ticket_id),
+    ...positivosMonitorados.map(t => t.display_ticket_id),
+  ].filter(Boolean);
   const labelsByTicket = await getTicketLabels(token, ticketIds);
 
   const por_agente = {};
@@ -253,6 +256,7 @@ async function runDailyReport(dateOverride = null, force = false) {
       link: t.ticket_link,
       nota: t.csat_score,
       agente: t.agent_on_resolution_name,
+      tags: labelsByTicket[t.display_ticket_id] || [],
       cliente_nome: t.contact_name || null,
       cliente_email: t.contact_email || null,
       feedback: t.csat_feedback || null,

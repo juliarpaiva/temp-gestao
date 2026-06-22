@@ -326,7 +326,6 @@
           ${vsEl || '<div style="margin-bottom:12px"></div>'}
           <div class="semana-detalhe">
             <span>Pior dia <b>${piorFmt} (${s.pior_total})</b></span>
-            ${topAg ? `<span>Destaque <b>${topAg[0].split(' ')[0]} (${topAg[1]})</b></span>` : ''}
             <span>${s.dias} dia${s.dias!==1?'s':''} ${s.dias!==1?'úteis':'útil'}</span>
           </div>
           ${s.total_avaliados ? `<div class="semana-csat-row">

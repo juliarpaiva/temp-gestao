@@ -693,21 +693,23 @@
     const indevidaCount = Object.keys(indevidaMap).length;
 
     /* KPIs */
+    const totalRecebidas = d.total_avaliados || (total + tickets_positivos.length);
     let kpis = `
+      <div class="kpi">
+        <div class="kpi-label">Recebidas</div>
+        <div class="kpi-num">${totalRecebidas}</div>
+        <div class="kpi-sub">avaliações no dia</div>
+      </div>
+      <div class="kpi" style="border-left:4px solid #86efac">
+        <div class="kpi-label">Positivas</div>
+        <div class="kpi-num" style="color:#16a34a">${tickets_positivos.length}</div>
+        <div class="kpi-sub">notas 4 e 5</div>
+      </div>
       <div class="kpi total">
-        <div class="kpi-label">Negativos no dia</div>
+        <div class="kpi-label">Negativas</div>
         <div class="kpi-num">${total}</div>
-        <div class="kpi-sub">${tickets_positivos.length} positivos</div>
+        <div class="kpi-sub">notas 1, 2 e 3</div>
       </div>`;
-    for (const [nome, qtd] of agentes) {
-      kpis += `
-        <div class="kpi">
-          <div class="kpi-label">${nome.split(' ')[0]}</div>
-          <div class="kpi-num">${qtd}</div>
-          <div class="kpi-sub">${qtd===1?'avaliação negativa':'avaliações negativas'}</div>
-          <div class="kpi-bar" style="width:${Math.round(qtd/maxAg*100)}%"></div>
-        </div>`;
-    }
     if (indevidaCount > 0) {
       kpis += `
         <div class="kpi kpi-indev">
@@ -837,6 +839,7 @@
           ${t.cliente_email ? `<span class="cliente-email">${escHtml(t.cliente_email)}</span>` : ''}
         </div>` : '';
       const feedbackHtml = t.feedback ? `<div class="ticket-feedback" style="color:#15803d">${escHtml(t.feedback)}</div>` : '';
+      const tagsChips = renderTagsCompact(t.tags || []);
       return `
         <div class="agent-ticket-row" style="border-left:3px solid #86efac">
           <div class="csat-bloco" style="background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a">
@@ -847,6 +850,9 @@
             ${idHtml}
             ${clienteHtml}
             ${feedbackHtml}
+          </div>
+          <div class="ticket-direita">
+            <div class="ticket-tags">${tagsChips}</div>
           </div>
         </div>`;
     }
