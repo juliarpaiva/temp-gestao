@@ -20,7 +20,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--preto); font-size: 14px; line-height: 1.6; }
 
-    /* HEADER */
+    /* ── HEADER ─────────────────────────────────────────── */
     .header { background: var(--preto); color: #fff; border-bottom: 3px solid var(--rosa); position: sticky; top: 0; z-index: 100; }
     .header-inner { max-width: 1140px; margin: 0 auto; padding: 0 32px; height: 64px; display: flex; align-items: center; gap: 16px; }
     .logo { font-size: 24px; font-weight: 900; letter-spacing: -1px; color: #fff; flex-shrink: 0; }
@@ -29,76 +29,75 @@
     .hdr-meta { flex: 1; min-width: 0; }
     .hdr-meta h1 { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .hdr-meta p  { font-size: 11px; color: #666; margin-top: 1px; }
-    .btn-back {
-      display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
-      border-radius: 8px; background: #1a1a1a; color: #aaa; font-size: 12px; font-weight: 600;
-      text-decoration: none; border: 1px solid #2a2a2a; flex-shrink: 0; transition: all .15s;
-    }
+    .btn-back { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; background: #1a1a1a; color: #aaa; font-size: 12px; font-weight: 600; text-decoration: none; border: 1px solid #2a2a2a; flex-shrink: 0; transition: all .15s; }
     .btn-back:hover { background: var(--rosa); color: #fff; border-color: var(--rosa); }
 
-    /* LAYOUT */
+    /* ── LAYOUT ─────────────────────────────────────────── */
     .main { max-width: 1140px; margin: 0 auto; padding: 36px 32px 80px; }
-
-    /* ESTADOS */
-    .loading { text-align: center; padding: 80px 0; color: var(--muted); }
-    .loading-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--rosa); margin: 0 3px; animation: bounce .9s infinite; }
-    .loading-dot:nth-child(2) { animation-delay: .15s; }
-    .loading-dot:nth-child(3) { animation-delay: .3s; }
-    @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-8px)} }
     .erro { padding: 40px; background: #fff3f3; border: 1px solid #ffd0d0; border-radius: var(--r); color: #c0392b; text-align: center; }
 
-    /* DATE HERO */
-    .date-hero {
-      background: var(--card); border: 1px solid var(--borda); border-radius: var(--r);
-      box-shadow: var(--sh); padding: 24px 28px; margin-bottom: 24px;
-      display: flex; align-items: center; gap: 20px;
+    /* ── SKELETON LOADING ───────────────────────────────── */
+    @keyframes shimmer {
+      0%   { background-position: -700px 0; }
+      100% { background-position:  700px 0; }
     }
+    .sk {
+      background: linear-gradient(90deg, #edf0f4 25%, #dde2e8 50%, #edf0f4 75%);
+      background-size: 700px 100%;
+      animation: shimmer 1.4s ease-in-out infinite;
+      border-radius: 6px; display: block;
+    }
+    .sk-hero { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); padding: 24px 28px; margin-bottom: 24px; display: flex; align-items: center; gap: 20px; }
+    .sk-kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; margin-bottom: 28px; }
+    .sk-kpi { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); padding: 20px 22px; }
+    .sk-group { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; margin-bottom: 12px; }
+    .sk-group-header { padding: 14px 20px; background: #fafbfc; border-bottom: 1px solid var(--borda); }
+    .sk-row { display: grid; grid-template-columns: 68px 1fr 140px; align-items: center; gap: 20px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; }
+    .sk-row:last-child { border-bottom: none; }
+
+    /* ── DATE HERO ──────────────────────────────────────── */
+    .date-hero { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); padding: 24px 28px; margin-bottom: 24px; display: flex; align-items: center; gap: 20px; }
     .date-pill { background: var(--preto); color: #fff; font-size: 10px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; padding: 5px 12px; border-radius: 20px; flex-shrink: 0; }
     .date-info .dia { font-size: 22px; font-weight: 800; letter-spacing: -.4px; }
     .date-info .iso { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
-    /* KPI GRID */
+    /* ── KPI GRID ───────────────────────────────────────── */
     .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; margin-bottom: 28px; }
     .kpi { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); padding: 20px 22px; position: relative; overflow: hidden; }
-    .kpi.total { border-left: 4px solid var(--rosa); }
-    .kpi.indevida-kpi { border-left: 4px solid #94a3b8; }
-    .kpi.ajustado-kpi { border-left: 4px solid #10b981; }
+    .kpi.total       { border-left: 4px solid var(--rosa); }
+    .kpi.kpi-indev   { border-left: 4px solid #94a3b8; }
+    .kpi.kpi-ajust   { border-left: 4px solid #10b981; }
     .kpi-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 10px; }
     .kpi-num { font-size: 40px; font-weight: 900; letter-spacing: -2px; line-height: 1; color: var(--preto); }
-    .kpi.total .kpi-num { color: var(--rosa); }
-    .kpi.indevida-kpi .kpi-num { color: #64748b; }
-    .kpi.ajustado-kpi .kpi-num { color: #059669; }
+    .kpi.total .kpi-num     { color: var(--rosa); }
+    .kpi.kpi-indev .kpi-num { color: #64748b; }
+    .kpi.kpi-ajust .kpi-num { color: #059669; }
     .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 8px; }
     .kpi-bar { position: absolute; bottom: 0; left: 0; height: 3px; background: linear-gradient(90deg, var(--rosa), transparent); border-radius: 0 2px 0 0; }
 
-    /* SEÇÕES */
+    /* ── SEÇÕES ─────────────────────────────────────────── */
     .section { margin-bottom: 28px; }
     .section-head { display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 14px; }
     .section-head::before { content: ""; display: block; width: 3px; height: 14px; background: var(--rosa); border-radius: 2px; flex-shrink: 0; }
-    .section-hint { font-size: 11px; color: var(--muted); margin-left: 4px; font-weight: 400; text-transform: none; letter-spacing: 0; opacity: .7; }
+    .section-hint { font-weight: 400; text-transform: none; letter-spacing: 0; opacity: .65; font-size: 11px; margin-left: 2px; }
 
-    /* TAGS — clicáveis como filtro */
+    /* ── TAGS — clicáveis ───────────────────────────────── */
     .tags-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-    .tag-item {
-      display: inline-flex; align-items: center; gap: 8px;
-      background: var(--card); border: 1px solid var(--borda); border-radius: 8px; padding: 6px 12px;
-      box-shadow: var(--sh); font-size: 12px; cursor: pointer;
-      transition: border-color .15s, background .15s, box-shadow .15s;
-    }
+    .tag-item { display: inline-flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--borda); border-radius: 8px; padding: 6px 12px; box-shadow: var(--sh); font-size: 12px; cursor: pointer; transition: border-color .15s, background .15s, box-shadow .15s; }
     .tag-item:hover { border-color: var(--rosa); box-shadow: var(--sh-lg); }
     .tag-item.ativo { border-color: var(--rosa); background: var(--rosa-s); }
     .tag-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .tag-nome { font-weight: 600; color: var(--preto); }
     .tag-count { font-size: 11px; font-weight: 700; color: var(--muted); background: var(--bg); padding: 1px 7px; border-radius: 10px; }
 
-    /* FILTRO POR AGENTE */
+    /* ── FILTRO POR AGENTE ──────────────────────────────── */
     .filtro-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
     .filtro-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); flex-shrink: 0; }
     .filtro-pill { padding: 5px 14px; border-radius: 20px; border: 1px solid var(--borda); background: var(--card); font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; transition: all .15s; line-height: 1.6; }
     .filtro-pill:hover { border-color: var(--rosa); color: var(--rosa); }
     .filtro-pill.ativo { background: var(--rosa); border-color: var(--rosa); color: #fff; }
 
-    /* GRUPOS DE AGENTE */
+    /* ── GRUPOS DE AGENTE ───────────────────────────────── */
     .ticket-list { display: flex; flex-direction: column; gap: 12px; }
     .agent-group { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; transition: box-shadow .15s, transform .15s; }
     .agent-group:hover { box-shadow: var(--sh-lg); transform: translateY(-1px); }
@@ -106,15 +105,16 @@
     .agent-group.n2 { border-left: 4px solid #fdba74; }
     .agent-group.n3 { border-left: 4px solid #fde68a; }
     .agent-header { padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; background: #fafbfc; border-bottom: 1px solid var(--borda); }
-    .agent-header-nome { font-size: 14px; font-weight: 700; }
+    .agent-header-nome  { font-size: 14px; font-weight: 700; }
     .agent-header-count { font-size: 11px; color: var(--muted); font-weight: 600; }
 
-    /* LINHA DE TICKET */
-    .agent-ticket-row { display: grid; grid-template-columns: 68px 1fr auto; align-items: start; gap: 20px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; transition: opacity .2s; }
+    /* ── LINHA DE TICKET ────────────────────────────────── */
+    .agent-ticket-row { display: grid; grid-template-columns: 68px 1fr auto; align-items: start; gap: 20px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; cursor: default; transition: background .12s, opacity .2s; }
     .agent-ticket-row:last-child { border-bottom: none; }
+    .agent-ticket-row:hover { background: #fafbfd; }
     .agent-ticket-row.indevida { opacity: .42; }
 
-    /* CSAT BLOCO */
+    /* ── CSAT BLOCO ─────────────────────────────────────── */
     .csat-bloco { width: 64px; height: 64px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; gap: 3px; }
     .csat-bloco.n1 { background: #fef2f2; border: 2px solid #fca5a5; }
     .csat-bloco.n2 { background: #fff4f0; border: 2px solid #fdba74; }
@@ -128,28 +128,62 @@
     .n2 .csat-label { color: #c2410c; }
     .n3 .csat-label { color: #92400e; }
 
-    /* CORPO DO TICKET */
+    /* ── CORPO DO TICKET ────────────────────────────────── */
     .ticket-corpo { min-width: 0; padding-top: 2px; }
     .ticket-id-link { display: inline-flex; align-items: center; gap: 4px; font-family: monospace; font-size: 11px; color: var(--muted); text-decoration: none; opacity: .65; transition: opacity .15s; margin-bottom: 5px; }
     .ticket-id-link:hover { opacity: 1; color: var(--rosa); }
     .ticket-cliente { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
-    .cliente-nome { font-size: 13px; font-weight: 700; color: var(--preto); }
+    .cliente-nome  { font-size: 13px; font-weight: 700; color: var(--preto); }
     .cliente-email { font-size: 11px; color: var(--muted); opacity: .75; }
     .ticket-feedback { font-size: 11px; color: var(--muted); font-style: italic; line-height: 1.45; margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .ticket-feedback::before { content: '"'; }
-    .ticket-feedback::after { content: '"'; }
+    .ticket-feedback::after  { content: '"'; }
 
-    /* COLUNA DIREITA: tags + indevida */
-    .ticket-direita { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 140px; }
+    /* ── COLUNA DIREITA ─────────────────────────────────── */
+    .ticket-direita { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 120px; }
+
+    /* Criticidade */
+    .crit-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 20px; font-size: 10px; font-weight: 700; letter-spacing: .3px; }
+    .crit-alta  { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; }
+    .crit-media { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+    .crit-dot   { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .crit-alta .crit-dot  { background: #b91c1c; }
+    .crit-media .crit-dot { background: #b45309; }
+
+    /* Tags compactas */
     .ticket-tags { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
     .tag-chip { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 500; color: var(--muted); background: var(--bg); border: 1px solid var(--borda); opacity: .8; white-space: nowrap; }
-    .badge-indevida { display: inline-block; padding: 2px 8px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .5px; }
-    .btn-indevida { padding: 4px 10px; border-radius: 6px; border: 1px dashed #cbd5e1; background: transparent; font-size: 10px; font-weight: 600; color: #94a3b8; cursor: pointer; transition: all .15s; white-space: nowrap; }
-    .btn-indevida:hover { border-color: var(--rosa); color: var(--rosa); border-style: solid; }
-    .btn-desfazer { padding: 4px 10px; border-radius: 6px; border: 1px solid #cbd5e1; background: transparent; font-size: 10px; font-weight: 600; color: #94a3b8; cursor: pointer; transition: all .15s; white-space: nowrap; }
-    .btn-desfazer:hover { border-color: #ef4444; color: #ef4444; }
+    .tag-chip.tag-mais { border-style: dashed; cursor: help; opacity: 1; font-weight: 600; }
 
-    /* MODAL */
+    /* Indevida */
+    .badge-indevida { display: inline-block; padding: 2px 8px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .5px; }
+    .btn-indevida  { padding: 4px 10px; border-radius: 6px; border: 1px dashed #cbd5e1; background: transparent; font-size: 10px; font-weight: 600; color: #94a3b8; cursor: pointer; transition: all .15s; white-space: nowrap; }
+    .btn-indevida:hover  { border-color: var(--rosa); color: var(--rosa); border-style: solid; }
+    .btn-desfazer  { padding: 4px 10px; border-radius: 6px; border: 1px solid #cbd5e1; background: transparent; font-size: 10px; font-weight: 600; color: #94a3b8; cursor: pointer; transition: all .15s; }
+    .btn-desfazer:hover  { border-color: #ef4444; color: #ef4444; }
+
+    /* ── TOOLTIP INTELIGENTE ────────────────────────────── */
+    .ticket-tooltip {
+      position: fixed; z-index: 2000; pointer-events: none;
+      background: #0f172a; color: #e2e8f0;
+      border-radius: 12px; padding: 14px 16px;
+      font-size: 12px; max-width: 260px; min-width: 180px;
+      opacity: 0; transition: opacity .12s ease;
+      box-shadow: 0 8px 32px rgba(0,0,0,.3);
+      border: 1px solid rgba(255,255,255,.07);
+      line-height: 1.55;
+    }
+    .ticket-tooltip.visivel { opacity: 1; }
+    .tt-categoria { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; color: #94a3b8; margin-bottom: 10px; }
+    .tt-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 5px; font-size: 11px; }
+    .tt-label { color: #64748b; }
+    .tt-val   { font-weight: 600; color: #e2e8f0; }
+    .tt-crit-alta  { color: #fca5a5; }
+    .tt-crit-media { color: #fde68a; }
+    .tt-crit-baixa { color: #86efac; }
+    .tt-feedback { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.07); color: #94a3b8; font-size: 11px; font-style: italic; line-height: 1.5; }
+
+    /* ── MODAL ──────────────────────────────────────────── */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 500; display: none; align-items: center; justify-content: center; }
     .modal-overlay.aberto { display: flex; }
     .modal { background: #fff; border-radius: var(--r); box-shadow: var(--sh-lg); padding: 28px 32px; width: 440px; max-width: 92vw; }
@@ -161,13 +195,13 @@
     .modal-field select:focus, .modal-field textarea:focus { outline: none; border-color: var(--rosa); }
     .modal-field textarea { resize: vertical; min-height: 80px; }
     .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
-    .btn-cancel { padding: 8px 18px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
-    .btn-cancel:hover { border-color: var(--preto); color: var(--preto); }
+    .btn-cancel  { padding: 8px 18px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
+    .btn-cancel:hover  { border-color: var(--preto); color: var(--preto); }
     .btn-confirm { padding: 8px 18px; border-radius: 8px; border: none; background: var(--rosa); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity .15s; }
     .btn-confirm:hover { opacity: .85; }
     .btn-confirm:disabled { opacity: .5; cursor: default; }
 
-    /* FOOTER / VAZIO */
+    /* ── MISC ───────────────────────────────────────────── */
     .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--borda); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
     .footer-brand { font-weight: 900; font-size: 14px; color: var(--preto); }
     .footer-brand b { color: var(--rosa); }
@@ -176,7 +210,7 @@
 </head>
 <body>
 
-<!-- Modal — marcar como indevida -->
+<!-- Modal indevida -->
 <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
   <div class="modal">
     <div class="modal-title">Marcar como Avaliação Indevida</div>
@@ -222,14 +256,7 @@
 </header>
 
 <main class="main">
-  <div id="conteudo">
-    <div class="loading">
-      <div style="margin-bottom:12px">
-        <span class="loading-dot"></span><span class="loading-dot"></span><span class="loading-dot"></span>
-      </div>
-      Carregando relatório...
-    </div>
-  </div>
+  <div id="conteudo"></div>
   <div class="footer">
     <span class="footer-brand">INK<b>.</b></span>
     <span>Atualizado automaticamente todo dia útil às 7h</span>
@@ -238,45 +265,134 @@
 
 <script>
   const API = 'https://csat-negativo-78f436cca6a0.herokuapp.com';
-  const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  const MESES  = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
   const SEMANA = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
-  const TAG_CORES = {
-    entrega:      { txt: '#1d4ed8' },
-    troca:        { txt: '#b45309' },
-    financeiro:   { txt: '#15803d' },
-    rastreio:     { txt: '#6d28d9' },
-    devolucao:    { txt: '#b91c1c' },
-    cancelamento: { txt: '#c2410c' },
-    defeito:      { txt: '#7e22ce' },
-    default:      { txt: '#475569' },
+
+  /* ── INTELIGÊNCIA ─────────────────────────────────────── */
+  const PALAVRAS_ALTA  = ['procon','processo','chargeback','nunca mais','pessimo','horrivel','absurdo','ridiculo','enganado','fraude','golpe','roubo','advogado','consumidor.gov','reclame aqui','acao judicial'];
+  const PALAVRAS_MEDIA = ['atraso','demorou','demora','esperando','nao recebi','errado','trocado','defeito','quebrado','arrependimento','insatisfeito','ruim','problema','reclamacao'];
+
+  const TAG_CATEGORIAS = {
+    entrega:'Entrega', atraso:'Entrega', logistic:'Entrega', rastreio:'Entrega', envio:'Entrega', transporte:'Entrega', extravio:'Entrega',
+    financeiro:'Financeiro', estorno:'Financeiro', reembolso:'Financeiro', chargeback:'Financeiro', cobran:'Financeiro', pagamento:'Financeiro',
+    troca:'Troca', devoluc:'Troca', tamanho:'Troca', arrependimento:'Troca', produto:'Produto', defeito:'Produto', danificad:'Produto',
+    cancelamento:'Cancelamento',
+    atendimento:'Atendimento', demora:'Atendimento', comunicac:'Atendimento', suporte:'Atendimento',
+  };
+  const TAG_PESO = {
+    chargeback:10, extravio:9, cancelamento:9, fraude:10,
+    defeito:7, devolucao:6, financeiro:6, atraso:6, entrega:5, troca:5,
+    rastreio:3, tamanho:2,
   };
 
-  // Estado global de filtros e modal
-  let currentDate = '';
-  let activeAgent = '';
-  let activeTag   = '';
-  let pendingTicket = null;
-
-  function tagCor(nome) {
-    const cat = (nome || '').split('_')[0].toLowerCase();
-    return (TAG_CORES[cat] || TAG_CORES.default).txt;
-  }
-  function formatTag(nome) { return (nome || '').replace(/_/g, ' '); }
+  function norm(s) { return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+  function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function formatTag(nome) { return (nome||'').replace(/_/g,' '); }
   function formatarData(s) {
-    const [ano, mes, dia] = s.split('-').map(Number);
-    return `${SEMANA[new Date(ano, mes-1, dia).getDay()]}, ${dia} de ${MESES[mes-1]} de ${ano}`;
+    const [a,m,d] = s.split('-').map(Number);
+    return `${SEMANA[new Date(a,m-1,d).getDay()]}, ${d} de ${MESES[m-1]} de ${a}`;
   }
 
-  // ── Filtros ──────────────────────────────────────────────
+  function getTagPeso(tag) {
+    const n = norm(tag).replace(/[_\s]/g,'');
+    for (const [k,v] of Object.entries(TAG_PESO)) { if (n.includes(k)) return v; }
+    return 1;
+  }
+  function sortTagsByRelevance(tags) { return [...(tags||[])].sort((a,b) => getTagPeso(b) - getTagPeso(a)); }
+
+  function getCategoriaPrincipal(tags) {
+    if (!tags || !tags.length) return null;
+    const first = norm(sortTagsByRelevance(tags)[0]).replace(/[_\s]/g,'');
+    for (const [k,cat] of Object.entries(TAG_CATEGORIAS)) { if (first.includes(norm(k))) return cat; }
+    return formatTag(tags[0]);
+  }
+
+  function getMotivoP rincipal(tags) {
+    if (!tags || !tags.length) return null;
+    return formatTag(sortTagsByRelevance(tags)[0]);
+  }
+
+  function calcularCriticidade(ticket) {
+    let s = 0;
+    if (ticket.nota === 1) s += 10;
+    else if (ticket.nota === 2) s += 5;
+    else s += 2;
+
+    const tags = (ticket.tags||[]).map(t => norm(t));
+    if (tags.some(t => ['chargeback','extravio','fraude','cancelamento'].some(k => t.includes(k)))) s += 8;
+    else if (tags.some(t => ['defeito','devolucao','financeiro','atraso','entrega'].some(k => t.includes(k)))) s += 4;
+
+    const fb = norm(ticket.feedback || '');
+    if (PALAVRAS_ALTA.some(w => fb.includes(norm(w)))) s += 12;
+    else if (PALAVRAS_MEDIA.some(w => fb.includes(norm(w)))) s += 5;
+
+    if (s >= 18) return 'alta';
+    if (s >= 9)  return 'media';
+    return 'baixa';
+  }
+
+  function renderTagsCompact(tags) {
+    if (!tags || !tags.length) return '';
+    const sorted  = sortTagsByRelevance(tags);
+    const visible = sorted.slice(0, 2);
+    const hidden  = sorted.slice(2);
+    let html = visible.map(t => `<span class="tag-chip">${formatTag(t)}</span>`).join('');
+    if (hidden.length) {
+      html += `<span class="tag-chip tag-mais" title="${hidden.map(formatTag).join(' · ')}">+${hidden.length}</span>`;
+    }
+    return html;
+  }
+
+  /* ── TOOLTIP ──────────────────────────────────────────── */
+  const ttEl = document.createElement('div');
+  ttEl.className = 'ticket-tooltip';
+  document.body.appendChild(ttEl);
+  let ttTimer;
+
+  const critLabels = { alta:'Alta', media:'Média', baixa:'Baixa' };
+
+  function showTooltip(e, ticket) {
+    clearTimeout(ttTimer);
+    ttTimer = setTimeout(() => {
+      const crit   = calcularCriticidade(ticket);
+      const cat    = getCategoriaPrincipal(ticket.tags) || '—';
+      const motivo = getMotivoP rincipal(ticket.tags);
+      const fb     = ticket.feedback;
+
+      ttEl.innerHTML = `
+        <div class="tt-categoria">${cat}</div>
+        <div class="tt-row"><span class="tt-label">Criticidade</span><span class="tt-val tt-crit-${crit}">${critLabels[crit]}</span></div>
+        ${motivo ? `<div class="tt-row"><span class="tt-label">Motivo</span><span class="tt-val">${escHtml(motivo)}</span></div>` : ''}
+        ${fb ? `<div class="tt-feedback">${escHtml(fb.slice(0,150))}${fb.length>150?'…':''}</div>` : ''}`;
+
+      positionTooltip(e);
+      ttEl.classList.add('visivel');
+    }, 260);
+  }
+
+  function positionTooltip(e) {
+    const x = e.clientX + 18;
+    const y = e.clientY - 12;
+    ttEl.style.left = Math.min(x, window.innerWidth  - 280) + 'px';
+    ttEl.style.top  = Math.max(y, 8)                        + 'px';
+  }
+
+  function hideTooltip() { clearTimeout(ttTimer); ttEl.classList.remove('visivel'); }
+
+  /* ── ESTADO GLOBAL ────────────────────────────────────── */
+  let currentDate  = '';
+  let activeAgent  = '';
+  let activeTag    = '';
+  let pendingTicket = null;
+  const ticketDataMap = {};
+
+  /* ── FILTROS ──────────────────────────────────────────── */
   function applyFilters() {
     document.querySelectorAll('.agent-group').forEach(group => {
-      if (activeAgent && group.dataset.agente !== activeAgent) {
-        group.style.display = 'none';
-        return;
-      }
+      if (activeAgent && group.dataset.agente !== activeAgent) { group.style.display = 'none'; return; }
       let visible = 0;
       group.querySelectorAll('.agent-ticket-row').forEach(row => {
-        const rowTags = (row.dataset.tags || '').split(',').filter(Boolean);
+        const rowTags = (row.dataset.tags||'').split(',').filter(Boolean);
         const ok = !activeTag || rowTags.includes(activeTag);
         row.style.display = ok ? '' : 'none';
         if (ok) visible++;
@@ -294,17 +410,15 @@
 
   function filterByTag(btn, tag) {
     if (activeTag === tag) {
-      activeTag = '';
-      btn.classList.remove('ativo');
+      activeTag = ''; btn.classList.remove('ativo');
     } else {
       document.querySelectorAll('.tag-item').forEach(b => b.classList.remove('ativo'));
-      btn.classList.add('ativo');
-      activeTag = tag;
+      btn.classList.add('ativo'); activeTag = tag;
     }
     applyFilters();
   }
 
-  // ── Modal indevida ────────────────────────────────────────
+  /* ── MODAL INDEVIDA ───────────────────────────────────── */
   function openModal(ticketId) {
     pendingTicket = ticketId;
     document.getElementById('modal-sub').textContent = 'Ticket #' + ticketId;
@@ -312,58 +426,93 @@
     document.getElementById('modal-obs').value = '';
     document.getElementById('modal-overlay').classList.add('aberto');
   }
-
-  function closeModal() {
-    document.getElementById('modal-overlay').classList.remove('aberto');
-    pendingTicket = null;
-  }
+  function closeModal() { document.getElementById('modal-overlay').classList.remove('aberto'); pendingTicket = null; }
 
   async function confirmarIndevida() {
     if (!pendingTicket) return;
     const motivo = document.getElementById('modal-motivo').value;
     const obs    = document.getElementById('modal-obs').value;
     const btn    = document.getElementById('btn-confirmar');
-    btn.disabled = true;
-    btn.textContent = 'Salvando...';
+    btn.disabled = true; btn.textContent = 'Salvando...';
     try {
-      const r = await fetch(`${API}/indevida`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticket_id: pendingTicket, date: currentDate, motivo, observacao: obs }),
-      });
-      if (r.ok) { closeModal(); location.reload(); }
-      else { alert('Erro ao salvar.'); }
-    } catch(e) { alert('Erro: ' + e.message); }
+      const r = await fetch(`${API}/indevida`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ticket_id:pendingTicket, date:currentDate, motivo, observacao:obs}) });
+      if (r.ok) { closeModal(); location.reload(); } else alert('Erro ao salvar.');
+    } catch(e) { alert('Erro: '+e.message); }
     finally { btn.disabled = false; btn.textContent = 'Confirmar'; }
   }
 
   async function desfazerIndevida(ticketId) {
     if (!confirm('Remover marcação de indevida?')) return;
-    const r = await fetch(`${API}/indevida/${ticketId}`, { method: 'DELETE' });
+    const r = await fetch(`${API}/indevida/${ticketId}`, {method:'DELETE'});
     if (r.ok) location.reload();
   }
 
-  // ── Inicialização ─────────────────────────────────────────
+  /* ── SKELETON ─────────────────────────────────────────── */
+  function renderSkeleton() {
+    const kpi = Array(4).fill(0).map(() => `
+      <div class="sk-kpi">
+        <div class="sk" style="width:80px;height:10px;margin-bottom:14px"></div>
+        <div class="sk" style="width:55px;height:36px;margin-bottom:10px"></div>
+        <div class="sk" style="width:110px;height:10px"></div>
+      </div>`).join('');
+
+    const row = () => `
+      <div class="sk-row">
+        <div class="sk" style="width:64px;height:64px;border-radius:12px;flex-shrink:0"></div>
+        <div>
+          <div class="sk" style="width:75px;height:10px;margin-bottom:8px"></div>
+          <div class="sk" style="width:170px;height:13px;margin-bottom:6px"></div>
+          <div class="sk" style="width:130px;height:11px;margin-bottom:5px"></div>
+          <div class="sk" style="width:210px;height:10px"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+          <div class="sk" style="width:56px;height:20px;border-radius:10px"></div>
+          <div class="sk" style="width:72px;height:18px;border-radius:5px"></div>
+          <div class="sk" style="width:48px;height:18px;border-radius:5px"></div>
+        </div>
+      </div>`;
+
+    const group = () => `
+      <div class="sk-group">
+        <div class="sk-group-header"><div class="sk" style="width:130px;height:14px"></div></div>
+        ${row()}${row()}
+      </div>`;
+
+    return `
+      <div class="sk-hero">
+        <div class="sk" style="width:76px;height:22px;border-radius:12px;flex-shrink:0"></div>
+        <div>
+          <div class="sk" style="width:270px;height:20px;margin-bottom:8px"></div>
+          <div class="sk" style="width:110px;height:11px"></div>
+        </div>
+      </div>
+      <div class="sk-kpi-grid">${kpi}</div>
+      <div class="section" style="margin-bottom:28px">
+        <div class="sk" style="width:120px;height:11px;margin-bottom:14px"></div>
+        <div style="display:flex;gap:8px">
+          ${Array(4).fill(0).map(() => `<div class="sk" style="width:110px;height:32px;border-radius:8px"></div>`).join('')}
+        </div>
+      </div>
+      ${group()}${group()}`;
+  }
+
+  /* ── INIT ─────────────────────────────────────────────── */
   async function init() {
     const params = new URLSearchParams(window.location.search);
     const date = params.get('date');
     currentDate = date;
     const el = document.getElementById('conteudo');
 
-    if (!date) {
-      el.innerHTML = `<div class="erro">Data não informada. Use o calendário.</div>`;
-      return;
-    }
+    if (!date) { el.innerHTML = `<div class="erro">Data não informada. Use o calendário.</div>`; return; }
     document.title = `CSAT ${date} — INK`;
 
+    el.innerHTML = renderSkeleton();
+
     try {
-      const [rData, rIndev] = await Promise.all([
-        fetch(`${API}/data/${date}`),
-        fetch(`${API}/indevidas/${date}`),
-      ]);
+      const [rData, rIndev] = await Promise.all([fetch(`${API}/data/${date}`), fetch(`${API}/indevidas/${date}`)]);
       if (!rData.ok) {
         const err = await rData.json().catch(() => ({}));
-        el.innerHTML = `<div class="erro">Relatório não encontrado para <strong>${date}</strong>.<br>${err.error || ''}</div>`;
+        el.innerHTML = `<div class="erro">Relatório não encontrado para <strong>${date}</strong>.<br>${err.error||''}</div>`;
         return;
       }
       const [data, indevidas] = await Promise.all([rData.json(), rIndev.json().catch(() => [])]);
@@ -375,15 +524,15 @@
     }
   }
 
-  // ── Render ────────────────────────────────────────────────
+  /* ── RENDER ───────────────────────────────────────────── */
   function render(d, indevidaMap, el) {
-    const { date, total = 0, por_agente = {}, tags_resumo = {}, tickets = [] } = d;
-    const agentes = Object.entries(por_agente).sort((a,b) => b[1] - a[1]);
-    const tags    = Object.entries(tags_resumo).sort((a,b) => b[1] - a[1]);
+    const { date, total=0, por_agente={}, tags_resumo={}, tickets=[] } = d;
+    const agentes = Object.entries(por_agente).sort((a,b) => b[1]-a[1]);
+    const tags    = Object.entries(tags_resumo).sort((a,b) => b[1]-a[1]);
     const maxAg   = agentes[0]?.[1] || 1;
     const indevidaCount = Object.keys(indevidaMap).length;
 
-    // KPIs
+    /* KPIs */
     let kpis = `
       <div class="kpi total">
         <div class="kpi-label">Total negativo no dia</div>
@@ -395,74 +544,92 @@
         <div class="kpi">
           <div class="kpi-label">${nome.split(' ')[0]}</div>
           <div class="kpi-num">${qtd}</div>
-          <div class="kpi-sub">${qtd === 1 ? 'avaliação negativa' : 'avaliações negativas'}</div>
+          <div class="kpi-sub">${qtd===1?'avaliação negativa':'avaliações negativas'}</div>
           <div class="kpi-bar" style="width:${Math.round(qtd/maxAg*100)}%"></div>
         </div>`;
     }
     if (indevidaCount > 0) {
       kpis += `
-        <div class="kpi indevida-kpi">
+        <div class="kpi kpi-indev">
           <div class="kpi-label">Indevidas</div>
           <div class="kpi-num">${indevidaCount}</div>
           <div class="kpi-sub">avaliações indevidas</div>
         </div>
-        <div class="kpi ajustado-kpi">
+        <div class="kpi kpi-ajust">
           <div class="kpi-label">Negativos reais</div>
           <div class="kpi-num">${total - indevidaCount}</div>
           <div class="kpi-sub">após auditoria</div>
         </div>`;
     }
 
-    // Tags (clicáveis como filtro)
+    /* Tags filtráveis */
+    const TAG_COR = { Entrega:'#1d4ed8', Financeiro:'#15803d', Troca:'#b45309', Produto:'#7e22ce', Cancelamento:'#c2410c', Atendimento:'#0369a1' };
     let tagsHtml = '';
     if (tags.length > 0) {
       tagsHtml = `
         <div class="section">
           <div class="section-head">Tags do dia <span class="section-hint">— clique para filtrar</span></div>
           <div class="tags-grid">
-            ${tags.map(([tag, cnt]) => `
-              <button class="tag-item" onclick="filterByTag(this, '${tag}')">
-                <div class="tag-dot" style="background:${tagCor(tag)}"></div>
+            ${tags.map(([tag,cnt]) => {
+              const cat = getCategoriaPrincipal([tag]) || 'default';
+              const cor = TAG_COR[cat] || '#475569';
+              return `<button class="tag-item" onclick="filterByTag(this,'${tag}')">
+                <div class="tag-dot" style="background:${cor}"></div>
                 <span class="tag-nome">${formatTag(tag)}</span>
                 <span class="tag-count">${cnt}</span>
-              </button>`).join('')}
+              </button>`;
+            }).join('')}
           </div>
         </div>`;
     }
 
-    // Ordena e agrupa tickets por agente
+    /* Ordenação e agrupamento */
     const ordemAgente = {};
-    agentes.forEach(([nome], i) => { ordemAgente[nome] = i; });
-    const ticketsOrdenados = [...tickets].sort((a, b) => {
-      const oa = ordemAgente[a.agente] ?? 99, ob = ordemAgente[b.agente] ?? 99;
-      return oa !== ob ? oa - ob : (a.nota - b.nota);
+    agentes.forEach(([n],i) => { ordemAgente[n] = i; });
+    const ticketsOrdenados = [...tickets].sort((a,b) => {
+      const oa = ordemAgente[a.agente]??99, ob = ordemAgente[b.agente]??99;
+      return oa!==ob ? oa-ob : a.nota-b.nota;
     });
     const grupoMap = {};
     ticketsOrdenados.forEach(t => {
-      const key = t.agente || '—';
-      if (!grupoMap[key]) grupoMap[key] = [];
-      grupoMap[key].push(t);
+      const k = t.agente||'—';
+      if (!grupoMap[k]) grupoMap[k] = [];
+      grupoMap[k].push(t);
     });
 
+    /* Linha de ticket */
     function ticketRowHtml(t) {
-      const nc = `n${t.nota}`;
+      const nc  = `n${t.nota}`;
       const sid = String(t.id);
       const isIndevida = !!indevidaMap[sid];
+      const crit = calcularCriticidade(t);
+
+      // Salva para tooltip
+      ticketDataMap[sid] = { nota: t.nota, tags: t.tags, feedback: t.feedback };
+
       const idHtml = t.link
         ? `<a class="ticket-id-link" href="${t.link}" target="_blank" rel="noopener">#${t.id}<svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a>`
-        : `<span class="ticket-id-link" style="cursor:default">#${t.id || '—'}</span>`;
-      const clienteHtml = (t.cliente_nome || t.cliente_email) ? `
+        : `<span class="ticket-id-link" style="cursor:default">#${t.id||'—'}</span>`;
+
+      const clienteHtml = (t.cliente_nome||t.cliente_email) ? `
         <div class="ticket-cliente">
-          ${t.cliente_nome ? `<span class="cliente-nome">${t.cliente_nome}</span>` : ''}
-          ${t.cliente_email ? `<span class="cliente-email">${t.cliente_email}</span>` : ''}
+          ${t.cliente_nome  ? `<span class="cliente-nome">${escHtml(t.cliente_nome)}</span>`  : ''}
+          ${t.cliente_email ? `<span class="cliente-email">${escHtml(t.cliente_email)}</span>` : ''}
         </div>` : '';
-      const feedbackHtml = t.feedback ? `<div class="ticket-feedback">${t.feedback}</div>` : '';
-      const tagsChips = (t.tags || []).map(tag => `<span class="tag-chip">${formatTag(tag)}</span>`).join('');
+
+      const feedbackHtml = t.feedback
+        ? `<div class="ticket-feedback">${escHtml(t.feedback)}</div>` : '';
+
+      const critHtml = (crit === 'alta' || crit === 'media')
+        ? `<span class="crit-badge crit-${crit}"><span class="crit-dot"></span>${crit==='alta'?'Crítico':'Atenção'}</span>` : '';
+
+      const tagsChips = renderTagsCompact(t.tags);
       const indevidaCtrl = isIndevida
         ? `<span class="badge-indevida">Indevida</span><button class="btn-desfazer" onclick="desfazerIndevida('${sid}')">Desfazer</button>`
         : `<button class="btn-indevida" onclick="openModal('${sid}')">Marcar indevida</button>`;
+
       return `
-        <div class="agent-ticket-row${isIndevida ? ' indevida' : ''}" data-tags="${(t.tags||[]).join(',')}">
+        <div class="agent-ticket-row${isIndevida?' indevida':''}" data-tags="${(t.tags||[]).join(',')}" data-tid="${sid}">
           <div class="csat-bloco ${nc}">
             <span class="csat-num">${t.nota}</span>
             <span class="csat-label">CSAT</span>
@@ -473,6 +640,7 @@
             ${feedbackHtml}
           </div>
           <div class="ticket-direita">
+            ${critHtml}
             <div class="ticket-tags">${tagsChips}</div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;margin-top:2px">${indevidaCtrl}</div>
           </div>
@@ -480,24 +648,23 @@
     }
 
     const linhas = Object.entries(grupoMap).map(([agente, agTickets]) => {
-      const piorNota = Math.min(...agTickets.map(t => t.nota || 5));
+      const piorNota = Math.min(...agTickets.map(t => t.nota||5));
       const cnt = agTickets.length;
       return `
         <div class="agent-group n${piorNota}" data-agente="${agente}">
           <div class="agent-header">
             <span class="agent-header-nome">${agente}</span>
-            <span class="agent-header-count">${cnt} ${cnt === 1 ? 'avaliação negativa' : 'avaliações negativas'}</span>
+            <span class="agent-header-count">${cnt} ${cnt===1?'avaliação negativa':'avaliações negativas'}</span>
           </div>
           ${agTickets.map(ticketRowHtml).join('')}
         </div>`;
     }).join('');
 
-    // Filtro por agente (apenas se houver mais de um)
     const filtroHtml = agentes.length > 1 ? `
       <div class="filtro-bar" id="filtro-agente">
         <span class="filtro-label">Agente:</span>
         <button class="filtro-pill ativo" data-agente="" onclick="filterByAgent(this)">Todas</button>
-        ${agentes.map(([nome]) => `<button class="filtro-pill" data-agente="${nome}" onclick="filterByAgent(this)">${nome.split(' ')[0]}</button>`).join('')}
+        ${agentes.map(([n]) => `<button class="filtro-pill" data-agente="${n}" onclick="filterByAgent(this)">${n.split(' ')[0]}</button>`).join('')}
       </div>` : '';
 
     el.innerHTML = `
@@ -519,6 +686,15 @@
           ? `${filtroHtml}<div class="ticket-list">${linhas}</div>`
           : '<div class="empty">Nenhum ticket registrado neste dia.</div>'}
       </div>`;
+
+    /* Ativa tooltips nos tickets */
+    document.querySelectorAll('[data-tid]').forEach(row => {
+      const t = ticketDataMap[row.dataset.tid];
+      if (!t) return;
+      row.addEventListener('mouseenter', e => showTooltip(e, t));
+      row.addEventListener('mousemove',  positionTooltip);
+      row.addEventListener('mouseleave', hideTooltip);
+    });
   }
 
   init();
