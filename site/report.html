@@ -548,9 +548,9 @@
     const avgA = history.slice(0, mid).reduce((s,d) => s+d.count, 0) / mid;
     const avgB = history.slice(mid).reduce((s,d) => s+d.count, 0) / (history.length - mid);
     const diff = avgB - avgA;
-    if (Math.abs(diff) < 0.4) return { label:'Estável', dir:0, color:'#64748b' };
-    if (diff > 0) return { label:`+${diff.toFixed(1)}/dia`, dir:1, color:'#dc2626' };
-    return { label:`${diff.toFixed(1)}/dia`, dir:-1, color:'#16a34a' };
+    if (Math.abs(diff) < 0.4) return { label:'Estável',    dir:0,  color:'#64748b' };
+    if (diff > 0)              return { label:'Piorando',   dir:1,  color:'#dc2626' };
+    return                            { label:'Melhorando', dir:-1, color:'#16a34a' };
   }
 
   async function openAgentHistory(name) {
@@ -575,7 +575,7 @@
           ${escHtml(name)}
           ${tend ? `<span style="font-size:12px;font-weight:700;color:${tend.color}">${tend.dir===1?'↑':tend.dir===-1?'↓':'→'} ${tend.label}</span>` : ''}
         </div>
-        <div class="modal-sub">Últimos ${dias} dia${dias!==1?'s':''} útil${dias!==1?'s':''} com avaliação negativa</div>
+        <div class="modal-sub">Últimos ${dias} dia${dias!==1?'s':''} ${dias!==1?'úteis':'útil'} com avaliação negativa</div>
         <div class="hist-stat-grid">
           <div class="hist-stat"><div class="hist-stat-label">Total</div><div class="hist-stat-val">${total}</div></div>
           <div class="hist-stat"><div class="hist-stat-label">Média/dia</div><div class="hist-stat-val">${media}</div></div>
