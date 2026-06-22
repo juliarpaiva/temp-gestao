@@ -125,26 +125,43 @@
     }
     .ticket-card:hover { box-shadow: var(--sh-lg); transform: translateY(-1px); }
 
+    /*
+      Faixas de satisfação:
+        n1 (score 1) → baixa        — vermelho
+        n2 (score 2) → baixa mod.   — vermelho-laranja
+        n3 (score 3) → neutra       — âmbar
+    */
+
+    /* Accent lateral no card inteiro — permite leitura de padrão em scan rápido */
+    .ticket-card.n1 { border-left: 4px solid #fca5a5; }
+    .ticket-card.n2 { border-left: 4px solid #fdba74; }
+    .ticket-card.n3 { border-left: 4px solid #fde68a; }
+
     /* Bloco CSAT — elemento visual principal */
     .csat-bloco {
       width: 64px; height: 64px; border-radius: 12px;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       flex-shrink: 0; gap: 3px;
     }
-    .csat-bloco.n1 { background: #fef2f2; border: 1.5px solid #fecaca; }
-    .csat-bloco.n2 { background: #fffbeb; border: 1.5px solid #fde68a; }
-    .csat-bloco.n3 { background: #fefce8; border: 1.5px solid #fef08a; }
+    /* n1 — baixa (vermelho mais intenso) */
+    .csat-bloco.n1 { background: #fef2f2; border: 2px solid #fca5a5; }
+    /* n2 — baixa moderada (vermelho-laranja) */
+    .csat-bloco.n2 { background: #fff4f0; border: 2px solid #fdba74; }
+    /* n3 — neutra (âmbar suave) */
+    .csat-bloco.n3 { background: #fffbeb; border: 2px solid #fde68a; }
+
     .csat-num {
       font-size: 26px; font-weight: 900; letter-spacing: -1px; line-height: 1;
     }
-    .n1 .csat-num { color: #b91c1c; }
-    .n2 .csat-num { color: #b45309; }
+    .n1 .csat-num { color: #991b1b; }
+    .n2 .csat-num { color: #c2410c; }
     .n3 .csat-num { color: #92400e; }
+
     .csat-label {
       font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; opacity: .55;
     }
-    .n1 .csat-label { color: #b91c1c; }
-    .n2 .csat-label { color: #b45309; }
+    .n1 .csat-label { color: #991b1b; }
+    .n2 .csat-label { color: #c2410c; }
     .n3 .csat-label { color: #92400e; }
 
     /* Corpo central — agente + ID */
@@ -337,7 +354,7 @@
       ).join('');
 
       return `
-        <div class="ticket-card">
+        <div class="ticket-card ${nc}">
           <div class="csat-bloco ${nc}">
             <span class="csat-num">${t.nota}</span>
             <span class="csat-label">CSAT</span>
