@@ -365,7 +365,7 @@
           <div class="semana-detalhe">
             <div class="semana-csat-row" style="margin-top:0">
               <span class="semana-csat-item">Recebidos <b>${s.total_recebidos || av}</b></span>
-              <span class="semana-csat-item">Avaliados <b>${av}</b></span>
+              <span class="semana-csat-item">Monitoradas <b>${av}</b></span>
             </div>
             <span style="font-size:11px;color:var(--muted);margin-top:6px;display:block">${s.dias} dia${s.dias!==1?'s':''} ${s.dias!==1?'úteis':'útil'}</span>
           </div>
@@ -436,6 +436,7 @@
       <div class="section">
         <div class="section-head">Semanas recentes</div>
         <div class="semanas-grid">${semanasHtml || '<p style="color:var(--muted)">Sem dados semanais</p>'}</div>
+        <p style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5">* <b>Recebidos</b> = total de tickets com nota de todas as agentes. <b>Monitoradas</b> = apenas Mari, Fernanda, Paty, Lu e Rafa — demais avaliações pertencem à IA e time de gestão e não entram nos cálculos.</p>
       </div>
 
       <div class="section">
