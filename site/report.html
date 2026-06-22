@@ -114,28 +114,41 @@
     .tag-count { font-size: 11px; font-weight: 700; color: var(--muted); background: var(--bg); padding: 1px 7px; border-radius: 10px; }
 
     /* LISTA DE TICKETS — painel de qualidade */
-    .ticket-list { display: flex; flex-direction: column; gap: 10px; }
+    .ticket-list { display: flex; flex-direction: column; gap: 12px; }
 
-    .ticket-card {
+    /* Grupo por agente */
+    .agent-group {
       background: var(--card); border: 1px solid var(--borda); border-radius: var(--r);
-      box-shadow: var(--sh); padding: 18px 22px;
-      display: grid; grid-template-columns: 72px 1fr auto;
-      align-items: center; gap: 20px;
+      box-shadow: var(--sh); overflow: hidden;
       transition: box-shadow .15s, transform .15s;
     }
-    .ticket-card:hover { box-shadow: var(--sh-lg); transform: translateY(-1px); }
+    .agent-group:hover { box-shadow: var(--sh-lg); transform: translateY(-1px); }
 
     /*
-      Faixas de satisfação:
-        n1 (score 1) → baixa        — vermelho
-        n2 (score 2) → baixa mod.   — vermelho-laranja
-        n3 (score 3) → neutra       — âmbar
+      Faixas de satisfação (pela pior nota do agente):
+        n1 → baixa — vermelho
+        n2 → baixa mod. — laranja
+        n3 → neutra — âmbar
     */
+    .agent-group.n1 { border-left: 4px solid #fca5a5; }
+    .agent-group.n2 { border-left: 4px solid #fdba74; }
+    .agent-group.n3 { border-left: 4px solid #fde68a; }
 
-    /* Accent lateral no card inteiro — permite leitura de padrão em scan rápido */
-    .ticket-card.n1 { border-left: 4px solid #fca5a5; }
-    .ticket-card.n2 { border-left: 4px solid #fdba74; }
-    .ticket-card.n3 { border-left: 4px solid #fde68a; }
+    /* Cabeçalho do agente dentro do grupo */
+    .agent-header {
+      padding: 12px 20px; display: flex; align-items: center; justify-content: space-between;
+      background: #fafbfc; border-bottom: 1px solid var(--borda);
+    }
+    .agent-header-nome { font-size: 14px; font-weight: 700; }
+    .agent-header-count { font-size: 11px; color: var(--muted); font-weight: 600; }
+
+    /* Linha de cada ticket dentro do grupo */
+    .agent-ticket-row {
+      display: grid; grid-template-columns: 68px 1fr auto;
+      align-items: center; gap: 20px; padding: 14px 20px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .agent-ticket-row:last-child { border-bottom: none; }
 
     /* Bloco CSAT — elemento visual principal */
     .csat-bloco {
@@ -348,8 +361,15 @@
       return oa !== ob ? oa - ob : (a.nota - b.nota);
     });
 
-    // Cards de tickets
-    const linhas = ticketsOrdenados.map(t => {
+    // Agrupa tickets por agente (mantendo a ordem dos KPI cards)
+    const grupoMap = {};
+    ticketsOrdenados.forEach(t => {
+      const key = t.agente || '—';
+      if (!grupoMap[key]) grupoMap[key] = [];
+      grupoMap[key].push(t);
+    });
+
+    function ticketRowHtml(t) {
       const nc = `n${t.nota}`;
       const idHtml = t.link
         ? `<a class="ticket-id-link" href="${t.link}" target="_blank" rel="noopener">
@@ -357,22 +377,31 @@
             <svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
            </a>`
         : `<span class="ticket-id-link" style="cursor:default">#${t.id || '—'}</span>`;
-
       const tagsHtml = (t.tags || []).map(tag =>
         `<span class="tag-chip">${formatTag(tag)}</span>`
       ).join('');
-
       return `
-        <div class="ticket-card ${nc}">
+        <div class="agent-ticket-row">
           <div class="csat-bloco ${nc}">
             <span class="csat-num">${t.nota}</span>
             <span class="csat-label">CSAT</span>
           </div>
-          <div class="ticket-corpo">
-            <div class="ticket-agente">${t.agente || '—'}</div>
-            ${idHtml}
-          </div>
+          <div class="ticket-corpo">${idHtml}</div>
           <div class="ticket-tags">${tagsHtml}</div>
+        </div>`;
+    }
+
+    const linhas = Object.entries(grupoMap).map(([agente, agTickets]) => {
+      const piorNota = Math.min(...agTickets.map(t => t.nota || 5));
+      const nc = `n${piorNota}`;
+      const cnt = agTickets.length;
+      return `
+        <div class="agent-group ${nc}">
+          <div class="agent-header">
+            <span class="agent-header-nome">${agente}</span>
+            <span class="agent-header-count">${cnt} ${cnt === 1 ? 'avaliação negativa' : 'avaliações negativas'}</span>
+          </div>
+          ${agTickets.map(ticketRowHtml).join('')}
         </div>`;
     }).join('');
 
