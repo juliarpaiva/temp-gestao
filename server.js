@@ -27,13 +27,35 @@ app.get('/health', (req, res) => {
 });
 
 // Webhook do CloudChat — "Avaliação de CSAT é inválida?"
-// Em modo debug: ecoa o payload para inspeção
 app.post('/webhook/csat-invalida', express.json(), express.urlencoded({ extended: true }), async (req, res) => {
   const payload = req.body;
-  console.log('[webhook] csat-invalida recebido:', JSON.stringify(payload, null, 2));
+  console.log('[webhook] payload recebido:', JSON.stringify(payload, null, 2));
   console.log('[webhook] headers:', JSON.stringify(req.headers, null, 2));
-  // Ecoa tudo para facilitar inspeção durante o teste
-  res.json({ ok: true, recebido: payload, headers: req.headers });
+
+  // --- FASE 1: modo debug (enquanto não sabemos o formato do payload) ---
+  // Tenta extrair ticket_id e date de campos comuns
+  const ticketId = payload.ticket_id || payload.ticketId || payload.id || payload.conversation_id || null;
+  const date     = payload.date || payload.created_at?.slice(0, 10) || payload.resolved_at?.slice(0, 10) || null;
+
+  if (!ticketId || !date) {
+    console.log('[webhook] campos nao identificados — retornando payload para inspecao');
+    return res.json({ ok: false, msg: 'campos ticket_id/date nao encontrados — ajuste necessario', payload_recebido: payload });
+  }
+
+  // Salva na tabela de indevidas
+  await pool.query(
+    `INSERT INTO support_bi.csat_indevidas (ticket_id, date, motivo, observacao)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (ticket_id) DO UPDATE SET motivo=$3, observacao=$4, marcado_em=NOW()`,
+    [String(ticketId), date, 'cloudchat_webhook', JSON.stringify(payload)]
+  );
+
+  // Re-processa o dia automaticamente (exclui indevidas dos totais)
+  runDailyReport(date, true)
+    .then(r => console.log('[webhook] reprocessamento concluido:', r))
+    .catch(e => console.error('[webhook] erro no reprocessamento:', e.message));
+
+  res.json({ ok: true, ticket_id: ticketId, date, status: 'indevida salva, reprocessando...' });
 });
 
 // ?date=YYYY-MM-DD para data específica, ?force=true para reprocessar
@@ -220,11 +242,19 @@ async function runDailyReport(dateOverride = null, force = false) {
   if (existing.rows.length > 0 && !force) return { status: 'ja_existe', date };
 
   const token = await getMetabaseToken();
+
+  // Tickets marcados como indevidos para esse dia são excluídos dos totais
+  const indevidasRes = await pool.query(
+    'SELECT ticket_id FROM support_bi.csat_indevidas WHERE date = $1',
+    [date]
+  );
+  const indevidasSet = new Set(indevidasRes.rows.map(r => String(r.ticket_id)));
+
   const todosCsats    = await getAllCsats(token, date, 2000);
   const comNota       = todosCsats.filter(t => t.csat_score !== null);
   const negativosAll  = comNota.filter(t => t.csat_score <= 3);
   const positivosAll  = comNota.filter(t => t.csat_score >= 4);
-  const tickets              = negativosAll.filter(t => isAgentMonitorada(t.agent_on_resolution_name));
+  const tickets              = negativosAll.filter(t => isAgentMonitorada(t.agent_on_resolution_name) && !indevidasSet.has(String(t.display_ticket_id)));
   const positivosMonitorados = positivosAll.filter(t => isAgentMonitorada(t.agent_on_resolution_name));
 
   const ticketIds = [
