@@ -53,7 +53,10 @@ app.get('/index', async (req, res) => {
 app.get('/summary', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT date, (data->>'total')::int AS total
+      `SELECT date,
+              (data->>'total')::int                            AS total,
+              COALESCE((data->>'total_avaliados')::int, 0)     AS total_avaliados,
+              COALESCE((data->>'total_positivos')::int, 0)     AS total_positivos
        FROM support_bi.csat_reports
        ORDER BY date DESC`
     );
@@ -217,6 +220,7 @@ async function runDailyReport(dateOverride = null, force = false) {
   const por_agente = {};
   const por_agente_positivos = {};
   const tags_resumo = {};
+  const positivosMonitorados = positivosAll.filter(t => isAgentMonitorada(t.agent_on_resolution_name));
 
   for (const t of tickets) {
     const nome = t.agent_on_resolution_name;
@@ -244,6 +248,15 @@ async function runDailyReport(dateOverride = null, force = false) {
     por_agente,
     por_agente_positivos,
     tags_resumo,
+    tickets_positivos: positivosMonitorados.map(t => ({
+      id: t.display_ticket_id,
+      link: t.ticket_link,
+      nota: t.csat_score,
+      agente: t.agent_on_resolution_name,
+      cliente_nome: t.contact_name || null,
+      cliente_email: t.contact_email || null,
+      feedback: t.csat_feedback || null,
+    })),
     tickets: tickets.map(t => ({
       id: t.display_ticket_id,
       link: t.ticket_link,

@@ -146,8 +146,8 @@
     <div class="logo">INK<b>.</b></div>
     <div class="sep"></div>
     <div class="hdr-meta">
-      <h1>Painel de CSAT — Avaliações Negativas</h1>
-      <p>Histórico diário por agente · Atualizado automaticamente todo dia útil às 7h</p>
+      <h1>Painel de CSAT — Avaliações</h1>
+      <p>Histórico diário · Atualizado automaticamente todo dia útil às 7h</p>
     </div>
     <a class="btn-gestao" href="gerencial.html">
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 17.5h7M17.5 14v7"/></svg>
@@ -194,7 +194,7 @@
   const MESES_ABREV = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   const DIAS_SEMANA = ['Seg','Ter','Qua','Qui','Sex'];
 
-  let totaisMap = {};
+  let totaisMap = {}, avaliadosMap = {};
 
   function volClass(total) {
     if (total >= 8) return 'vol-alto';
@@ -213,7 +213,10 @@
         return;
       }
 
-      resumo.forEach(r => { totaisMap[r.date] = r.total; });
+      resumo.forEach(r => {
+        totaisMap[r.date] = r.total;
+        if (r.total_avaliados) avaliadosMap[r.date] = { avaliados: r.total_avaliados, positivos: r.total_positivos || 0, negativos: r.total };
+      });
 
       // define datas padrão do filtro (mês atual)
       const hoje = new Date();
@@ -237,10 +240,10 @@
             <div class="month-title">${MESES_PT[mes - 1]} ${ano}</div>
             ${renderCalendario(ano, mes, totaisMap)}
             <div class="legenda">
-              <span>Volume no dia:</span>
-              <span class="legenda-item"><span class="legenda-dot" style="background:#fff;border:2px solid #e91e8c;box-sizing:border-box"></span> 1–3</span>
-              <span class="legenda-item"><span class="legenda-dot" style="background:#e91e8c"></span> 4–7</span>
-              <span class="legenda-item"><span class="legenda-dot" style="background:#9d1366"></span> 8+</span>
+              <span>Satisfação:</span>
+              <span class="legenda-item"><span class="legenda-dot" style="background:#fff;border:2px solid #e91e8c;box-sizing:border-box"></span> Alta (≥75%)</span>
+              <span class="legenda-item"><span class="legenda-dot" style="background:#e91e8c"></span> Média (55–74%)</span>
+              <span class="legenda-item"><span class="legenda-dot" style="background:#9d1366"></span> Baixa (&lt;55%)</span>
             </div>
           </div>`;
       }
@@ -325,12 +328,21 @@
       const total   = totaisMap[dataStr];
 
       if (total !== undefined) {
-        const vc = volClass(total);
+        const av = avaliadosMap[dataStr];
+        let vc, label;
+        if (av && av.avaliados > 0) {
+          const pct = Math.round(av.positivos / av.avaliados * 100);
+          vc = pct >= 75 ? 'vol-baixo' : pct >= 55 ? 'vol-medio' : 'vol-alto';
+          label = `${av.avaliados} av`;
+        } else {
+          vc = volClass(total);
+          label = `${total} neg`;
+        }
         cells += `
           <div class="cal-cell">
             <a class="cal-day tem-dados ${vc}" href="report.html?date=${dataStr}">
               <span class="cal-num">${dia}</span>
-              <span class="cal-csat">${total} neg</span>
+              <span class="cal-csat">${label}</span>
             </a>
           </div>`;
       } else {

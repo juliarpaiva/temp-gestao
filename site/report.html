@@ -101,9 +101,17 @@
     .agent-group.n1 { border-left: 4px solid #fca5a5; }
     .agent-group.n2 { border-left: 4px solid #fdba74; }
     .agent-group.n3 { border-left: 4px solid #fde68a; }
-    .agent-header { padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; background: #fafbfc; border-bottom: 1px solid var(--borda); }
+    .agent-header { padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #fafbfc; border-bottom: 1px solid var(--borda); flex-wrap: wrap; }
     .agent-header-nome  { font-size: 14px; font-weight: 700; }
     .agent-header-count { font-size: 11px; color: var(--muted); font-weight: 600; }
+    .agent-tabs { display: flex; gap: 6px; }
+    .agent-tab { padding: 4px 12px; border-radius: 20px; border: 1px solid var(--borda); background: var(--card); color: var(--muted); font-size: 11px; font-weight: 700; cursor: pointer; transition: all .15s; display: flex; align-items: center; gap: 5px; }
+    .agent-tab.ativo { background: var(--preto); border-color: var(--preto); color: #fff; }
+    .agent-tab.pos.ativo { background: #16a34a; border-color: #16a34a; color: #fff; }
+    .agent-tab:hover:not(.ativo) { border-color: var(--rosa); color: var(--rosa); }
+    .agent-tab-cnt { font-size: 10px; font-weight: 800; opacity: .75; }
+    .agent-tab-cnt.pos { color: #16a34a; }
+    .tab-content.hidden { display: none; }
 
     /* ── LINHA DE TICKET ────────────────────────────────── */
     .agent-ticket-row { display: grid; grid-template-columns: 68px 1fr auto; align-items: start; gap: 20px; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; cursor: default; transition: background .12s, opacity .2s; }
@@ -269,8 +277,8 @@
     <div class="logo">INK<b>.</b></div>
     <div class="sep"></div>
     <div class="hdr-meta">
-      <h1>Relatório CSAT — Avaliações Negativas</h1>
-      <p>Notas 1, 2 e 3 · Agentes monitoradas</p>
+      <h1>Relatório CSAT — Avaliações</h1>
+      <p>Notas 1 a 5 · Agentes monitoradas</p>
     </div>
     <a class="btn-back" href="/">
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -425,6 +433,14 @@
       });
       group.style.display = visible ? '' : 'none';
     });
+  }
+
+  function switchTab(btn, showId, hideId) {
+    const group = btn.closest('.agent-group');
+    group.querySelectorAll('.agent-tab').forEach(b => b.classList.remove('ativo'));
+    btn.classList.add('ativo');
+    document.getElementById(showId).classList.remove('hidden');
+    document.getElementById(hideId).classList.add('hidden');
   }
 
   function filterByAgent(pill) {
@@ -670,7 +686,7 @@
   function render(d, indevidaMap, el) {
     reportData = d;
     reportIndevidaMap = indevidaMap;
-    const { date, total=0, por_agente={}, tags_resumo={}, tickets=[] } = d;
+    const { date, total=0, por_agente={}, tags_resumo={}, tickets=[], tickets_positivos=[] } = d;
     const agentes = Object.entries(por_agente).sort((a,b) => b[1]-a[1]);
     const tags    = Object.entries(tags_resumo).sort((a,b) => b[1]-a[1]);
     const maxAg   = agentes[0]?.[1] || 1;
@@ -679,9 +695,9 @@
     /* KPIs */
     let kpis = `
       <div class="kpi total">
-        <div class="kpi-label">Total negativo no dia</div>
+        <div class="kpi-label">Negativos no dia</div>
         <div class="kpi-num">${total}</div>
-        <div class="kpi-sub">Notas 1, 2 e 3</div>
+        <div class="kpi-sub">${tickets_positivos.length} positivos</div>
       </div>`;
     for (const [nome, qtd] of agentes) {
       kpis += `
@@ -802,16 +818,69 @@
         </div>`;
     }
 
-    const linhas = Object.entries(grupoMap).map(([agente, agTickets]) => {
-      const piorNota = Math.min(...agTickets.map(t => t.nota||5));
-      const cnt = agTickets.length;
+    /* Agrupamento de positivos por agente */
+    const grupoMapPos = {};
+    tickets_positivos.forEach(t => {
+      const k = t.agente || '—';
+      if (!grupoMapPos[k]) grupoMapPos[k] = [];
+      grupoMapPos[k].push(t);
+    });
+
+    /* Linha de ticket positivo (sem tags/criticidade) */
+    function posTicketRowHtml(t) {
+      const idHtml = t.link
+        ? `<a class="ticket-id-link" href="${t.link}" target="_blank" rel="noopener">#${t.id}<svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a>`
+        : `<span class="ticket-id-link" style="cursor:default">#${t.id||'—'}</span>`;
+      const clienteHtml = (t.cliente_nome||t.cliente_email) ? `
+        <div class="ticket-cliente">
+          ${t.cliente_nome  ? `<span class="cliente-nome">${escHtml(t.cliente_nome)}</span>`  : ''}
+          ${t.cliente_email ? `<span class="cliente-email">${escHtml(t.cliente_email)}</span>` : ''}
+        </div>` : '';
+      const feedbackHtml = t.feedback ? `<div class="ticket-feedback" style="color:#15803d">${escHtml(t.feedback)}</div>` : '';
+      return `
+        <div class="agent-ticket-row" style="border-left:3px solid #86efac">
+          <div class="csat-bloco" style="background:#f0fdf4;border:1.5px solid #86efac;color:#16a34a">
+            <span class="csat-num">${t.nota}</span>
+            <span class="csat-label">CSAT</span>
+          </div>
+          <div class="ticket-corpo">
+            ${idHtml}
+            ${clienteHtml}
+            ${feedbackHtml}
+          </div>
+        </div>`;
+    }
+
+    /* União dos agentes (neg + pos) na ordem do ranking de negativos */
+    const todosAgentesSet = [...new Set([...Object.keys(grupoMap), ...Object.keys(grupoMapPos)])];
+    todosAgentesSet.sort((a,b) => ((ordemAgente[a]??99) - (ordemAgente[b]??99)));
+
+    const linhas = todosAgentesSet.map(agente => {
+      const agNeg = grupoMap[agente] || [];
+      const agPos = grupoMapPos[agente] || [];
+      const piorNota = agNeg.length ? Math.min(...agNeg.map(t => t.nota||5)) : 5;
+      const idSafe   = agente.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'');
+      const tabNegId = `tab-neg-${idSafe}`;
+      const tabPosId = `tab-pos-${idSafe}`;
       return `
         <div class="agent-group n${piorNota}" data-agente="${agente}">
           <div class="agent-header">
             <span class="agent-header-nome" onclick="openAgentHistory('${agente}')" title="Ver histórico de ${agente}">${agente}</span>
-            <span class="agent-header-count">${cnt} ${cnt===1?'avaliação negativa':'avaliações negativas'}</span>
+            <div class="agent-tabs">
+              <button class="agent-tab${agNeg.length?' ativo':''}" onclick="switchTab(this,'${tabNegId}','${tabPosId}')">
+                Negativas <span class="agent-tab-cnt">${agNeg.length}</span>
+              </button>
+              <button class="agent-tab pos${agPos.length&&!agNeg.length?' ativo':''}" onclick="switchTab(this,'${tabPosId}','${tabNegId}')">
+                Positivas <span class="agent-tab-cnt pos">${agPos.length}</span>
+              </button>
+            </div>
           </div>
-          ${agTickets.map(ticketRowHtml).join('')}
+          <div id="${tabNegId}" class="tab-content${agNeg.length?'':' hidden'}">
+            ${agNeg.length ? agNeg.map(ticketRowHtml).join('') : '<div style="padding:16px 24px;color:var(--muted);font-size:12px">Sem avaliações negativas nesse dia</div>'}
+          </div>
+          <div id="${tabPosId}" class="tab-content hidden">
+            ${agPos.length ? agPos.map(posTicketRowHtml).join('') : '<div style="padding:16px 24px;color:var(--muted);font-size:12px">Sem avaliações positivas nesse dia</div>'}
+          </div>
         </div>`;
     }).join('');
 
