@@ -519,20 +519,27 @@
   /* ── HISTÓRICO DA AGENTE ──────────────────────────────── */
   function renderHistoryChart(history) {
     if (!history.length) return '<p style="color:#94a3b8;font-size:12px;text-align:center;padding:16px 0">Sem dados no período</p>';
-    const W = 440, H = 64;
-    const max = Math.max(...history.map(d => d.count), 1);
-    const n   = history.length;
+    const W = 440, H = 64, LABEL_H = 18;
+    const max  = Math.max(...history.map(d => d.count), 1);
+    const n    = history.length;
     const barW = Math.max(4, Math.floor((W - (n-1)*2) / n));
     const gap  = n > 1 ? (W - n*barW) / (n-1) : 0;
-    const bars = history.map((d, i) => {
+    const step = n <= 10 ? 1 : n <= 20 ? 2 : 4;
+    const els  = history.map((d, i) => {
       const h   = Math.max(3, Math.round((d.count / max) * H));
       const x   = Math.round(i * (barW + gap));
       const y   = H - h;
+      const cx  = x + barW / 2;
       const col = d.count >= 6 ? '#dc2626' : d.count >= 3 ? '#e91e8c' : '#f48dc1';
       const dt  = d.date.slice(8) + '/' + d.date.slice(5,7);
-      return `<rect x="${x}" y="${y}" width="${barW}" height="${h}" fill="${col}" rx="2"><title>${dt}: ${d.count}</title></rect>`;
+      const bar   = `<rect x="${x}" y="${y}" width="${barW}" height="${h}" fill="${col}" rx="2"><title>${dt}: ${d.count}</title></rect>`;
+      const label = (i % step === 0)
+        ? `<text x="${cx}" y="${H + 13}" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="system-ui,sans-serif">${dt}</text>`
+        : '';
+      return bar + label;
     }).join('');
-    return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block;overflow:visible">${bars}</svg>`;
+    const totalH = H + LABEL_H;
+    return `<svg viewBox="0 0 ${W} ${totalH}" width="100%" height="${totalH}" style="display:block">${els}</svg>`;
   }
 
   function calcTendencia(history) {
@@ -575,7 +582,7 @@
           <div class="hist-stat"><div class="hist-stat-label">Pior dia</div><div class="hist-stat-val">${pior}</div></div>
         </div>
         <div class="hist-chart-wrap">
-          <div class="hist-chart-label">Evolução — cada barra é um dia útil</div>
+          <div class="hist-chart-label">Evolução</div>
           ${renderHistoryChart(history)}
         </div>`;
     } catch(e) {
