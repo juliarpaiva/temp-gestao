@@ -29,28 +29,29 @@ app.get('/health', (req, res) => {
 // Webhook do CloudChat — "Avaliação de CSAT é inválida?"
 app.post('/webhook/csat-invalida', express.json(), express.urlencoded({ extended: true }), async (req, res) => {
   const payload = req.body;
-  console.log('[webhook] payload recebido:', JSON.stringify(payload, null, 2));
-  console.log('[webhook] headers:', JSON.stringify(req.headers, null, 2));
 
-  // --- FASE 1: modo debug (enquanto não sabemos o formato do payload) ---
-  // Tenta extrair ticket_id e date de campos comuns
-  const ticketId = payload.ticket_id || payload.ticketId || payload.id || payload.conversation_id || null;
-  const date     = payload.date || payload.created_at?.slice(0, 10) || payload.resolved_at?.slice(0, 10) || null;
+  // conversation_url = ".../conversations/25285" → ticketId = "25285"
+  const convUrl  = payload.conversation_url || '';
+  const ticketId = (convUrl.split('/conversations/')[1] || '').trim() || null;
+
+  // created_at chega como Unix timestamp (número) → converte para YYYY-MM-DD
+  const createdAtTs = Number(payload.created_at);
+  const date = createdAtTs ? new Date(createdAtTs * 1000).toISOString().slice(0, 10) : null;
+
+  console.log(`[webhook] ticket=${ticketId} date=${date} agent=${payload.agent_display_name}`);
 
   if (!ticketId || !date) {
-    console.log('[webhook] campos nao identificados — retornando payload para inspecao');
-    return res.json({ ok: false, msg: 'campos ticket_id/date nao encontrados — ajuste necessario', payload_recebido: payload });
+    return res.status(400).json({ ok: false, msg: 'campos nao identificados', ticket_id: ticketId, date });
   }
 
-  // Salva na tabela de indevidas
   await pool.query(
     `INSERT INTO support_bi.csat_indevidas (ticket_id, date, motivo, observacao)
      VALUES ($1, $2, $3, $4)
      ON CONFLICT (ticket_id) DO UPDATE SET motivo=$3, observacao=$4, marcado_em=NOW()`,
-    [String(ticketId), date, 'cloudchat_webhook', JSON.stringify(payload)]
+    [ticketId, date, 'cloudchat_webhook', payload.agent_display_name || null]
   );
 
-  // Re-processa o dia automaticamente (exclui indevidas dos totais)
+  // Re-processa o dia automaticamente — exclui indevidas dos totais
   runDailyReport(date, true)
     .then(r => console.log('[webhook] reprocessamento concluido:', r))
     .catch(e => console.error('[webhook] erro no reprocessamento:', e.message));
