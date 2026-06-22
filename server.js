@@ -109,6 +109,7 @@ app.get('/gestao', async (req, res) => {
               COALESCE((data->>'total_avaliados')::int, 0)      AS total_avaliados,
               COALESCE((data->>'total_positivos')::int, 0)      AS total_positivos,
               data->'por_agente'                                AS por_agente,
+              data->'por_agente_positivos'                      AS por_agente_positivos,
               data->'tags_resumo'                               AS tags_resumo
        FROM support_bi.csat_reports
        WHERE date >= (CURRENT_DATE - INTERVAL '90 days')::text
@@ -116,28 +117,30 @@ app.get('/gestao', async (req, res) => {
     );
     const meses = {}, semanas = {};
     for (const row of result.rows) {
-      const { date, total = 0, total_recebidos = 0, total_avaliados = 0, total_positivos = 0, por_agente = {}, tags_resumo = {} } = row;
+      const { date, total = 0, total_recebidos = 0, total_avaliados = 0, total_positivos = 0, por_agente = {}, por_agente_positivos = {}, tags_resumo = {} } = row;
       const mesChave = date.slice(0, 7);
-      if (!meses[mesChave]) meses[mesChave] = { total: 0, total_recebidos: 0, total_avaliados: 0, total_positivos: 0, dias: 0, por_agente: {}, tags: {} };
+      if (!meses[mesChave]) meses[mesChave] = { total: 0, total_recebidos: 0, total_avaliados: 0, total_positivos: 0, dias: 0, por_agente: {}, por_agente_positivos: {}, tags: {} };
       meses[mesChave].total           += total;
       meses[mesChave].total_recebidos += total_recebidos;
       meses[mesChave].total_avaliados += total_avaliados;
       meses[mesChave].total_positivos += total_positivos;
       meses[mesChave].dias++;
-      for (const [a, c] of Object.entries(por_agente)) meses[mesChave].por_agente[a] = (meses[mesChave].por_agente[a] || 0) + c;
-      for (const [t, c] of Object.entries(tags_resumo))  meses[mesChave].tags[t]      = (meses[mesChave].tags[t]      || 0) + c;
+      for (const [a, c] of Object.entries(por_agente))          meses[mesChave].por_agente[a]          = (meses[mesChave].por_agente[a]          || 0) + c;
+      for (const [a, c] of Object.entries(por_agente_positivos)) meses[mesChave].por_agente_positivos[a] = (meses[mesChave].por_agente_positivos[a] || 0) + c;
+      for (const [t, c] of Object.entries(tags_resumo))          meses[mesChave].tags[t]                 = (meses[mesChave].tags[t]                 || 0) + c;
       const d   = new Date(date + 'T12:00:00Z');
       const dow = d.getUTCDay();
       const mon = new Date(d);
       mon.setUTCDate(d.getUTCDate() - (dow === 0 ? 6 : dow - 1));
       const semChave = mon.toISOString().slice(0, 10);
-      if (!semanas[semChave]) semanas[semChave] = { total: 0, total_recebidos: 0, total_avaliados: 0, total_positivos: 0, dias: 0, por_agente: {}, pior_dia: null, pior_total: 0 };
+      if (!semanas[semChave]) semanas[semChave] = { total: 0, total_recebidos: 0, total_avaliados: 0, total_positivos: 0, dias: 0, por_agente: {}, por_agente_positivos: {}, pior_dia: null, pior_total: 0 };
       semanas[semChave].total           += total;
       semanas[semChave].total_recebidos += total_recebidos;
       semanas[semChave].total_avaliados += total_avaliados;
       semanas[semChave].total_positivos += total_positivos;
       semanas[semChave].dias++;
-      for (const [a, c] of Object.entries(por_agente)) semanas[semChave].por_agente[a] = (semanas[semChave].por_agente[a] || 0) + c;
+      for (const [a, c] of Object.entries(por_agente))          semanas[semChave].por_agente[a]          = (semanas[semChave].por_agente[a]          || 0) + c;
+      for (const [a, c] of Object.entries(por_agente_positivos)) semanas[semChave].por_agente_positivos[a] = (semanas[semChave].por_agente_positivos[a] || 0) + c;
       if (total > semanas[semChave].pior_total) { semanas[semChave].pior_total = total; semanas[semChave].pior_dia = date; }
     }
     res.json({ meses, semanas });
@@ -212,11 +215,17 @@ async function runDailyReport(dateOverride = null, force = false) {
   const labelsByTicket = await getTicketLabels(token, ticketIds);
 
   const por_agente = {};
+  const por_agente_positivos = {};
   const tags_resumo = {};
 
   for (const t of tickets) {
     const nome = t.agent_on_resolution_name;
     por_agente[nome] = (por_agente[nome] || 0) + 1;
+  }
+
+  for (const t of positivosAll.filter(t => isAgentMonitorada(t.agent_on_resolution_name))) {
+    const nome = t.agent_on_resolution_name;
+    por_agente_positivos[nome] = (por_agente_positivos[nome] || 0) + 1;
   }
 
   for (const tags of Object.values(labelsByTicket)) {
@@ -233,6 +242,7 @@ async function runDailyReport(dateOverride = null, force = false) {
     total_positivos: positivosAll.length,
     total_negativos: negativosAll.length,
     por_agente,
+    por_agente_positivos,
     tags_resumo,
     tickets: tickets.map(t => ({
       id: t.display_ticket_id,

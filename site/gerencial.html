@@ -149,8 +149,8 @@
     <div class="logo">INK<b>.</b></div>
     <div class="sep"></div>
     <div class="hdr-meta">
-      <h1>Painel de Gestão</h1>
-      <p>Visão executiva · Agentes, tags e semanas</p>
+      <h1>Painel de Gestão — CSAT</h1>
+      <p>Visão geral + monitoramento de negativos · Atualizado todo dia útil às 7h</p>
     </div>
     <a class="btn-back" href="/">
       <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -240,8 +240,15 @@
         ${mesesKeys.map(k => `<button class="mes-btn${k===mesAtivo?' ativo':''}" onclick="selecionarMes('${k}')">${mesLabel(k)}</button>`).join('')}
       </div>` : '';
 
-    // ── KPIs ──
+    // ── KPIs gerais ──
+    const totalRecebidos = mesDados.total_recebidos || 0;
+    const totalAvaliados = mesDados.total_avaliados || 0;
+    const totalPositivos = mesDados.total_positivos || 0;
+    const totalNegAll    = mesDados.total_negativos || mesDados.total;
+    const taxaResposta   = totalRecebidos > 0 ? Math.round(totalAvaliados / totalRecebidos * 100) : null;
+    const pctSatisfacao  = totalAvaliados > 0 ? Math.round(totalPositivos / totalAvaliados * 100) : null;
     const media = mesDados.dias ? (mesDados.total / mesDados.dias).toFixed(1) : '0';
+
     let vsHtml = '<span class="kpi-sub flat">sem mês anterior</span>';
     if (mesAnterior && mesAnterior.total > 0) {
       const diff = mesDados.total - mesAnterior.total;
@@ -251,7 +258,28 @@
       else               vsHtml = `<span class="kpi-sub flat">→ igual ao mês anterior</span>`;
     }
 
-    // ── Ranking agentes ──
+    // ── Ranking de satisfação por agente ──
+    const possPorAg = mesDados.por_agente_positivos || {};
+    const negsPorAg = mesDados.por_agente || {};
+    const todosAgentes = [...new Set([...Object.keys(possPorAg), ...Object.keys(negsPorAg)])];
+    const satisfSorted = todosAgentes.map(ag => {
+      const pos = possPorAg[ag] || 0;
+      const neg = negsPorAg[ag] || 0;
+      const tot = pos + neg;
+      return { nome: ag, pos, neg, tot, pct: tot > 0 ? Math.round(pos / tot * 100) : 0 };
+    }).sort((a, b) => b.pct - a.pct);
+
+    const satisfacaoHtml = satisfSorted.length ? satisfSorted.map(d => {
+      const cor = d.pct >= 75 ? '#16a34a' : d.pct >= 50 ? '#ca8a04' : '#dc2626';
+      return `<div class="agente-row">
+        <span class="agente-pos" style="color:${cor};width:36px;font-size:12px">${d.pct}%</span>
+        <span class="agente-nome">${d.nome.split(' ')[0]}</span>
+        <div class="agente-bar-wrap"><div class="agente-bar" style="width:${d.pct}%;background:${cor}"></div></div>
+        <span class="agente-num" style="font-size:11px;color:var(--muted);width:56px">${d.pos}↑ ${d.neg}↓</span>
+      </div>`;
+    }).join('') : '<p style="color:var(--muted);font-size:12px">Sem dados — reprocesse os dias do mês</p>';
+
+    // ── Ranking negativos por agente ──
     const agentes = Object.entries(mesDados.por_agente).sort((a,b) => b[1]-a[1]);
     const maxAg = agentes[0]?.[1] || 1;
     const rankingHtml = agentes.length ? agentes.map(([nome,cnt], i) => `
@@ -313,36 +341,43 @@
     document.getElementById('conteudo').innerHTML = `
       ${navHtml}
 
+      <div class="section-head">Visão geral — ${mesLabel(mesAtivo)}</div>
       <div class="kpi-grid">
         <div class="kpi destaque">
-          <div class="kpi-label">Total do mês</div>
-          <div class="kpi-num">${mesDados.total}</div>
+          <div class="kpi-label">% Satisfação</div>
+          <div class="kpi-num">${pctSatisfacao !== null ? pctSatisfacao + '%' : '—'}</div>
+          <div class="kpi-sub flat">${totalPositivos} pos · ${totalNegAll} neg</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Avaliações recebidas</div>
+          <div class="kpi-num">${totalRecebidos || '—'}</div>
+          <div class="kpi-sub flat">tickets com CSAT enviado</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Taxa de resposta</div>
+          <div class="kpi-num">${taxaResposta !== null ? taxaResposta + '%' : '—'}</div>
+          <div class="kpi-sub flat">${totalAvaliados} avaliaram</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Negativos no mês</div>
+          <div class="kpi-num">${totalNegAll || mesDados.total}</div>
           ${vsHtml}
-        </div>
-        <div class="kpi">
-          <div class="kpi-label">Dias registrados</div>
-          <div class="kpi-num">${mesDados.dias}</div>
-          <div class="kpi-sub flat">dias úteis com dados</div>
-        </div>
-        <div class="kpi">
-          <div class="kpi-label">Média por dia</div>
-          <div class="kpi-num">${media}</div>
-          <div class="kpi-sub flat">avaliações negativas</div>
-        </div>
-        <div class="kpi">
-          <div class="kpi-label">Agentes monitoradas</div>
-          <div class="kpi-num">${agentes.length}</div>
-          <div class="kpi-sub flat">com avaliações no mês</div>
         </div>
       </div>
 
+      <div class="painel" style="margin-bottom:32px">
+        <div class="painel-title">Satisfação por agente — ${mesLabel(mesAtivo)}</div>
+        ${satisfacaoHtml}
+      </div>
+
+      <div class="section-head">Monitoramento de negativos</div>
       <div class="dois-col">
         <div class="painel">
-          <div class="painel-title">Ranking de agentes — ${mesLabel(mesAtivo)}</div>
+          <div class="painel-title">Negativos por agente</div>
           ${rankingHtml}
         </div>
         <div class="painel">
-          <div class="painel-title">Top tags — ${mesLabel(mesAtivo)}</div>
+          <div class="painel-title">Top tags — negativos</div>
           ${tagsHtml}
         </div>
       </div>
