@@ -6,132 +6,158 @@
   <title>Relatório CSAT — INK</title>
   <style>
     :root {
-      --rosa: #e91e8c;
-      --rosa-s: rgba(233,30,140,.10);
-      --rosa-borda: #f48dc1;
-      --preto: #111111;
-      --cinza-bg: #f4f5f7;
-      --cinza-card: #ffffff;
-      --cinza-borda: #e4e4e7;
-      --cinza-muted: #71717a;
-      --r: 10px;
-      --shadow: 0 1px 3px rgba(0,0,0,.07), 0 4px 12px rgba(0,0,0,.05);
+      --rosa:      #e91e8c;
+      --rosa-s:    rgba(233,30,140,.08);
+      --rosa-h:    rgba(233,30,140,.18);
+      --preto:     #0f0f0f;
+      --bg:        #f0f2f5;
+      --card:      #ffffff;
+      --borda:     #e2e8f0;
+      --muted:     #64748b;
+      --r:         12px;
+      --sh:        0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06);
+      --sh-lg:     0 2px 8px rgba(0,0,0,.08), 0 8px 32px rgba(0,0,0,.08);
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--cinza-bg); color: var(--preto); font-size: 14px; line-height: 1.6; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--preto); font-size: 14px; line-height: 1.6; }
 
     /* HEADER */
     .header { background: var(--preto); color: #fff; border-bottom: 3px solid var(--rosa); position: sticky; top: 0; z-index: 100; }
-    .header-inner { max-width: 1100px; margin: 0 auto; padding: 0 32px; height: 66px; display: flex; align-items: center; gap: 16px; }
-    .logo { font-size: 26px; font-weight: 900; letter-spacing: -1px; color: #fff; flex-shrink: 0; }
+    .header-inner { max-width: 1140px; margin: 0 auto; padding: 0 32px; height: 64px; display: flex; align-items: center; gap: 16px; }
+    .logo { font-size: 24px; font-weight: 900; letter-spacing: -1px; color: #fff; flex-shrink: 0; }
     .logo b { color: var(--rosa); }
-    .hdr-sep { width: 1px; height: 28px; background: #333; flex-shrink: 0; }
-    .hdr-text { flex: 1; min-width: 0; }
-    .hdr-text h1 { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .hdr-text p  { font-size: 12px; color: #888; margin-top: 2px; }
+    .sep { width: 1px; height: 26px; background: #2a2a2a; flex-shrink: 0; }
+    .hdr-meta { flex: 1; min-width: 0; }
+    .hdr-meta h1 { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hdr-meta p  { font-size: 11px; color: #666; margin-top: 1px; }
     .btn-back {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 8px 14px; border-radius: 8px;
-      background: #1e1e1e; color: #ccc; font-size: 13px; font-weight: 600;
-      text-decoration: none; border: 1px solid #333; flex-shrink: 0;
-      transition: background .15s, color .15s;
+      display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
+      border-radius: 8px; background: #1a1a1a; color: #aaa; font-size: 12px; font-weight: 600;
+      text-decoration: none; border: 1px solid #2a2a2a; flex-shrink: 0; transition: all .15s;
     }
     .btn-back:hover { background: var(--rosa); color: #fff; border-color: var(--rosa); }
+    .btn-back svg { flex-shrink: 0; }
 
     /* LAYOUT */
-    .main { max-width: 1100px; margin: 0 auto; padding: 40px 32px 80px; }
+    .main { max-width: 1140px; margin: 0 auto; padding: 36px 32px 80px; }
 
-    /* LOADING / ERRO */
-    .loading { text-align: center; padding: 80px 0; color: var(--cinza-muted); font-size: 15px; }
-    .loading span { display: block; font-size: 32px; margin-bottom: 12px; }
-    .erro { text-align: center; padding: 60px; background: #fff3f3; border: 1px solid #ffd0d0; border-radius: var(--r); color: #c0392b; }
+    /* ESTADOS */
+    .loading { text-align: center; padding: 80px 0; color: var(--muted); }
+    .loading-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--rosa); margin: 0 3px; animation: bounce .9s infinite; }
+    .loading-dot:nth-child(2) { animation-delay: .15s; }
+    .loading-dot:nth-child(3) { animation-delay: .3s; }
+    @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-8px)} }
+    .erro { padding: 40px; background: #fff3f3; border: 1px solid #ffd0d0; border-radius: var(--r); color: #c0392b; text-align: center; }
 
-    /* DATA DO RELATÓRIO */
-    .report-date {
-      display: flex; align-items: center; gap: 16px; margin-bottom: 32px;
-      padding: 20px 28px; background: var(--cinza-card); border-radius: var(--r);
-      box-shadow: var(--shadow); border: 1px solid var(--cinza-borda);
+    /* DATE HERO */
+    .date-hero {
+      background: var(--card); border: 1px solid var(--borda); border-radius: var(--r);
+      box-shadow: var(--sh); padding: 24px 28px; margin-bottom: 24px;
+      display: flex; align-items: center; gap: 20px;
     }
-    .report-date .data-badge {
-      background: var(--preto); color: #fff; font-size: 11px; font-weight: 700;
-      padding: 4px 10px; border-radius: 20px; letter-spacing: .5px; text-transform: uppercase;
+    .date-pill {
+      background: var(--preto); color: #fff; font-size: 10px; font-weight: 800;
+      letter-spacing: 1px; text-transform: uppercase; padding: 5px 12px; border-radius: 20px; flex-shrink: 0;
     }
-    .report-date .data-texto { font-size: 20px; font-weight: 800; letter-spacing: -.3px; }
-    .report-date .data-subtexto { font-size: 13px; color: var(--cinza-muted); margin-top: 2px; }
+    .date-info .dia { font-size: 22px; font-weight: 800; letter-spacing: -.4px; }
+    .date-info .iso { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
-    /* KPI CARDS */
-    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
-    .kpi-card {
-      background: var(--cinza-card); border: 1px solid var(--cinza-borda);
-      border-radius: var(--r); padding: 20px 22px; box-shadow: var(--shadow);
-      position: relative; overflow: hidden;
+    /* KPI GRID */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; margin-bottom: 28px; }
+    .kpi {
+      background: var(--card); border: 1px solid var(--borda); border-radius: var(--r);
+      box-shadow: var(--sh); padding: 20px 22px; position: relative; overflow: hidden;
     }
-    .kpi-card.destaque { border-left: 3px solid var(--rosa); }
-    .kpi-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--cinza-muted); margin-bottom: 8px; }
-    .kpi-valor { font-size: 36px; font-weight: 900; letter-spacing: -1px; color: var(--preto); line-height: 1; }
-    .kpi-card.destaque .kpi-valor { color: var(--rosa); }
-    .kpi-sub { font-size: 12px; color: var(--cinza-muted); margin-top: 6px; }
+    .kpi.total { border-left: 4px solid var(--rosa); }
+    .kpi-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 10px; }
+    .kpi-num { font-size: 40px; font-weight: 900; letter-spacing: -2px; line-height: 1; color: var(--preto); }
+    .kpi.total .kpi-num { color: var(--rosa); }
+    .kpi-sub { font-size: 11px; color: var(--muted); margin-top: 8px; }
+    .kpi-bar { position: absolute; bottom: 0; left: 0; height: 3px; background: linear-gradient(90deg, var(--rosa), transparent); border-radius: 0 2px 0 0; }
 
     /* SEÇÕES */
-    .section { margin-bottom: 32px; }
-    .section-title {
-      font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px;
-      color: var(--cinza-muted); margin-bottom: 12px;
-      display: flex; align-items: center; gap: 8px;
+    .section { margin-bottom: 28px; }
+    .section-head {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px;
+      color: var(--muted); margin-bottom: 14px;
     }
-    .section-title::before {
-      content: ""; display: block; width: 3px; height: 16px;
-      background: var(--rosa); border-radius: 2px;
+    .section-head::before {
+      content: ""; display: block; width: 3px; height: 14px;
+      background: var(--rosa); border-radius: 2px; flex-shrink: 0;
     }
 
-    /* TABELA DE AGENTES */
-    .agentes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+    /* AGENTES */
+    .agentes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
     .agente-card {
-      background: var(--cinza-card); border: 1px solid var(--cinza-borda);
-      border-radius: var(--r); padding: 16px 20px; box-shadow: var(--shadow);
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      background: var(--card); border: 1px solid var(--borda); border-radius: var(--r);
+      box-shadow: var(--sh); padding: 16px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      transition: box-shadow .15s, transform .15s;
     }
+    .agente-card:hover { box-shadow: var(--sh-lg); transform: translateY(-1px); }
     .agente-nome { font-weight: 700; font-size: 14px; }
-    .agente-qtd {
-      font-size: 22px; font-weight: 900; color: var(--rosa);
-      min-width: 32px; text-align: right;
-    }
-    .agente-label { font-size: 11px; color: var(--cinza-muted); margin-top: 2px; }
+    .agente-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .agente-num  { font-size: 28px; font-weight: 900; color: var(--rosa); min-width: 36px; text-align: right; }
 
-    /* TABELA DE TICKETS */
-    .table-wrap { overflow-x: auto; background: var(--cinza-card); border: 1px solid var(--cinza-borda); border-radius: var(--r); box-shadow: var(--shadow); }
-    table { width: 100%; border-collapse: collapse; }
-    thead th {
-      background: var(--preto); color: #888; font-size: 11px; font-weight: 700;
-      text-transform: uppercase; letter-spacing: .8px; padding: 12px 16px; text-align: left;
+    /* TAGS RESUMO */
+    .tags-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tag-item {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--card); border: 1px solid var(--borda);
+      border-radius: 8px; padding: 6px 12px; box-shadow: var(--sh);
+      font-size: 12px; transition: box-shadow .15s;
     }
-    tbody tr { border-bottom: 1px solid #f0f0f0; transition: background .1s; }
+    .tag-item:hover { box-shadow: var(--sh-lg); }
+    .tag-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .tag-nome { font-weight: 600; color: var(--preto); }
+    .tag-count { font-size: 11px; font-weight: 700; color: var(--muted); background: var(--bg); padding: 1px 7px; border-radius: 10px; }
+
+    /* TABELA */
+    .table-wrap {
+      background: var(--card); border: 1px solid var(--borda);
+      border-radius: var(--r); box-shadow: var(--sh); overflow: hidden;
+    }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 600px; }
+    thead th {
+      background: var(--preto); color: #555; font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .8px; padding: 12px 16px; text-align: left;
+      white-space: nowrap;
+    }
+    tbody tr { border-bottom: 1px solid #f1f5f9; transition: background .1s; }
     tbody tr:last-child { border-bottom: none; }
     tbody tr:hover { background: var(--rosa-s); }
     tbody td { padding: 12px 16px; vertical-align: middle; }
-    .ticket-id { font-family: monospace; font-size: 12px; color: var(--cinza-muted); }
+
     .ticket-link {
-      display: inline-flex; align-items: center; gap: 5px;
-      color: var(--rosa); text-decoration: none; font-weight: 600; font-size: 13px;
+      display: inline-flex; align-items: center; gap: 5px; color: var(--rosa);
+      text-decoration: none; font-weight: 700; font-size: 13px; font-family: monospace;
     }
     .ticket-link:hover { text-decoration: underline; }
-    .ticket-link svg { flex-shrink: 0; }
-    .nota-badge {
-      display: inline-block; padding: 2px 8px; border-radius: 20px;
-      font-size: 12px; font-weight: 700;
-    }
-    .nota-1 { background: #fde8e8; color: #c0392b; }
-    .nota-2 { background: #fef3e0; color: #d68910; }
-    .nota-3 { background: #fef9e7; color: #b7950b; }
-    .agente-chip {
-      display: inline-block; background: var(--cinza-bg); border: 1px solid var(--cinza-borda);
-      border-radius: 20px; padding: 2px 10px; font-size: 12px; font-weight: 600;
+    .ticket-link svg { flex-shrink: 0; opacity: .7; }
+
+    .nota-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+    .nota-1 { background: #fde8e8; color: #b91c1c; }
+    .nota-2 { background: #fef3c7; color: #b45309; }
+    .nota-3 { background: #fef9c3; color: #92400e; }
+    .nota-estrela { font-size: 10px; }
+
+    .agente-chip { display: inline-block; background: #f1f5f9; border: 1px solid var(--borda); border-radius: 20px; padding: 3px 10px; font-size: 12px; font-weight: 600; }
+
+    .tags-cell { display: flex; flex-wrap: wrap; gap: 4px; }
+    .tag-chip {
+      display: inline-block; padding: 2px 8px; border-radius: 6px;
+      font-size: 11px; font-weight: 600; border: 1px solid transparent;
     }
 
     /* FOOTER */
-    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--cinza-borda); font-size: 12px; color: var(--cinza-muted); display: flex; justify-content: space-between; align-items: center; }
+    .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--borda); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
     .footer-brand { font-weight: 900; font-size: 14px; color: var(--preto); }
     .footer-brand b { color: var(--rosa); }
+
+    /* VAZIO */
+    .empty { padding: 40px; text-align: center; color: var(--muted); font-size: 13px; }
   </style>
 </head>
 <body>
@@ -139,13 +165,13 @@
 <header class="header">
   <div class="header-inner">
     <div class="logo">INK<b>.</b></div>
-    <div class="hdr-sep"></div>
-    <div class="hdr-text">
-      <h1>Relatório de CSAT — Avaliações Negativas</h1>
+    <div class="sep"></div>
+    <div class="hdr-meta">
+      <h1>Relatório CSAT — Avaliações Negativas</h1>
       <p>Notas 1, 2 e 3 · Agentes monitoradas</p>
     </div>
-    <a class="btn-back" href="index.html">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    <a class="btn-back" href="/">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
       Voltar
     </a>
   </div>
@@ -153,158 +179,190 @@
 
 <main class="main">
   <div id="conteudo">
-    <div class="loading"><span>⏳</span>Carregando relatório...</div>
+    <div class="loading">
+      <div style="margin-bottom:12px">
+        <span class="loading-dot"></span>
+        <span class="loading-dot"></span>
+        <span class="loading-dot"></span>
+      </div>
+      Carregando relatório...
+    </div>
   </div>
 
   <div class="footer">
     <span class="footer-brand">INK<b>.</b></span>
-    <span>Dados atualizados todo dia útil às 7h</span>
+    <span>Atualizado automaticamente todo dia útil às 7h</span>
   </div>
 </main>
 
 <script>
-  const WORKER_URL = 'https://csat-negativo-78f436cca6a0.herokuapp.com';
+  const API = 'https://csat-negativo-78f436cca6a0.herokuapp.com';
 
-  const MESES_PT = [
-    'janeiro','fevereiro','março','abril','maio','junho',
-    'julho','agosto','setembro','outubro','novembro','dezembro'
-  ];
+  const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  const SEMANA = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
 
-  function formatarData(dataStr) {
-    const [ano, mes, dia] = dataStr.split('-').map(Number);
+  // Cores por categoria de tag (primeiro segmento antes do _)
+  const TAG_CORES = {
+    entrega:      { bg: '#eff6ff', txt: '#1d4ed8', borda: '#bfdbfe' },
+    troca:        { bg: '#fffbeb', txt: '#b45309', borda: '#fde68a' },
+    financeiro:   { bg: '#f0fdf4', txt: '#15803d', borda: '#bbf7d0' },
+    rastreio:     { bg: '#f5f3ff', txt: '#6d28d9', borda: '#ddd6fe' },
+    devolucao:    { bg: '#fef2f2', txt: '#b91c1c', borda: '#fecaca' },
+    cancelamento: { bg: '#fff7ed', txt: '#c2410c', borda: '#fed7aa' },
+    defeito:      { bg: '#fdf4ff', txt: '#7e22ce', borda: '#e9d5ff' },
+    default:      { bg: '#f8fafc', txt: '#475569', borda: '#e2e8f0' },
+  };
+
+  function tagCor(nome) {
+    const cat = (nome || '').split('_')[0].toLowerCase();
+    return TAG_CORES[cat] || TAG_CORES.default;
+  }
+
+  function formatTag(nome) {
+    return (nome || '').replace(/_/g, ' ');
+  }
+
+  function formatarData(s) {
+    const [ano, mes, dia] = s.split('-').map(Number);
     const d = new Date(ano, mes - 1, dia);
-    const semanas = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
-    return `${semanas[d.getDay()]}, ${dia} de ${MESES_PT[mes - 1]} de ${ano}`;
+    return `${SEMANA[d.getDay()]}, ${dia} de ${MESES[mes - 1]} de ${ano}`;
   }
 
   async function init() {
     const params = new URLSearchParams(window.location.search);
     const date = params.get('date');
-
-    const conteudo = document.getElementById('conteudo');
+    const el = document.getElementById('conteudo');
 
     if (!date) {
-      conteudo.innerHTML = `<div class="erro"><strong>Data não informada.</strong><br>Use o calendário para escolher um dia.</div>`;
+      el.innerHTML = `<div class="erro">Data não informada. Use o calendário.</div>`;
       return;
     }
 
     document.title = `CSAT ${date} — INK`;
 
     try {
-      const resp = await fetch(`${WORKER_URL}/data/${date}`);
+      const resp = await fetch(`${API}/data/${date}`);
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        conteudo.innerHTML = `<div class="erro"><strong>Relatório não encontrado para ${date}.</strong><br>${err.error || ''}</div>`;
+        el.innerHTML = `<div class="erro">Relatório não encontrado para <strong>${date}</strong>.<br>${err.error || ''}</div>`;
         return;
       }
-      const dados = await resp.json();
-      renderRelatorio(dados, conteudo);
-    } catch (e) {
-      conteudo.innerHTML = `<div class="erro"><strong>Erro ao carregar dados.</strong><br>${e.message}</div>`;
+      render(await resp.json(), el);
+    } catch(e) {
+      el.innerHTML = `<div class="erro">Erro ao carregar: ${e.message}</div>`;
     }
   }
 
-  function renderRelatorio(dados, container) {
-    const { date, total, por_agente = {}, tickets = [] } = dados;
-    const dataFormatada = formatarData(date);
+  function render(d, el) {
+    const { date, total = 0, por_agente = {}, tags_resumo = {}, tickets = [] } = d;
+    const agentes = Object.entries(por_agente).sort((a,b) => b[1] - a[1]);
+    const tags    = Object.entries(tags_resumo).sort((a,b) => b[1] - a[1]);
+    const maxAgente = agentes[0]?.[1] || 1;
 
-    // Agentes ordenados por quantidade (maior primeiro)
-    const agentesOrdenados = Object.entries(por_agente)
-      .sort((a, b) => b[1] - a[1]);
-
-    // Cards de KPI
-    let kpiHtml = `
-      <div class="kpi-card destaque">
-        <div class="kpi-label">Total de CSATs negativos</div>
-        <div class="kpi-valor">${total}</div>
-        <div class="kpi-sub">Notas 1, 2 e 3 no dia</div>
-      </div>
-    `;
-
-    for (const [nome, qtd] of agentesOrdenados) {
-      kpiHtml += `
-        <div class="kpi-card">
-          <div class="kpi-label">${primeiroNome(nome)}</div>
-          <div class="kpi-valor">${qtd}</div>
-          <div class="kpi-sub">avaliação${qtd !== 1 ? 'ões' : ''} negativa${qtd !== 1 ? 's' : ''}</div>
-        </div>
-      `;
+    // KPIs
+    let kpis = `
+      <div class="kpi total">
+        <div class="kpi-label">Total negativo no dia</div>
+        <div class="kpi-num">${total}</div>
+        <div class="kpi-sub">Notas 1, 2 e 3</div>
+      </div>`;
+    for (const [nome, qtd] of agentes) {
+      const pct = Math.round((qtd / maxAgente) * 100);
+      kpis += `
+        <div class="kpi">
+          <div class="kpi-label">${nome.split(' ')[0]}</div>
+          <div class="kpi-num">${qtd}</div>
+          <div class="kpi-sub">${qtd === 1 ? 'avaliação negativa' : 'avaliações negativas'}</div>
+          <div class="kpi-bar" style="width:${pct}%"></div>
+        </div>`;
     }
 
-    // Cards de agentes detalhados
-    let agentesHtml = '';
-    for (const [nome, qtd] of agentesOrdenados) {
-      agentesHtml += `
-        <div class="agente-card">
-          <div>
-            <div class="agente-nome">${nome}</div>
-            <div class="agente-label">avaliações negativas no dia</div>
+    // Agentes
+    let agentesHtml = agentes.map(([nome, qtd]) => `
+      <div class="agente-card">
+        <div>
+          <div class="agente-nome">${nome}</div>
+          <div class="agente-sub">${qtd === 1 ? 'avaliação negativa' : 'avaliações negativas'} no dia</div>
+        </div>
+        <div class="agente-num">${qtd}</div>
+      </div>`).join('');
+
+    // Tags resumo
+    let tagsHtml = '';
+    if (tags.length > 0) {
+      tagsHtml = `
+        <div class="section">
+          <div class="section-head">Tags do dia</div>
+          <div class="tags-grid">
+            ${tags.map(([tag, cnt]) => {
+              const c = tagCor(tag);
+              return `<div class="tag-item">
+                <div class="tag-dot" style="background:${c.txt}"></div>
+                <span class="tag-nome">${formatTag(tag)}</span>
+                <span class="tag-count">${cnt}</span>
+              </div>`;
+            }).join('')}
           </div>
-          <div class="agente-qtd">${qtd}</div>
-        </div>
-      `;
+        </div>`;
     }
 
-    // Tabela de tickets
-    let ticketsHtml = '';
-    for (const t of tickets) {
-      const notaClasse = `nota-${t.nota}`;
+    // Tabela
+    const linhas = tickets.map(t => {
+      const notaCls = `nota-${t.nota}`;
+      const estrelas = '★'.repeat(t.nota) + '☆'.repeat(5 - t.nota);
       const linkHtml = t.link
         ? `<a class="ticket-link" href="${t.link}" target="_blank" rel="noopener">
-            ${t.id || 'Ver ticket'}
-            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
+            #${t.id}
+            <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
            </a>`
-        : `<span class="ticket-id">${t.id || '—'}</span>`;
+        : `<span style="font-family:monospace;font-weight:700">#${t.id || '—'}</span>`;
 
-      ticketsHtml += `
-        <tr>
-          <td>${linkHtml}</td>
-          <td><span class="nota-badge ${notaClasse}">Nota ${t.nota}</span></td>
-          <td><span class="agente-chip">${t.agente || '—'}</span></td>
-        </tr>
-      `;
-    }
+      const tagsTicket = (t.tags || []).map(tag => {
+        const c = tagCor(tag);
+        return `<span class="tag-chip" style="background:${c.bg};color:${c.txt};border-color:${c.borda}">${formatTag(tag)}</span>`;
+      }).join('');
 
-    container.innerHTML = `
-      <div class="report-date">
-        <div>
-          <span class="data-badge">Relatório do dia</span>
-          <div class="data-texto">${dataFormatada}</div>
-          <div class="data-subtexto">${date}</div>
+      return `<tr>
+        <td>${linkHtml}</td>
+        <td><span class="nota-badge ${notaCls}"><span class="nota-estrela">${estrelas}</span> Nota ${t.nota}</span></td>
+        <td><span class="agente-chip">${t.agente || '—'}</span></td>
+        <td><div class="tags-cell">${tagsTicket || '<span style="color:var(--muted);font-size:11px">—</span>'}</div></td>
+      </tr>`;
+    }).join('');
+
+    el.innerHTML = `
+      <div class="date-hero">
+        <div class="date-pill">Relatório do dia</div>
+        <div class="date-info">
+          <div class="dia">${formatarData(date)}</div>
+          <div class="iso">${date}</div>
         </div>
       </div>
 
-      <div class="kpi-grid">${kpiHtml}</div>
+      <div class="kpi-grid">${kpis}</div>
 
-      ${agentesOrdenados.length > 0 ? `
+      ${agentes.length > 0 ? `
         <div class="section">
-          <div class="section-title">Detalhamento por agente</div>
+          <div class="section-head">Detalhamento por agente</div>
           <div class="agentes-grid">${agentesHtml}</div>
-        </div>
-      ` : ''}
+        </div>` : ''}
 
-      ${tickets.length > 0 ? `
-        <div class="section">
-          <div class="section-title">Tickets avaliados</div>
+      ${tagsHtml}
+
+      <div class="section">
+        <div class="section-head">Tickets avaliados</div>
+        ${tickets.length > 0 ? `
           <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Ticket</th>
-                  <th>Nota</th>
-                  <th>Agente</th>
-                </tr>
-              </thead>
-              <tbody>${ticketsHtml}</tbody>
-            </table>
-          </div>
-        </div>
-      ` : `<div class="section"><p style="color:var(--cinza-muted)">Nenhum ticket registrado neste dia.</p></div>`}
-    `;
-  }
-
-  function primeiroNome(nomeCompleto) {
-    return nomeCompleto ? nomeCompleto.split(' ')[0] : '—';
+            <div class="table-scroll">
+              <table>
+                <thead><tr>
+                  <th>Ticket</th><th>Nota</th><th>Agente</th><th>Tags</th>
+                </tr></thead>
+                <tbody>${linhas}</tbody>
+              </table>
+            </div>
+          </div>` : '<div class="empty">Nenhum ticket registrado neste dia.</div>'}
+      </div>`;
   }
 
   init();

@@ -12,6 +12,7 @@ const pool = new Pool({
 const METABASE_URL = 'https://rsv-ink-metabase-f7ef97f28c72.herokuapp.com';
 const METABASE_DATABASE_ID = 2;
 const METABASE_TABLE_ID = 7375;
+const METABASE_LABELS_TABLE_ID = 7376;
 const AGENTES = ['Mari', 'Fernanda', 'Fer', 'Paty', 'Lu Almeida', 'Rafa'];
 
 app.use((req, res, next) => {
@@ -25,10 +26,12 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// ?date=YYYY-MM-DD para data específica, ?force=true para reprocessar
 app.get('/run', async (req, res) => {
   const dateParam = req.query.date || null;
+  const force = req.query.force === 'true';
   try {
-    const resultado = await runDailyReport(dateParam);
+    const resultado = await runDailyReport(dateParam, force);
     res.json(resultado);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -64,7 +67,7 @@ app.get('/data/:date', async (req, res) => {
 // Cron: todo dia útil às 10h UTC (7h Brasília)
 cron.schedule('0 10 * * 1-5', () => {
   console.log('Cron disparado — processando dia útil anterior...');
-  runDailyReport(null).catch(err => console.error('Erro no cron:', err.message));
+  runDailyReport(null, false).catch(err => console.error('Erro no cron:', err.message));
 });
 
 // --- Lógica principal ---
@@ -74,44 +77,95 @@ function isAgentMonitorada(nome) {
   return AGENTES.some(a => nome.includes(a));
 }
 
-async function runDailyReport(dateOverride = null) {
+async function runDailyReport(dateOverride = null, force = false) {
   const date = dateOverride || previousBusinessDate();
 
   const existing = await pool.query(
     'SELECT 1 FROM support_bi.csat_reports WHERE date = $1',
     [date]
   );
-  if (existing.rows.length > 0) return { status: 'ja_existe', date };
+  if (existing.rows.length > 0 && !force) return { status: 'ja_existe', date };
 
   const token = await getMetabaseToken();
   const todos = await getNegativeCsats(token, date, 500);
   const tickets = todos.filter(t => isAgentMonitorada(t.agent_on_resolution_name));
 
+  const ticketIds = tickets.map(t => t.display_ticket_id).filter(Boolean);
+  const labelsByTicket = await getTicketLabels(token, ticketIds);
+
   const por_agente = {};
+  const tags_resumo = {};
+
   for (const t of tickets) {
     const nome = t.agent_on_resolution_name;
     por_agente[nome] = (por_agente[nome] || 0) + 1;
+  }
+
+  for (const tags of Object.values(labelsByTicket)) {
+    for (const tag of tags) {
+      tags_resumo[tag] = (tags_resumo[tag] || 0) + 1;
+    }
   }
 
   const relatorio = {
     date,
     total: tickets.length,
     por_agente,
+    tags_resumo,
     tickets: tickets.map(t => ({
       id: t.display_ticket_id,
       link: t.ticket_link,
       nota: t.csat_score,
       agente: t.agent_on_resolution_name,
+      tags: labelsByTicket[t.display_ticket_id] || [],
     })),
   };
 
   await pool.query(
-    'INSERT INTO support_bi.csat_reports (date, data) VALUES ($1, $2)',
+    `INSERT INTO support_bi.csat_reports (date, data) VALUES ($1, $2)
+     ON CONFLICT (date) DO UPDATE SET data = $2, created_at = NOW()`,
     [date, JSON.stringify(relatorio)]
   );
 
   console.log(`Relatório ${date} salvo: ${tickets.length} CSATs negativos`);
   return { status: 'salvo', date, total: tickets.length };
+}
+
+async function getTicketLabels(token, ticketIds) {
+  if (!ticketIds || ticketIds.length === 0) return {};
+
+  const filter = ticketIds.length === 1
+    ? ['=', ['field', 174185, null], ticketIds[0]]
+    : ['or', ...ticketIds.map(id => ['=', ['field', 174185, null], id])];
+
+  const data = await queryMetabase(token, {
+    database: METABASE_DATABASE_ID,
+    type: 'query',
+    query: {
+      'source-table': METABASE_LABELS_TABLE_ID,
+      filter,
+      fields: [
+        ['field', 174185, null], // display_ticket_id
+        ['field', 174188, null], // label_name
+      ],
+      limit: 1000,
+    },
+  });
+
+  const cols = data.data.cols.map(c => c.name);
+  const rows = data.data.rows.map(row => {
+    const obj = {};
+    cols.forEach((col, i) => { obj[col] = row[i]; });
+    return obj;
+  });
+
+  const labelsByTicket = {};
+  for (const row of rows) {
+    const id = row.display_ticket_id;
+    if (!labelsByTicket[id]) labelsByTicket[id] = [];
+    labelsByTicket[id].push(row.label_name);
+  }
+  return labelsByTicket;
 }
 
 function previousBusinessDate() {
