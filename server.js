@@ -19,6 +19,8 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(express.static('site'));
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
