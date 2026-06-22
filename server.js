@@ -212,7 +212,8 @@ async function runDailyReport(dateOverride = null, force = false) {
   const comNota       = todosCsats.filter(t => t.csat_score !== null);
   const negativosAll  = comNota.filter(t => t.csat_score <= 3);
   const positivosAll  = comNota.filter(t => t.csat_score >= 4);
-  const tickets       = negativosAll.filter(t => isAgentMonitorada(t.agent_on_resolution_name));
+  const tickets              = negativosAll.filter(t => isAgentMonitorada(t.agent_on_resolution_name));
+  const positivosMonitorados = positivosAll.filter(t => isAgentMonitorada(t.agent_on_resolution_name));
 
   const ticketIds = [
     ...tickets.map(t => t.display_ticket_id),
@@ -223,7 +224,6 @@ async function runDailyReport(dateOverride = null, force = false) {
   const por_agente = {};
   const por_agente_positivos = {};
   const tags_resumo = {};
-  const positivosMonitorados = positivosAll.filter(t => isAgentMonitorada(t.agent_on_resolution_name));
 
   for (const t of tickets) {
     const nome = t.agent_on_resolution_name;
