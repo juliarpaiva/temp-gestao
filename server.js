@@ -49,6 +49,20 @@ app.get('/index', async (req, res) => {
   }
 });
 
+// Retorna datas com totais — usado pelo calendário para mostrar contagem por dia
+app.get('/summary', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT date, (data->>'total')::int AS total
+       FROM support_bi.csat_reports
+       ORDER BY date DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/data/:date', async (req, res) => {
   try {
     const result = await pool.query(
