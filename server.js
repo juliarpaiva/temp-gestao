@@ -104,19 +104,23 @@ app.get('/gestao', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT date,
-              (data->>'total')::int AS total,
-              data->'por_agente'    AS por_agente,
-              data->'tags_resumo'   AS tags_resumo
+              (data->>'total')::int                             AS total,
+              COALESCE((data->>'total_avaliados')::int, 0)      AS total_avaliados,
+              COALESCE((data->>'total_positivos')::int, 0)      AS total_positivos,
+              data->'por_agente'                                AS por_agente,
+              data->'tags_resumo'                               AS tags_resumo
        FROM support_bi.csat_reports
        WHERE date >= (CURRENT_DATE - INTERVAL '90 days')::text
        ORDER BY date ASC`
     );
     const meses = {}, semanas = {};
     for (const row of result.rows) {
-      const { date, total = 0, por_agente = {}, tags_resumo = {} } = row;
+      const { date, total = 0, total_avaliados = 0, total_positivos = 0, por_agente = {}, tags_resumo = {} } = row;
       const mesChave = date.slice(0, 7);
-      if (!meses[mesChave]) meses[mesChave] = { total: 0, dias: 0, por_agente: {}, tags: {} };
-      meses[mesChave].total += total;
+      if (!meses[mesChave]) meses[mesChave] = { total: 0, total_avaliados: 0, total_positivos: 0, dias: 0, por_agente: {}, tags: {} };
+      meses[mesChave].total           += total;
+      meses[mesChave].total_avaliados += total_avaliados;
+      meses[mesChave].total_positivos += total_positivos;
       meses[mesChave].dias++;
       for (const [a, c] of Object.entries(por_agente)) meses[mesChave].por_agente[a] = (meses[mesChave].por_agente[a] || 0) + c;
       for (const [t, c] of Object.entries(tags_resumo))  meses[mesChave].tags[t]      = (meses[mesChave].tags[t]      || 0) + c;
@@ -125,8 +129,10 @@ app.get('/gestao', async (req, res) => {
       const mon = new Date(d);
       mon.setUTCDate(d.getUTCDate() - (dow === 0 ? 6 : dow - 1));
       const semChave = mon.toISOString().slice(0, 10);
-      if (!semanas[semChave]) semanas[semChave] = { total: 0, dias: 0, por_agente: {}, pior_dia: null, pior_total: 0 };
-      semanas[semChave].total += total;
+      if (!semanas[semChave]) semanas[semChave] = { total: 0, total_avaliados: 0, total_positivos: 0, dias: 0, por_agente: {}, pior_dia: null, pior_total: 0 };
+      semanas[semChave].total           += total;
+      semanas[semChave].total_avaliados += total_avaliados;
+      semanas[semChave].total_positivos += total_positivos;
       semanas[semChave].dias++;
       for (const [a, c] of Object.entries(por_agente)) semanas[semChave].por_agente[a] = (semanas[semChave].por_agente[a] || 0) + c;
       if (total > semanas[semChave].pior_total) { semanas[semChave].pior_total = total; semanas[semChave].pior_dia = date; }
@@ -193,8 +199,11 @@ async function runDailyReport(dateOverride = null, force = false) {
   if (existing.rows.length > 0 && !force) return { status: 'ja_existe', date };
 
   const token = await getMetabaseToken();
-  const todos = await getNegativeCsats(token, date, 500);
-  const tickets = todos.filter(t => isAgentMonitorada(t.agent_on_resolution_name));
+  const todosCsats    = await getAllCsats(token, date, 2000);
+  const comNota       = todosCsats.filter(t => t.csat_score !== null);
+  const negativosAll  = comNota.filter(t => t.csat_score <= 3);
+  const positivosAll  = comNota.filter(t => t.csat_score >= 4);
+  const tickets       = negativosAll.filter(t => isAgentMonitorada(t.agent_on_resolution_name));
 
   const ticketIds = tickets.map(t => t.display_ticket_id).filter(Boolean);
   const labelsByTicket = await getTicketLabels(token, ticketIds);
@@ -216,6 +225,9 @@ async function runDailyReport(dateOverride = null, force = false) {
   const relatorio = {
     date,
     total: tickets.length,
+    total_avaliados: comNota.length,
+    total_positivos: positivosAll.length,
+    total_negativos: negativosAll.length,
     por_agente,
     tags_resumo,
     tickets: tickets.map(t => ({
@@ -299,6 +311,39 @@ async function getMetabaseToken() {
   const data = await resp.json();
   if (!data.id) throw new Error('Token de sessão não encontrado');
   return data.id;
+}
+
+async function getAllCsats(token, date, limit = 2000) {
+  const filter = date
+    ? ['=', ['field', 174139, null], date]
+    : ['not-null', ['field', 174139, null]];
+
+  const data = await queryMetabase(token, {
+    database: METABASE_DATABASE_ID,
+    type: 'query',
+    query: {
+      'source-table': METABASE_TABLE_ID,
+      filter,
+      fields: [
+        ['field', 174172, null],
+        ['field', 174143, null],
+        ['field', 174139, null],
+        ['field', 174181, null],
+        ['field', 174167, null],
+        ['field', 174169, null],
+        ['field', 174174, null],
+        ['field', 174140, null],
+      ],
+      'order-by': [['desc', ['field', 174139, null]]],
+      limit,
+    },
+  });
+  const cols = data.data.cols.map(c => c.name);
+  return data.data.rows.map(row => {
+    const obj = {};
+    cols.forEach((col, i) => { obj[col] = row[i]; });
+    return obj;
+  });
 }
 
 async function getNegativeCsats(token, date, limit = 500) {

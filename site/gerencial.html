@@ -100,6 +100,11 @@
     .semana-vs.flat { color: var(--muted); }
     .semana-detalhe { font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; border-top: 1px solid var(--borda); padding-top: 10px; margin-top: 4px; }
     .semana-detalhe span b { color: var(--preto); font-weight: 600; }
+    .semana-csat-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .semana-csat-item { font-size: 11px; color: var(--muted); background: #f8fafc; border: 1px solid var(--borda); border-radius: 6px; padding: 3px 8px; }
+    .semana-csat-item b { color: var(--preto); font-weight: 700; }
+    .semana-csat-item.pos { color: #16a34a; border-color: #bbf7d0; background: #f0fdf4; }
+    .semana-csat-item.neg { color: var(--rosa); border-color: #fce7f3; background: #fdf2f8; }
 
     /* NOTAS REUNIÃO */
     .notas-card { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; }
@@ -296,6 +301,11 @@
             ${topAg ? `<span>Destaque <b>${topAg[0].split(' ')[0]} (${topAg[1]})</b></span>` : ''}
             <span>${s.dias} dia${s.dias!==1?'s':''} ${s.dias!==1?'úteis':'útil'}</span>
           </div>
+          ${s.total_avaliados ? `<div class="semana-csat-row">
+            <span class="semana-csat-item">Avaliados <b>${s.total_avaliados}</b></span>
+            <span class="semana-csat-item pos">✓ ${s.total_positivos || 0}</span>
+            <span class="semana-csat-item neg">✗ ${s.total}</span>
+          </div>` : ''}
         </div>`;
     }).join('');
 

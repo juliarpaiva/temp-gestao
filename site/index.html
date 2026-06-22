@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Painel CSAT — INK</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     :root {
       --rosa:   #e91e8c;
@@ -42,20 +41,50 @@
     .loading-dot:nth-child(3) { animation-delay: .3s; }
     @keyframes bounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-8px)} }
 
-    /* RESUMO MENSAL */
-    .mes-resumo {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px;
-      margin-bottom: 16px;
-    }
-    .resumo-card {
+    /* FILTRO DE PERÍODO */
+    .filtro-bar {
       background: var(--card); border: 1px solid var(--borda); border-radius: var(--r);
-      box-shadow: var(--sh); padding: 16px 20px;
+      box-shadow: var(--sh); padding: 16px 24px; margin-bottom: 28px;
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
     }
-    .resumo-card.destaque { border-left: 4px solid var(--rosa); }
-    .resumo-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); margin-bottom: 8px; }
-    .resumo-valor { font-size: 32px; font-weight: 900; letter-spacing: -1px; line-height: 1; color: var(--preto); }
-    .resumo-card.destaque .resumo-valor { color: var(--rosa); }
-    .resumo-sub { font-size: 11px; color: var(--muted); margin-top: 6px; }
+    .filtro-bar-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); flex-shrink: 0; }
+    .filtro-bar-inputs { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .filtro-bar-inputs label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .filtro-bar-inputs input[type=date] { padding: 6px 10px; border: 1px solid var(--borda); border-radius: 8px; font-size: 13px; font-family: inherit; color: var(--preto); background: #fafbfc; }
+    .filtro-bar-inputs input[type=date]:focus { outline: none; border-color: var(--rosa); }
+    .btn-filtrar { padding: 7px 18px; border-radius: 8px; border: none; background: var(--rosa); color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; transition: opacity .15s; }
+    .btn-filtrar:hover { opacity: .85; }
+    .btn-limpar { padding: 7px 14px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; display: none; }
+    .btn-limpar:hover { border-color: var(--preto); color: var(--preto); }
+
+    /* RESULTADO DE PERÍODO */
+    .periodo-panel {
+      background: var(--card); border: 1px solid var(--borda); border-radius: var(--r);
+      box-shadow: var(--sh); margin-bottom: 28px; overflow: hidden;
+    }
+    .periodo-head {
+      padding: 16px 24px; border-bottom: 1px solid var(--borda); background: #fafbfc;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+    }
+    .periodo-titulo { font-size: 14px; font-weight: 800; }
+    .periodo-stats { display: flex; gap: 20px; }
+    .periodo-stat { text-align: center; }
+    .periodo-stat-val { font-size: 22px; font-weight: 900; letter-spacing: -1px; color: var(--rosa); line-height: 1; }
+    .periodo-stat-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-top: 2px; }
+    .periodo-dias-list {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; padding: 16px 24px;
+    }
+    .periodo-dia {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      border-radius: 10px; padding: 12px 8px; text-decoration: none; font-weight: 700;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .periodo-dia:hover { transform: scale(1.04); box-shadow: 0 4px 16px rgba(233,30,140,.25); }
+    .periodo-dia.vol-baixo { background: #fff; border: 2px solid #e91e8c; color: #e91e8c; }
+    .periodo-dia.vol-medio { background: #e91e8c; border: 2px solid #e91e8c; color: #fff; }
+    .periodo-dia.vol-alto  { background: #9d1366; border: 2px solid #9d1366; color: #fff; }
+    .periodo-dia-data { font-size: 13px; font-weight: 800; }
+    .periodo-dia-cnt  { font-size: 11px; margin-top: 3px; opacity: .85; }
 
     /* MESES */
     .month-section { margin-bottom: 40px; }
@@ -68,12 +97,6 @@
       background: var(--rosa); border-radius: 2px;
     }
 
-    /* GRÁFICO */
-    .chart-card {
-      background: var(--card); border: 1px solid var(--borda); border-radius: var(--r);
-      box-shadow: var(--sh); padding: 20px 24px; margin-bottom: 16px;
-    }
-
     /* CALENDÁRIO */
     .calendar { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; }
     .cal-header { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--preto); }
@@ -82,27 +105,20 @@
     .cal-cell { min-height: 64px; border: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: center; }
     .cal-cell.empty { background: #fafafa; }
 
-    /* Dia sem dados */
     .cal-day {
       width: 48px; height: 48px; border-radius: 10px;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       font-weight: 700; font-size: 15px; gap: 0; cursor: default; color: #cbd5e1;
     }
-
-    /* Dia com dados */
     .cal-day.tem-dados {
       cursor: pointer; text-decoration: none;
       transition: transform .15s, box-shadow .15s;
     }
     .cal-day.tem-dados:hover { transform: scale(1.1); box-shadow: 0 4px 16px rgba(233,30,140,.3); }
-
-    /* Volume: outline para baixo, sólido para médio/alto */
     .cal-day.vol-baixo  { background: #fff; border: 2px solid #e91e8c; color: #e91e8c; }
     .cal-day.vol-medio  { background: #e91e8c; border: 2px solid #e91e8c; color: #fff; }
     .cal-day.vol-alto   { background: #9d1366; border: 2px solid #9d1366; color: #fff; }
-
     .cal-day.vol-baixo:hover { background: #fdf0f8; }
-
     .cal-num  { font-size: 16px; font-weight: 900; line-height: 1; }
     .cal-csat { font-size: 10px; font-weight: 700; opacity: .8; margin-top: 2px; letter-spacing: .3px; }
 
@@ -141,6 +157,19 @@
 </header>
 
 <main class="main">
+
+  <div class="filtro-bar">
+    <span class="filtro-bar-label">Filtrar período</span>
+    <div class="filtro-bar-inputs">
+      <label>De <input type="date" id="dt-inicio" /></label>
+      <label>Até <input type="date" id="dt-fim" /></label>
+      <button class="btn-filtrar" onclick="verPeriodo()">Ver período</button>
+      <button class="btn-limpar" id="btn-limpar" onclick="limparFiltro()">✕ Limpar</button>
+    </div>
+  </div>
+
+  <div id="periodo-res"></div>
+
   <div id="conteudo">
     <div class="loading">
       <div style="margin-bottom:12px">
@@ -161,9 +190,11 @@
 <script>
   const API = 'https://csat-negativo-78f436cca6a0.herokuapp.com';
 
-  const MESES_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-  const DIAS_SEMANA = ['Seg','Ter','Qua','Qui','Sex'];
+  const MESES_PT   = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const MESES_ABREV = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+  const DIAS_SEMANA = ['Seg','Ter','Qua','Qui','Sex'];
+
+  let totaisMap = {};
 
   function volClass(total) {
     if (total >= 8) return 'vol-alto';
@@ -182,8 +213,14 @@
         return;
       }
 
-      const totaisMap = {};
       resumo.forEach(r => { totaisMap[r.date] = r.total; });
+
+      // define datas padrão do filtro (mês atual)
+      const hoje = new Date();
+      const anoAtual = hoje.getFullYear();
+      const mesAtual = String(hoje.getMonth() + 1).padStart(2, '0');
+      document.getElementById('dt-inicio').value = `${anoAtual}-${mesAtual}-01`;
+      document.getElementById('dt-fim').value = hoje.toISOString().slice(0, 10);
 
       const grupos = {};
       resumo.forEach(r => {
@@ -193,63 +230,12 @@
       });
 
       let html = '';
-
       for (const [mesAno] of Object.entries(grupos).sort((a, b) => b[0].localeCompare(a[0]))) {
         const [ano, mes] = mesAno.split('-').map(Number);
-
-        const datasDoMes = Object.keys(totaisMap).filter(d => d.startsWith(mesAno));
-        const totalMes   = datasDoMes.reduce((s, d) => s + (totaisMap[d] || 0), 0);
-        const mediaMes   = datasDoMes.length ? (totalMes / datasDoMes.length).toFixed(1) : 0;
-        const piorDia    = datasDoMes.sort((a, b) => (totaisMap[b] || 0) - (totaisMap[a] || 0))[0];
-        const piorLabel  = piorDia ? `${Number(piorDia.slice(8))}/${MESES_ABREV[mes-1]}` : '—';
-
-        const prevMes    = mes === 1 ? 12 : mes - 1;
-        const prevAno    = mes === 1 ? ano - 1 : ano;
-        const prevChave  = `${prevAno}-${String(prevMes).padStart(2,'0')}`;
-        const totalAnterior = Object.keys(totaisMap).filter(d => d.startsWith(prevChave))
-                                .reduce((s,d) => s + (totaisMap[d]||0), 0);
-        let vsHtml = '<div class="resumo-sub">CSATs negativos</div>';
-        if (totalAnterior > 0) {
-          const diff = totalMes - totalAnterior;
-          const pct  = Math.round(Math.abs(diff) / totalAnterior * 100);
-          const cor  = diff > 0 ? '#dc2626' : diff < 0 ? '#16a34a' : '#64748b';
-          const seta = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
-          const txt  = diff === 0 ? 'igual ao mês anterior' : `${seta} ${pct}% vs. ${MESES_ABREV[prevMes-1]}`;
-          vsHtml = `<div class="resumo-sub" style="color:${cor};font-weight:700">${txt}</div>`;
-        }
-
         html += `
           <div class="month-section">
             <div class="month-title">${MESES_PT[mes - 1]} ${ano}</div>
-
-            <div class="mes-resumo">
-              <div class="resumo-card destaque">
-                <div class="resumo-label">Total do mês</div>
-                <div class="resumo-valor">${totalMes}</div>
-                ${vsHtml}
-              </div>
-              <div class="resumo-card">
-                <div class="resumo-label">Dias registrados</div>
-                <div class="resumo-valor">${datasDoMes.length}</div>
-                <div class="resumo-sub">dias úteis com dados</div>
-              </div>
-              <div class="resumo-card">
-                <div class="resumo-label">Média por dia</div>
-                <div class="resumo-valor">${mediaMes}</div>
-                <div class="resumo-sub">avaliações negativas</div>
-              </div>
-              <div class="resumo-card">
-                <div class="resumo-label">Dia mais crítico</div>
-                <div class="resumo-valor" style="font-size:24px">${piorLabel}</div>
-              </div>
-            </div>
-
-            <div class="chart-card">
-              <canvas id="chart-${mesAno}" height="80"></canvas>
-            </div>
-
             ${renderCalendario(ano, mes, totaisMap)}
-
             <div class="legenda">
               <span>Volume no dia:</span>
               <span class="legenda-item"><span class="legenda-dot" style="background:#fff;border:2px solid #e91e8c;box-sizing:border-box"></span> 1–3</span>
@@ -261,63 +247,65 @@
 
       el.innerHTML = html;
 
-      // Gráficos de evolução temporal por mês
-      for (const [mesAno] of Object.entries(grupos).sort((a, b) => b[0].localeCompare(a[0]))) {
-        const [ano, mes] = mesAno.split('-').map(Number);
-        const canvas = document.getElementById('chart-' + mesAno);
-        if (!canvas || typeof Chart === 'undefined') continue;
-
-        const totalDias = new Date(ano, mes, 0).getDate();
-        const labels = [], dados = [];
-        for (let dia = 1; dia <= totalDias; dia++) {
-          const dow = new Date(ano, mes - 1, dia).getDay();
-          if (dow === 0 || dow === 6) continue;
-          const ds = ano + '-' + String(mes).padStart(2, '0') + '-' + String(dia).padStart(2, '0');
-          if (totaisMap[ds] !== undefined) { labels.push(dia); dados.push(totaisMap[ds]); }
-        }
-
-        new Chart(canvas, {
-          type: 'line',
-          data: {
-            labels,
-            datasets: [{
-              data: dados,
-              borderColor: '#e91e8c',
-              backgroundColor: 'rgba(233,30,140,.08)',
-              pointBackgroundColor: '#e91e8c',
-              pointBorderColor: '#fff',
-              pointBorderWidth: 2,
-              pointRadius: 5,
-              tension: 0.3,
-              fill: true,
-            }]
-          },
-          options: {
-            responsive: true,
-            plugins: {
-              legend: { display: false },
-              tooltip: { callbacks: { label: ctx => ctx.raw + ' neg' } }
-            },
-            scales: {
-              x: {
-                grid: { display: false },
-                ticks: { font: { size: 11 }, color: '#94a3b8' },
-                title: { display: true, text: 'Dia do mês', font: { size: 11 }, color: '#94a3b8' }
-              },
-              y: {
-                beginAtZero: true,
-                grid: { color: '#f1f5f9' },
-                ticks: { font: { size: 11 }, color: '#94a3b8', precision: 0 },
-                title: { display: true, text: 'Avaliações negativas', font: { size: 11 }, color: '#94a3b8' }
-              }
-            }
-          }
-        });
-      }
-
     } catch(e) {
       el.innerHTML = `<div class="empty-state"><strong>Erro ao carregar dados.</strong><br>${e.message}</div>`;
     }
+  }
+
+  function verPeriodo() {
+    const de  = document.getElementById('dt-inicio').value;
+    const ate = document.getElementById('dt-fim').value;
+    if (!de || !ate) return;
+
+    const datas = Object.keys(totaisMap).filter(d => d >= de && d <= ate).sort();
+    const el    = document.getElementById('periodo-res');
+
+    if (!datas.length) {
+      el.innerHTML = `<div class="periodo-panel"><div class="periodo-head"><span class="periodo-titulo">Nenhum dado nesse período</span></div></div>`;
+      document.getElementById('btn-limpar').style.display = 'inline-flex';
+      return;
+    }
+
+    const total   = datas.reduce((s, d) => s + (totaisMap[d] || 0), 0);
+    const media   = (total / datas.length).toFixed(1);
+    const deFmt   = formatDataBr(de);
+    const ateFmt  = formatDataBr(ate);
+
+    const diasHtml = datas.map(d => {
+      const cnt = totaisMap[d] || 0;
+      const dia = Number(d.slice(8));
+      const mes = MESES_ABREV[Number(d.slice(5, 7)) - 1];
+      return `<a class="periodo-dia ${volClass(cnt)}" href="report.html?date=${d}">
+        <span class="periodo-dia-data">${dia}/${mes}</span>
+        <span class="periodo-dia-cnt">${cnt} neg</span>
+      </a>`;
+    }).join('');
+
+    el.innerHTML = `
+      <div class="periodo-panel">
+        <div class="periodo-head">
+          <span class="periodo-titulo">${deFmt} → ${ateFmt}</span>
+          <div class="periodo-stats">
+            <div class="periodo-stat"><div class="periodo-stat-val">${total}</div><div class="periodo-stat-lbl">negativos</div></div>
+            <div class="periodo-stat"><div class="periodo-stat-val">${datas.length}</div><div class="periodo-stat-lbl">dias</div></div>
+            <div class="periodo-stat"><div class="periodo-stat-val">${media}</div><div class="periodo-stat-lbl">média/dia</div></div>
+          </div>
+        </div>
+        <div class="periodo-dias-list">${diasHtml}</div>
+      </div>`;
+
+    document.getElementById('btn-limpar').style.display = 'inline-flex';
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function limparFiltro() {
+    document.getElementById('periodo-res').innerHTML = '';
+    document.getElementById('btn-limpar').style.display = 'none';
+  }
+
+  function formatDataBr(iso) {
+    const [, mes, dia] = iso.split('-');
+    return `${Number(dia)}/${MESES_ABREV[Number(mes) - 1]}`;
   }
 
   function renderCalendario(ano, mes, totaisMap) {
