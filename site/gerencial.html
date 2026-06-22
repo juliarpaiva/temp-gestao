@@ -101,6 +101,33 @@
     .semana-detalhe { font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; border-top: 1px solid var(--borda); padding-top: 10px; margin-top: 4px; }
     .semana-detalhe span b { color: var(--preto); font-weight: 600; }
 
+    /* NOTAS REUNIÃO */
+    .notas-card { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; }
+    .notas-topo { padding: 16px 24px; background: var(--preto); display: flex; align-items: center; justify-content: space-between; }
+    .notas-topo-title { font-size: 13px; font-weight: 800; color: #fff; }
+    .notas-topo-sub { font-size: 11px; color: #888; margin-top: 2px; }
+    .notas-saved-status { font-size: 11px; color: #4ade80; font-weight: 600; opacity: 0; transition: opacity .3s; }
+    .notas-saved-status.visivel { opacity: 1; }
+    .notas-body { padding: 22px 24px; }
+    .notas-secao { margin-bottom: 24px; }
+    .notas-secao:last-child { margin-bottom: 0; }
+    .notas-secao-titulo { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); margin-bottom: 12px; }
+    .notas-lista { list-style: none; display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+    .notas-item { display: flex; align-items: center; gap: 8px; }
+    .notas-bullet { color: var(--rosa); font-size: 18px; line-height: 1; flex-shrink: 0; margin-top: -2px; }
+    .notas-input { flex: 1; border: none; border-bottom: 1px solid var(--borda); padding: 5px 0; font-size: 13px; font-family: inherit; color: var(--preto); background: transparent; outline: none; transition: border-color .15s; }
+    .notas-input:focus { border-color: var(--rosa); }
+    .notas-input::placeholder { color: #cbd5e1; }
+    .notas-del { background: none; border: none; color: #cbd5e1; cursor: pointer; font-size: 16px; padding: 0 2px; line-height: 1; transition: color .15s; flex-shrink: 0; }
+    .notas-del:hover { color: #dc2626; }
+    .notas-add-btn { background: none; border: 1px dashed #cbd5e1; color: var(--muted); font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 6px; cursor: pointer; transition: all .15s; }
+    .notas-add-btn:hover { border-color: var(--rosa); color: var(--rosa); }
+    .notas-rodape { padding: 14px 24px; border-top: 1px solid var(--borda); display: flex; align-items: center; justify-content: space-between; background: #fafbfc; }
+    .notas-rodape-hint { font-size: 11px; color: var(--muted); }
+    .btn-copy-notas { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); color: var(--preto); font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; }
+    .btn-copy-notas:hover { background: var(--preto); color: #fff; border-color: var(--preto); }
+    .btn-copy-notas.copiado { background: #f0fdf4; border-color: #16a34a; color: #16a34a; }
+
     /* FOOTER */
     .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--borda); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
     .footer-brand { font-weight: 900; font-size: 14px; color: var(--preto); }
@@ -181,6 +208,9 @@
       mesAtivo = mesesKeys[0] || null;
       if (!mesAtivo) { document.getElementById('conteudo').innerHTML = '<div class="erro">Sem dados disponíveis ainda.</div>'; return; }
       render();
+      carregarNotas();
+      renderNotasLista('comportamentos');
+      renderNotasLista('fluxos');
     } catch(e) {
       document.getElementById('conteudo').innerHTML = `<div class="erro">Erro ao carregar: ${e.message}</div>`;
     }
@@ -238,23 +268,24 @@
       </div>`;
     }).join('') : '<p style="color:var(--muted);font-size:12px">Sem tags</p>';
 
-    // ── Semanas (últimas 8, mais recente primeiro) ──
-    const semanasKeys = Object.keys(semanas).sort().reverse().slice(0, 8);
+    // ── Semanas (últimas 8 em ordem cronológica, mais antiga → mais recente) ──
+    const semanasKeys = Object.keys(semanas).sort().slice(-8);
+    const last = semanasKeys.length - 1;
     const semanasHtml = semanasKeys.map((mon, i) => {
       const s = semanas[mon];
-      const anterior = semanas[semanasKeys[i+1]];
+      const anterior = semanas[semanasKeys[i-1]];
       let vsEl = '';
       if (anterior && anterior.total > 0) {
         const diff = s.total - anterior.total;
         const pct  = Math.round(Math.abs(diff) / anterior.total * 100);
-        if (diff > 0)      vsEl = `<div class="semana-vs up">↑ +${pct}% vs. semana anterior</div>`;
-        else if (diff < 0) vsEl = `<div class="semana-vs down">↓ −${pct}% vs. semana anterior</div>`;
-        else               vsEl = `<div class="semana-vs flat">→ igual à semana anterior</div>`;
+        if (diff > 0)      vsEl = `<div class="semana-vs up">↑ +${pct}% vs. anterior</div>`;
+        else if (diff < 0) vsEl = `<div class="semana-vs down">↓ −${pct}% vs. anterior</div>`;
+        else               vsEl = `<div class="semana-vs flat">→ igual à anterior</div>`;
       }
       const topAg = Object.entries(s.por_agente).sort((a,b)=>b[1]-a[1])[0];
       const piorFmt = s.pior_dia ? `${Number(s.pior_dia.slice(8))}/${MESES_ABR[Number(s.pior_dia.slice(5,7))-1]}` : '—';
       return `
-        <div class="semana-card${i===0?' atual':''}">
+        <div class="semana-card${i===last?' atual':''}">
           <div class="semana-range">${semanaLabel(mon)}</div>
           <div class="semana-total">${s.total}</div>
           ${vsEl || '<div style="margin-bottom:12px"></div>'}
@@ -306,12 +337,114 @@
       <div class="section">
         <div class="section-head">Semanas recentes</div>
         <div class="semanas-grid">${semanasHtml || '<p style="color:var(--muted)">Sem dados semanais</p>'}</div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">Notas para reunião de segunda</div>
+        <div class="notas-card">
+          <div class="notas-topo">
+            <div>
+              <div class="notas-topo-title">Preparação semanal</div>
+              <div class="notas-topo-sub">Semana ${semanaLabel(getMondayThisWeek())} · salvo no navegador</div>
+            </div>
+            <span class="notas-saved-status" id="notas-saved">salvo ✓</span>
+          </div>
+          <div class="notas-body">
+            <div class="notas-secao">
+              <div class="notas-secao-titulo">📌 Comportamentos a reforçar ou corrigir</div>
+              <ul class="notas-lista" id="lista-comportamentos"></ul>
+              <button class="notas-add-btn" onclick="addBullet('comportamentos')">+ Adicionar</button>
+            </div>
+            <div class="notas-secao" style="margin-top:22px">
+              <div class="notas-secao-titulo">💬 Feedback sobre fluxos, macros e ferramentas</div>
+              <ul class="notas-lista" id="lista-fluxos"></ul>
+              <button class="notas-add-btn" onclick="addBullet('fluxos')">+ Adicionar</button>
+            </div>
+          </div>
+          <div class="notas-rodape">
+            <span class="notas-rodape-hint">As notas ficam salvas até você limpar o navegador</span>
+            <button class="btn-copy-notas" id="btn-copy-notas" onclick="copiarParaReuniao()">Copiar para reunião</button>
+          </div>
+        </div>
       </div>`;
   }
 
   function selecionarMes(chave) {
     mesAtivo = chave;
     render();
+    carregarNotas();
+    renderNotasLista('comportamentos');
+    renderNotasLista('fluxos');
+  }
+
+  /* ── NOTAS ──────────────────────────────────────────── */
+  function getMondayThisWeek() {
+    const today = new Date();
+    const dow = today.getDay();
+    const offset = dow === 0 ? 6 : dow - 1;
+    const mon = new Date(today);
+    mon.setDate(today.getDate() - offset);
+    return mon.toISOString().slice(0, 10);
+  }
+
+  const NOTAS_KEY = `csat-notas-${getMondayThisWeek()}`;
+  let notas = { comportamentos: [], fluxos: [] };
+
+  function carregarNotas() {
+    try { notas = JSON.parse(localStorage.getItem(NOTAS_KEY) || '{"comportamentos":[],"fluxos":[]}'); }
+    catch(e) { notas = { comportamentos: [], fluxos: [] }; }
+  }
+
+  function salvarNotas() {
+    localStorage.setItem(NOTAS_KEY, JSON.stringify(notas));
+    const el = document.getElementById('notas-saved');
+    if (el) { el.classList.add('visivel'); setTimeout(() => el.classList.remove('visivel'), 1500); }
+  }
+
+  function renderNotasLista(tipo) {
+    const el = document.getElementById('lista-' + tipo);
+    if (!el) return;
+    el.innerHTML = (notas[tipo] || []).map((txt, i) => `
+      <li class="notas-item">
+        <span class="notas-bullet">·</span>
+        <input class="notas-input" value="${txt.replace(/"/g,'&quot;').replace(/</g,'&lt;')}" placeholder="Escreva aqui..." oninput="updateBullet('${tipo}',${i},this.value)" />
+        <button class="notas-del" onclick="removeBullet('${tipo}',${i})" title="Remover">×</button>
+      </li>`).join('');
+  }
+
+  function addBullet(tipo) {
+    notas[tipo].push('');
+    salvarNotas();
+    renderNotasLista(tipo);
+    const lista = document.getElementById('lista-' + tipo);
+    if (lista) { const inputs = lista.querySelectorAll('.notas-input'); if (inputs.length) inputs[inputs.length-1].focus(); }
+  }
+
+  function removeBullet(tipo, index) {
+    notas[tipo].splice(index, 1);
+    salvarNotas();
+    renderNotasLista(tipo);
+  }
+
+  function updateBullet(tipo, index, value) {
+    notas[tipo][index] = value;
+    salvarNotas();
+  }
+
+  function copiarParaReuniao() {
+    const comp   = (notas.comportamentos || []).filter(s => s.trim());
+    const fluxos = (notas.fluxos || []).filter(s => s.trim());
+    const linhas = [];
+    if (comp.length)   { linhas.push('Comportamentos a reforçar ou corrigir'); comp.forEach(s => linhas.push(s));   linhas.push(''); }
+    if (fluxos.length) { linhas.push('Feedback do time sobre fluxos, macros e ferramentas'); fluxos.forEach(s => linhas.push(s)); }
+    navigator.clipboard.writeText(linhas.join('\n')).then(() => {
+      const btn = document.getElementById('btn-copy-notas');
+      if (!btn) return;
+      const orig = btn.textContent;
+      btn.textContent = '✓ Copiado!';
+      btn.classList.add('copiado');
+      setTimeout(() => { btn.textContent = orig; btn.classList.remove('copiado'); }, 2000);
+    });
   }
 
   init();
