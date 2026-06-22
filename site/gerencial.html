@@ -302,6 +302,7 @@
             <span>${s.dias} dia${s.dias!==1?'s':''} ${s.dias!==1?'úteis':'útil'}</span>
           </div>
           ${s.total_avaliados ? `<div class="semana-csat-row">
+            <span class="semana-csat-item">Recebidos <b>${s.total_recebidos || s.total_avaliados}</b></span>
             <span class="semana-csat-item">Avaliados <b>${s.total_avaliados}</b></span>
             <span class="semana-csat-item pos">✓ ${s.total_positivos || 0}</span>
             <span class="semana-csat-item neg">✗ ${s.total}</span>

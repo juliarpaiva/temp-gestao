@@ -105,6 +105,7 @@ app.get('/gestao', async (req, res) => {
     const result = await pool.query(
       `SELECT date,
               (data->>'total')::int                             AS total,
+              COALESCE((data->>'total_recebidos')::int, 0)      AS total_recebidos,
               COALESCE((data->>'total_avaliados')::int, 0)      AS total_avaliados,
               COALESCE((data->>'total_positivos')::int, 0)      AS total_positivos,
               data->'por_agente'                                AS por_agente,
@@ -115,10 +116,11 @@ app.get('/gestao', async (req, res) => {
     );
     const meses = {}, semanas = {};
     for (const row of result.rows) {
-      const { date, total = 0, total_avaliados = 0, total_positivos = 0, por_agente = {}, tags_resumo = {} } = row;
+      const { date, total = 0, total_recebidos = 0, total_avaliados = 0, total_positivos = 0, por_agente = {}, tags_resumo = {} } = row;
       const mesChave = date.slice(0, 7);
-      if (!meses[mesChave]) meses[mesChave] = { total: 0, total_avaliados: 0, total_positivos: 0, dias: 0, por_agente: {}, tags: {} };
+      if (!meses[mesChave]) meses[mesChave] = { total: 0, total_recebidos: 0, total_avaliados: 0, total_positivos: 0, dias: 0, por_agente: {}, tags: {} };
       meses[mesChave].total           += total;
+      meses[mesChave].total_recebidos += total_recebidos;
       meses[mesChave].total_avaliados += total_avaliados;
       meses[mesChave].total_positivos += total_positivos;
       meses[mesChave].dias++;
@@ -129,8 +131,9 @@ app.get('/gestao', async (req, res) => {
       const mon = new Date(d);
       mon.setUTCDate(d.getUTCDate() - (dow === 0 ? 6 : dow - 1));
       const semChave = mon.toISOString().slice(0, 10);
-      if (!semanas[semChave]) semanas[semChave] = { total: 0, total_avaliados: 0, total_positivos: 0, dias: 0, por_agente: {}, pior_dia: null, pior_total: 0 };
+      if (!semanas[semChave]) semanas[semChave] = { total: 0, total_recebidos: 0, total_avaliados: 0, total_positivos: 0, dias: 0, por_agente: {}, pior_dia: null, pior_total: 0 };
       semanas[semChave].total           += total;
+      semanas[semChave].total_recebidos += total_recebidos;
       semanas[semChave].total_avaliados += total_avaliados;
       semanas[semChave].total_positivos += total_positivos;
       semanas[semChave].dias++;
@@ -225,6 +228,7 @@ async function runDailyReport(dateOverride = null, force = false) {
   const relatorio = {
     date,
     total: tickets.length,
+    total_recebidos: todosCsats.length,
     total_avaliados: comNota.length,
     total_positivos: positivosAll.length,
     total_negativos: negativosAll.length,
