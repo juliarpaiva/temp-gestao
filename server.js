@@ -100,6 +100,24 @@ app.delete('/indevida/:ticket_id', async (req, res) => {
   }
 });
 
+app.get('/agent-history/:name', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT date, data->'por_agente' AS por_agente
+       FROM support_bi.csat_reports
+       WHERE date >= (CURRENT_DATE - INTERVAL '60 days')::text
+       ORDER BY date ASC`
+    );
+    const history = result.rows.map(r => ({
+      date: r.date,
+      count: (r.por_agente || {})[req.params.name] || 0,
+    })).filter(r => r.count > 0);
+    res.json(history);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/data/:date', async (req, res) => {
   try {
     const result = await pool.query(

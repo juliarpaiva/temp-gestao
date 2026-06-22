@@ -201,6 +201,23 @@
     .btn-confirm:hover { opacity: .85; }
     .btn-confirm:disabled { opacity: .5; cursor: default; }
 
+    /* ── COPIAR RESUMO ──────────────────────────────────── */
+    .btn-copiar { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; flex-shrink: 0; margin-left: auto; }
+    .btn-copiar:hover { border-color: var(--rosa); color: var(--rosa); }
+    .btn-copiar.copiado { border-color: #16a34a; color: #16a34a; background: #f0fdf4; }
+
+    /* ── AGENTE CLICÁVEL ────────────────────────────────── */
+    .agent-header-nome { cursor: pointer; transition: color .15s; }
+    .agent-header-nome:hover { color: var(--rosa); }
+
+    /* ── MODAL HISTÓRICO ────────────────────────────────── */
+    .hist-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0; }
+    .hist-stat { background: #f8fafc; border-radius: 8px; padding: 12px 14px; }
+    .hist-stat-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 6px; }
+    .hist-stat-val   { font-size: 28px; font-weight: 900; color: var(--preto); line-height: 1; }
+    .hist-chart-wrap { margin-top: 4px; }
+    .hist-chart-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 8px; }
+
     /* ── MISC ───────────────────────────────────────────── */
     .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--borda); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
     .footer-brand { font-weight: 900; font-size: 14px; color: var(--preto); }
@@ -209,6 +226,16 @@
   </style>
 </head>
 <body>
+
+<!-- Modal histórico da agente -->
+<div class="modal-overlay" id="hist-overlay" onclick="if(event.target===this)closeHistModal()">
+  <div class="modal" style="width:500px;max-width:95vw">
+    <div id="hist-content"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeHistModal()">Fechar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal indevida -->
 <div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
@@ -380,10 +407,12 @@
   function hideTooltip() { clearTimeout(ttTimer); ttEl.classList.remove('visivel'); }
 
   /* ── ESTADO GLOBAL ────────────────────────────────────── */
-  let currentDate  = '';
-  let activeAgent  = '';
-  let activeTag    = '';
+  let currentDate   = '';
+  let activeAgent   = '';
+  let activeTag     = '';
   let pendingTicket = null;
+  let reportData    = null;
+  let reportIndevidaMap = {};
   const ticketDataMap = {};
 
   /* ── FILTROS ──────────────────────────────────────────── */
@@ -446,6 +475,115 @@
     const r = await fetch(`${API}/indevida/${ticketId}`, {method:'DELETE'});
     if (r.ok) location.reload();
   }
+
+  /* ── COPIAR RESUMO ───────────────────────────────────── */
+  function copiarResumo() {
+    if (!reportData) return;
+    const d  = reportData;
+    const im = reportIndevidaMap;
+    const indevidaCount = Object.keys(im).length;
+    const ajustado = d.total - indevidaCount;
+
+    const agentLines = Object.entries(d.por_agente || {})
+      .sort((a,b) => b[1]-a[1])
+      .map(([nome,cnt]) => `• ${nome}: ${cnt}`)
+      .join('\n');
+
+    const tagsTop = Object.entries(d.tags_resumo || {})
+      .sort((a,b) => b[1]-a[1]).slice(0,3)
+      .map(([t,c]) => `${formatTag(t)} (${c})`).join(', ');
+
+    const critCount = (d.tickets||[]).filter(t => calcularCriticidade(t) === 'alta').length;
+    const [a,m,dia] = d.date.split('-');
+
+    const texto = [
+      `📊 CSAT Negativo — ${dia}/${m}/${a}`,
+      `Total: ${d.total} avaliações negativas`,
+      indevidaCount ? `(${indevidaCount} indevida${indevidaCount>1?'s':''} · ${ajustado} reais)` : null,
+      '',
+      'Por agente:',
+      agentLines,
+      tagsTop   ? `\nTags: ${tagsTop}` : null,
+      critCount ? `Críticos: ${critCount} ticket${critCount>1?'s':''}` : null,
+    ].filter(l => l !== null).join('\n');
+
+    navigator.clipboard.writeText(texto).then(() => {
+      const btn = document.getElementById('btn-copiar');
+      const orig = btn.innerHTML;
+      btn.textContent = '✓ Copiado!';
+      btn.classList.add('copiado');
+      setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copiado'); }, 2000);
+    }).catch(() => alert('Erro ao acessar clipboard.'));
+  }
+
+  /* ── HISTÓRICO DA AGENTE ──────────────────────────────── */
+  function renderHistoryChart(history) {
+    if (!history.length) return '<p style="color:#94a3b8;font-size:12px;text-align:center;padding:16px 0">Sem dados no período</p>';
+    const W = 440, H = 64;
+    const max = Math.max(...history.map(d => d.count), 1);
+    const n   = history.length;
+    const barW = Math.max(4, Math.floor((W - (n-1)*2) / n));
+    const gap  = n > 1 ? (W - n*barW) / (n-1) : 0;
+    const bars = history.map((d, i) => {
+      const h   = Math.max(3, Math.round((d.count / max) * H));
+      const x   = Math.round(i * (barW + gap));
+      const y   = H - h;
+      const col = d.count >= 6 ? '#dc2626' : d.count >= 3 ? '#e91e8c' : '#f48dc1';
+      const dt  = d.date.slice(8) + '/' + d.date.slice(5,7);
+      return `<rect x="${x}" y="${y}" width="${barW}" height="${h}" fill="${col}" rx="2"><title>${dt}: ${d.count}</title></rect>`;
+    }).join('');
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block;overflow:visible">${bars}</svg>`;
+  }
+
+  function calcTendencia(history) {
+    if (history.length < 4) return null;
+    const mid = Math.floor(history.length / 2);
+    const avgA = history.slice(0, mid).reduce((s,d) => s+d.count, 0) / mid;
+    const avgB = history.slice(mid).reduce((s,d) => s+d.count, 0) / (history.length - mid);
+    const diff = avgB - avgA;
+    if (Math.abs(diff) < 0.4) return { label:'Estável', dir:0, color:'#64748b' };
+    if (diff > 0) return { label:`+${diff.toFixed(1)}/dia`, dir:1, color:'#dc2626' };
+    return { label:`${diff.toFixed(1)}/dia`, dir:-1, color:'#16a34a' };
+  }
+
+  async function openAgentHistory(name) {
+    const overlay = document.getElementById('hist-overlay');
+    const content = document.getElementById('hist-content');
+    content.innerHTML = `
+      <div class="modal-title">${escHtml(name)}</div>
+      <p style="color:var(--muted);font-size:12px;margin-top:8px">Carregando histórico...</p>`;
+    overlay.classList.add('aberto');
+
+    try {
+      const r = await fetch(`${API}/agent-history/${encodeURIComponent(name)}`);
+      const history = await r.json();
+      const total = history.reduce((s,d) => s+d.count, 0);
+      const media = history.length ? (total/history.length).toFixed(1) : '0';
+      const pior  = history.length ? Math.max(...history.map(d => d.count)) : 0;
+      const tend  = calcTendencia(history);
+      const dias  = history.length;
+
+      content.innerHTML = `
+        <div class="modal-title" style="display:flex;align-items:center;gap:10px">
+          ${escHtml(name)}
+          ${tend ? `<span style="font-size:12px;font-weight:700;color:${tend.color}">${tend.dir===1?'↑':tend.dir===-1?'↓':'→'} ${tend.label}</span>` : ''}
+        </div>
+        <div class="modal-sub">Últimos ${dias} dia${dias!==1?'s':''} útil${dias!==1?'s':''} com avaliação negativa</div>
+        <div class="hist-stat-grid">
+          <div class="hist-stat"><div class="hist-stat-label">Total</div><div class="hist-stat-val">${total}</div></div>
+          <div class="hist-stat"><div class="hist-stat-label">Média/dia</div><div class="hist-stat-val">${media}</div></div>
+          <div class="hist-stat"><div class="hist-stat-label">Pior dia</div><div class="hist-stat-val">${pior}</div></div>
+        </div>
+        <div class="hist-chart-wrap">
+          <div class="hist-chart-label">Evolução — cada barra é um dia útil</div>
+          ${renderHistoryChart(history)}
+        </div>`;
+    } catch(e) {
+      content.innerHTML = `<div class="modal-title">Erro</div><p style="color:#dc2626;margin-top:8px">${e.message}</p>`;
+    }
+  }
+
+  function closeHistModal() { document.getElementById('hist-overlay').classList.remove('aberto'); }
 
   /* ── SKELETON ─────────────────────────────────────────── */
   function renderSkeleton() {
@@ -526,6 +664,8 @@
 
   /* ── RENDER ───────────────────────────────────────────── */
   function render(d, indevidaMap, el) {
+    reportData = d;
+    reportIndevidaMap = indevidaMap;
     const { date, total=0, por_agente={}, tags_resumo={}, tickets=[] } = d;
     const agentes = Object.entries(por_agente).sort((a,b) => b[1]-a[1]);
     const tags    = Object.entries(tags_resumo).sort((a,b) => b[1]-a[1]);
@@ -653,7 +793,7 @@
       return `
         <div class="agent-group n${piorNota}" data-agente="${agente}">
           <div class="agent-header">
-            <span class="agent-header-nome">${agente}</span>
+            <span class="agent-header-nome" onclick="openAgentHistory('${agente}')" title="Ver histórico de ${agente}">${agente}</span>
             <span class="agent-header-count">${cnt} ${cnt===1?'avaliação negativa':'avaliações negativas'}</span>
           </div>
           ${agTickets.map(ticketRowHtml).join('')}
@@ -670,10 +810,14 @@
     el.innerHTML = `
       <div class="date-hero">
         <div class="date-pill">Relatório do dia</div>
-        <div class="date-info">
+        <div class="date-info" style="flex:1">
           <div class="dia">${formatarData(date)}</div>
           <div class="iso">${date}</div>
         </div>
+        <button class="btn-copiar" id="btn-copiar" onclick="copiarResumo()">
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          Copiar resumo
+        </button>
       </div>
 
       <div class="kpi-grid">${kpis}</div>
