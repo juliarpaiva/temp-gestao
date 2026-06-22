@@ -331,33 +331,44 @@
     const semanasKeys = Object.keys(semanas).sort().slice(-8);
     const last = semanasKeys.length - 1;
     const semanasHtml = semanasKeys.map((mon, i) => {
-      const s = semanas[mon];
+      const s        = semanas[mon];
       const anterior = semanas[semanasKeys[i-1]];
+      const pos = s.total_positivos || 0;
+      const neg = s.total;
+      const av  = s.total_avaliados || (pos + neg);
+      const pct = av > 0 ? Math.round(pos / av * 100) : null;
+      const corPct = pct === null ? 'var(--muted)' : pct >= 75 ? '#16a34a' : pct >= 55 ? '#ca8a04' : '#dc2626';
+
       let vsEl = '';
-      if (anterior && anterior.total > 0) {
-        const diff = s.total - anterior.total;
-        const pct  = Math.round(Math.abs(diff) / anterior.total * 100);
-        if (diff > 0)      vsEl = `<div class="semana-vs up">↑ +${pct}% vs. anterior</div>`;
-        else if (diff < 0) vsEl = `<div class="semana-vs down">↓ −${pct}% vs. anterior</div>`;
-        else               vsEl = `<div class="semana-vs flat">→ igual à anterior</div>`;
+      if (anterior) {
+        const posAnt = anterior.total_positivos || 0;
+        const avAnt  = anterior.total_avaliados || (posAnt + anterior.total);
+        const pctAnt = avAnt > 0 ? Math.round(posAnt / avAnt * 100) : null;
+        if (pct !== null && pctAnt !== null) {
+          const diff = pct - pctAnt;
+          if (diff > 0)      vsEl = `<div class="semana-vs down">↑ +${diff}pp vs. anterior</div>`;
+          else if (diff < 0) vsEl = `<div class="semana-vs up">↓ ${diff}pp vs. anterior</div>`;
+          else               vsEl = `<div class="semana-vs flat">→ igual à anterior</div>`;
+        }
       }
-      const topAg = Object.entries(s.por_agente).sort((a,b)=>b[1]-a[1])[0];
-      const piorFmt = s.pior_dia ? `${Number(s.pior_dia.slice(8))}/${MESES_ABR[Number(s.pior_dia.slice(5,7))-1]}` : '—';
+
       return `
         <div class="semana-card${i===last?' atual':''}">
           <div class="semana-range">${semanaLabel(mon)}</div>
-          <div class="semana-total">${s.total}</div>
+          <div class="semana-total" style="color:${corPct}">${pct !== null ? pct + '%' : '—'}</div>
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-top:-2px;margin-bottom:6px">satisfação</div>
           ${vsEl || '<div style="margin-bottom:12px"></div>'}
-          <div class="semana-detalhe">
-            <span>Pior dia <b>${piorFmt} (${s.pior_total})</b></span>
-            <span>${s.dias} dia${s.dias!==1?'s':''} ${s.dias!==1?'úteis':'útil'}</span>
+          <div class="semana-csat-row">
+            <span class="semana-csat-item pos" style="font-size:13px;font-weight:800;padding:5px 12px">✓ ${pos}</span>
+            <span class="semana-csat-item neg" style="font-size:13px;font-weight:800;padding:5px 12px">✗ ${neg}</span>
           </div>
-          ${s.total_avaliados ? `<div class="semana-csat-row">
-            <span class="semana-csat-item">Recebidos <b>${s.total_recebidos || s.total_avaliados}</b></span>
-            <span class="semana-csat-item">Avaliados <b>${s.total_avaliados}</b></span>
-            <span class="semana-csat-item pos">✓ ${s.total_positivos || 0}</span>
-            <span class="semana-csat-item neg">✗ ${s.total}</span>
-          </div>` : ''}
+          <div class="semana-detalhe">
+            <div class="semana-csat-row" style="margin-top:0">
+              <span class="semana-csat-item">Recebidos <b>${s.total_recebidos || av}</b></span>
+              <span class="semana-csat-item">Avaliados <b>${av}</b></span>
+            </div>
+            <span style="font-size:11px;color:var(--muted);margin-top:6px;display:block">${s.dias} dia${s.dias!==1?'s':''} ${s.dias!==1?'úteis':'útil'}</span>
+          </div>
         </div>`;
     }).join('');
 
