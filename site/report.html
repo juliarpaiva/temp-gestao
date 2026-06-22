@@ -693,7 +693,7 @@
     const indevidaCount = Object.keys(indevidaMap).length;
 
     /* KPIs */
-    const totalRecebidas = d.total_avaliados || (total + tickets_positivos.length);
+    const totalRecebidas = total + tickets_positivos.length;
     let kpis = `
       <div class="kpi">
         <div class="kpi-label">Recebidas</div>
