@@ -645,6 +645,18 @@ app.get('/kpis-semanais', async (req, res) => {
       modoLabel = 'semana';
     }
 
+    const periodKey = modoLabel === 'dia'    ? `dia:${d0}` :
+                      modoLabel === 'mes'    ? `mes:${d0.slice(0, 7)}` :
+                      modoLabel === 'semana' ? `semana:${d0}` :
+                      `periodo:${d0}:${d1}`;
+    try {
+      const cached = await pool.query(
+        `SELECT data FROM support_bi.kpis_op_cache WHERE period_key=$1 AND fetched_at > NOW() - INTERVAL '12 hours'`,
+        [periodKey]
+      );
+      if (cached.rows.length) return res.json(cached.rows[0].data);
+    } catch (_) {}
+
     const token = await getMetabaseToken();
 
     async function sqlScalar(sql) {
@@ -707,7 +719,7 @@ app.get('/kpis-semanais', async (req, res) => {
       csat:         r[4] !== null ? Number(r[4]) : null,
     }));
 
-    res.json({
+    const kpisResult = {
       modo: modoLabel,
       semana: d0,
       semana_fim: new Date(new Date(d1) - 86400000).toISOString().slice(0, 10),
@@ -727,7 +739,13 @@ app.get('/kpis-semanais', async (req, res) => {
         retencao_n1: retencaoAnterior  ?? 0,
         csat_time:   csatAnterior,
       },
-    });
+    };
+    pool.query(
+      `INSERT INTO support_bi.kpis_op_cache (period_key, data) VALUES ($1,$2)
+       ON CONFLICT (period_key) DO UPDATE SET data=$2, fetched_at=NOW()`,
+      [periodKey, JSON.stringify(kpisResult)]
+    ).catch(e => console.error('[kpis-cache]', e.message));
+    res.json(kpisResult);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1124,6 +1142,10 @@ app.get('/data/:date', async (req, res) => {
 cron.schedule('0 10 * * 1-5', () => {
   console.log('Cron disparado — processando dia útil anterior...');
   runDailyReport(null, false).catch(err => console.error('Erro no cron:', err.message));
+  // Invalida cache de KPIs operacionais para forçar re-fetch com dados do dia
+  pool.query(`DELETE FROM support_bi.kpis_op_cache WHERE period_key LIKE 'semana:%' OR period_key LIKE 'mes:%' OR period_key LIKE 'dia:%'`)
+    .then(() => console.log('[cron] cache kpis-op invalidado'))
+    .catch(err => console.error('[cron] erro ao invalidar cache kpis-op:', err.message));
 });
 
 // --- Lógica principal ---
@@ -1398,6 +1420,13 @@ async function initDb() {
     )
   `);
   await pool.query(`ALTER TABLE support_bi.csat_users ALTER COLUMN password_hash DROP NOT NULL`).catch(() => {});
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS support_bi.kpis_op_cache (
+      period_key  TEXT PRIMARY KEY,
+      data        JSONB NOT NULL,
+      fetched_at  TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
   console.log('Banco de dados pronto.');
 }
 
