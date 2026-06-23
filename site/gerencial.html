@@ -401,17 +401,21 @@
       if (sm) {
         const av = sm.total_avaliados || 0;
         const pos = sm.total_positivos || 0;
-        let vc, label;
-        if (av > 0) {
-          const pct = Math.round(pos / av * 100);
-          vc = pct >= 75 ? 'vol-baixo' : pct >= 55 ? 'vol-medio' : 'vol-alto';
-          label = `${av} av`;
+        if (av === 0 && (sm.total || 0) === 0) {
+          cells += `<div class="cal-cell"><div class="cal-day" style="opacity:.35;cursor:default"><span class="cal-num">${dia}</span></div></div>`;
         } else {
-          vc = volClass(sm.total || 0);
-          label = `${sm.total || 0} neg`;
+          let vc, label;
+          if (av > 0) {
+            const pct = Math.round(pos / av * 100);
+            vc = pct >= 75 ? 'vol-baixo' : pct >= 55 ? 'vol-medio' : 'vol-alto';
+            label = `${av} av`;
+          } else {
+            vc = volClass(sm.total || 0);
+            label = `${sm.total || 0} neg`;
+          }
+          const tipTxt = av > 0 ? `✓ ${pos}  ✗ ${sm.total||0}  ·  ${Math.round(pos/av*100)}%` : `✗ ${sm.total||0} negativos`;
+          cells += `<div class="cal-cell"><div class="cal-day tem-dados ${vc}${isSel?' selecionado':''}" onclick="selecionarDia('${ds}')" onmouseenter="showCalTip(this,'${tipTxt}')" onmouseleave="hideCalTip()"><span class="cal-num">${dia}</span><span class="cal-csat">${label}</span></div></div>`;
         }
-        const tipTxt = av > 0 ? `✓ ${pos}  ✗ ${sm.total||0}  ·  ${Math.round(pos/av*100)}%` : `✗ ${sm.total||0} negativos`;
-        cells += `<div class="cal-cell"><div class="cal-day tem-dados ${vc}${isSel?' selecionado':''}" onclick="selecionarDia('${ds}')" onmouseenter="showCalTip(this,'${tipTxt}')" onmouseleave="hideCalTip()"><span class="cal-num">${dia}</span><span class="cal-csat">${label}</span></div></div>`;
       } else {
         cells += `<div class="cal-cell"><div class="cal-day"><span class="cal-num">${dia}</span></div></div>`;
       }
