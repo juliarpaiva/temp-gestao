@@ -1,6 +1,7 @@
 const express = require('express');
 const { Pool } = require('pg');
 const cron = require('node-cron');
+const crypto = require('crypto');
 
 const app = express();
 
@@ -15,9 +16,114 @@ const METABASE_TABLE_ID = 7375;
 const METABASE_LABELS_TABLE_ID = 7376;
 const AGENTES = ['Mari', 'Fernanda', 'Fer', 'Paty', 'Lu Almeida', 'Rafa'];
 
+// ── Auth ─────────────────────────────────────────────────────────────────────
+
+const SESSION_SECRET = process.env.SESSION_SECRET || 'dev-secret-change-me';
+const SESSION_DAYS   = 7;
+
+function signSession(email) {
+  const exp     = Date.now() + SESSION_DAYS * 86400000;
+  const payload = `${email}|${exp}`;
+  const sig     = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('hex');
+  return Buffer.from(payload).toString('base64') + '.' + sig;
+}
+
+function verifySession(token) {
+  if (!token) return null;
+  try {
+    const dot = token.lastIndexOf('.');
+    const b64 = token.slice(0, dot);
+    const sig  = token.slice(dot + 1);
+    const payload  = Buffer.from(b64, 'base64').toString();
+    const expected = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('hex');
+    if (sig !== expected) return null;
+    const [email, exp] = payload.split('|');
+    if (Date.now() > parseInt(exp)) return null;
+    return email;
+  } catch { return null; }
+}
+
+async function hashPassword(pw) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = await new Promise((res, rej) =>
+    crypto.scrypt(pw, salt, 64, (e, h) => e ? rej(e) : res(h)));
+  return salt + ':' + hash.toString('hex');
+}
+
+async function checkPassword(pw, stored) {
+  const [salt, hash] = stored.split(':');
+  const derived = await new Promise((res, rej) =>
+    crypto.scrypt(pw, salt, 64, (e, h) => e ? rej(e) : res(h)));
+  return derived.toString('hex') === hash;
+}
+
+function getSessionToken(req) {
+  return (req.headers.cookie || '').split(';')
+    .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
+}
+
+const AUTH_SKIP = ['/login', '/logout', '/health', '/run', '/webhook/csat-invalida'];
+
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   next();
+});
+
+// Rotas públicas — login.html sem autenticação
+app.get('/login', (req, res) => res.sendFile(__dirname + '/site/login.html'));
+
+app.post('/login', express.urlencoded({ extended: false }), async (req, res) => {
+  const email    = (req.body.email || '').toLowerCase().trim();
+  const password = req.body.password || '';
+  const redir    = (req.body.redirect || '/').replace(/[^a-zA-Z0-9/_\-.?=&]/g, '');
+  if (!email || !password) return res.redirect('/login?erro=campos');
+  try {
+    const r = await pool.query(
+      'SELECT password_hash FROM support_bi.csat_users WHERE email = $1', [email]);
+    if (!r.rows.length) return res.redirect('/login?erro=1');
+    const ok = await checkPassword(password, r.rows[0].password_hash);
+    if (!ok) return res.redirect('/login?erro=1');
+    const token = signSession(email);
+    res.setHeader('Set-Cookie',
+      `csat_sess=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_DAYS * 86400}`);
+    res.redirect(redir || '/');
+  } catch(e) {
+    console.error('[login]', e.message);
+    res.redirect('/login?erro=1');
+  }
+});
+
+app.post('/logout', (req, res) => {
+  res.setHeader('Set-Cookie', 'csat_sess=; Path=/; Max-Age=0');
+  res.redirect('/login');
+});
+
+// Endpoint para criar/atualizar usuário (protegido por ADMIN_KEY)
+app.post('/admin/add-user', express.json(), async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Proibido' });
+  const { email, name, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'email e password obrigatórios' });
+  try {
+    const hash = await hashPassword(password);
+    await pool.query(
+      `INSERT INTO support_bi.csat_users (email, name, password_hash)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (email) DO UPDATE SET name=$2, password_hash=$3`,
+      [email.toLowerCase().trim(), name || null, hash]);
+    res.json({ ok: true, email: email.toLowerCase().trim() });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Middleware de autenticação — protege todas as outras rotas
+app.use((req, res, next) => {
+  if (AUTH_SKIP.some(p => req.path === p || req.path.startsWith(p + '/'))) return next();
+  if (req.method === 'POST' && req.path === '/login') return next();
+  const email = verifySession(getSessionToken(req));
+  if (email) return next();
+  const isHtml = req.path.endsWith('.html') || req.path === '/' || (req.headers.accept || '').includes('text/html');
+  if (isHtml) return res.redirect('/login?r=' + encodeURIComponent(req.url));
+  res.status(401).json({ error: 'Não autorizado' });
 });
 
 app.use(express.static('site'));
@@ -505,6 +611,15 @@ async function initDb() {
       motivo     VARCHAR(100),
       observacao TEXT,
       marcado_em TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS support_bi.csat_users (
+      id            SERIAL PRIMARY KEY,
+      email         TEXT UNIQUE NOT NULL,
+      name          TEXT,
+      password_hash TEXT NOT NULL,
+      created_at    TIMESTAMPTZ DEFAULT NOW()
     )
   `);
   console.log('Banco de dados pronto.');
