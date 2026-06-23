@@ -232,7 +232,8 @@
       <h1>Painel de Gestão — CSAT</h1>
       <p>Visão geral + monitoramento de positivos e negativos · Atualizado todo dia útil às 7h</p>
     </div>
-    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+    <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
+      <span id="hdr-greeting" style="font-size:12px;color:rgba(255,255,255,.5);font-weight:500"></span>
       <button onclick="abrirAlterarSenha()" style="background:none;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.7);font-size:11px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;font-family:inherit">Alterar senha</button>
       <form method="POST" action="/logout">
         <button type="submit" style="background:none;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.7);font-size:11px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;font-family:inherit">Sair</button>
@@ -1180,6 +1181,10 @@
     fecharReportPanel();
     render();
   }
+
+  fetch('/me').then(r => r.json()).then(d => {
+    if (d.firstName) document.getElementById('hdr-greeting').textContent = 'Olá, ' + d.firstName + ' 👋';
+  }).catch(() => {});
 
   init();
 

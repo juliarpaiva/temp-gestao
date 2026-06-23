@@ -97,6 +97,15 @@ async function sendResetEmail(email, link, isNew) {
   }
 }
 
+app.get('/me', (req, res) => {
+  const email = verifySession(getSessionToken(req));
+  if (!email) return res.status(401).json({ error: 'Não autorizado' });
+  const part      = email.split('@')[0];
+  const first     = part.split('.')[0];
+  const firstName = first.charAt(0).toUpperCase() + first.slice(1);
+  res.json({ email, firstName });
+});
+
 app.post('/change-password', express.json(), async (req, res) => {
   const email = verifySession(getSessionToken(req));
   if (!email) return res.status(401).json({ error: 'Não autorizado' });
