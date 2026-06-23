@@ -267,12 +267,17 @@
       <h1>Painel de Gestão — CSAT</h1>
       <p>Visão geral + monitoramento de positivos e negativos · Atualizado todo dia útil às 7h</p>
     </div>
-    <div style="margin-left:auto;display:flex;gap:10px;align-items:center">
-      <span id="hdr-greeting" style="font-size:12px;color:rgba(255,255,255,.5);font-weight:500"></span>
-      <button onclick="abrirAlterarSenha()" style="background:none;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.7);font-size:11px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;font-family:inherit">Alterar senha</button>
-      <form method="POST" action="/logout">
-        <button type="submit" style="background:none;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.7);font-size:11px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;font-family:inherit">Sair</button>
-      </form>
+    <div style="margin-left:auto;display:flex;align-items:center;position:relative" id="user-menu-wrap">
+      <button id="user-menu-btn" onclick="toggleUserMenu()" style="display:flex;align-items:center;gap:6px;background:none;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.85);font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;font-family:inherit">
+        <span id="hdr-greeting">Conta</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="opacity:.6"><path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div id="user-menu-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 8px);background:#fff;border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,.18);min-width:160px;overflow:hidden;z-index:2000">
+        <button onclick="abrirAlterarSenha();fecharUserMenu()" style="display:block;width:100%;text-align:left;background:none;border:none;padding:11px 16px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;font-family:inherit;border-bottom:1px solid #f1f5f9">Alterar senha</button>
+        <form method="POST" action="/logout" style="margin:0">
+          <button type="submit" style="display:block;width:100%;text-align:left;background:none;border:none;padding:11px 16px;font-size:13px;font-weight:600;color:#dc2626;cursor:pointer;font-family:inherit">Sair</button>
+        </form>
+      </div>
     </div>
   </div>
 </header>
@@ -416,7 +421,7 @@
   // ── Métricas Operacionais ────────────────────────────────────────────────
   let kpisOp       = null;
   let semanaOp     = null;
-  let filterModeOp = 'dia'; // 'semana' | 'dia' | 'mes' | 'periodo'
+  let filterModeOp = 'hoje'; // 'hoje' | 'dia' | 'semana' | 'mes' | 'periodo'
   let opsDiaAtivo  = null;
   let opsMesAtivo  = null;
   let opsPeriodoI  = null;
@@ -461,6 +466,7 @@
   }
 
   function opsNavHtml() {
+    if (filterModeOp === 'hoje') return '';
     if (filterModeOp === 'semana') {
       const semanas = gerarSemanasOps(8);
       return semanas.map(s =>
@@ -554,6 +560,7 @@
       el.innerHTML = `
         <div class="section-head">Métricas Operacionais</div>
         <div class="filter-tabs" style="margin-bottom:14px">
+          <button class="filter-tab${filterModeOp==='hoje'   ?' ativo':''}" onclick="mudarFilterModeOp('hoje')">Hoje</button>
           <button class="filter-tab${filterModeOp==='dia'    ?' ativo':''}" onclick="mudarFilterModeOp('dia')">Dia</button>
           <button class="filter-tab${filterModeOp==='semana' ?' ativo':''}" onclick="mudarFilterModeOp('semana')">Semana</button>
           <button class="filter-tab${filterModeOp==='mes'    ?' ativo':''}" onclick="mudarFilterModeOp('mes')">Mês</button>
@@ -568,6 +575,7 @@
     const metaVol = kpisOp.meta_volume_por_agente || 45;
     const tabsHtml = `
       <div class="filter-tabs" style="margin-bottom:14px">
+        <button class="filter-tab${filterModeOp==='hoje'   ?' ativo':''}" onclick="mudarFilterModeOp('hoje')">Hoje</button>
         <button class="filter-tab${filterModeOp==='dia'    ?' ativo':''}" onclick="mudarFilterModeOp('dia')">Dia</button>
         <button class="filter-tab${filterModeOp==='semana' ?' ativo':''}" onclick="mudarFilterModeOp('semana')">Semana</button>
         <button class="filter-tab${filterModeOp==='mes'    ?' ativo':''}" onclick="mudarFilterModeOp('mes')">Mês</button>
@@ -712,7 +720,15 @@
 
   async function mudarFilterModeOp(modo) {
     filterModeOp = modo;
-    if (modo === 'semana') {
+    if (modo === 'hoje') {
+      opsDiaAtivo = gerarDiasOps(14)[0];
+      kpisOp = null;
+      renderKpisOp();
+      try {
+        kpisOp = await _fetchKpisOp(`dia=${opsDiaAtivo}`);
+        renderKpisOp();
+      } catch (e) { _opsErro(e); }
+    } else if (modo === 'semana') {
       if (!semanaOp) semanaOp = gerarSemanasOps(1)[0];
       kpisOp = null;
       renderKpisOp();
@@ -1595,8 +1611,19 @@
   }
 
   fetch('/me').then(r => r.json()).then(d => {
-    if (d.firstName) document.getElementById('hdr-greeting').textContent = 'Olá, ' + d.firstName + ' 👋';
+    if (d.firstName) document.getElementById('hdr-greeting').textContent = d.firstName;
   }).catch(() => {});
+
+  function toggleUserMenu() {
+    const dd = document.getElementById('user-menu-dropdown');
+    dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+  }
+  function fecharUserMenu() {
+    document.getElementById('user-menu-dropdown').style.display = 'none';
+  }
+  document.addEventListener('click', e => {
+    if (!document.getElementById('user-menu-wrap').contains(e.target)) fecharUserMenu();
+  });
 
   init();
 
