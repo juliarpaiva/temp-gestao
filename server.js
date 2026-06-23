@@ -475,42 +475,6 @@ async function getAllCsats(token, date, limit = 2000) {
   });
 }
 
-async function getNegativeCsats(token, date, limit = 500) {
-  const filter = ['and',
-    ['not-null', ['field', 174181, null]],
-    ['<=', ['field', 174181, null], 3],
-  ];
-  if (date) filter.push(['=', ['field', 174139, null], date]);
-
-  const data = await queryMetabase(token, {
-    database: METABASE_DATABASE_ID,
-    type: 'query',
-    query: {
-      'source-table': METABASE_TABLE_ID,
-      filter,
-      fields: [
-        ['field', 174172, null], // display_ticket_id
-        ['field', 174143, null], // ticket_link
-        ['field', 174139, null], // created_date_id
-        ['field', 174181, null], // csat_score
-        ['field', 174167, null], // agent_on_resolution_name
-        ['field', 174169, null], // contact_name
-        ['field', 174174, null], // contact_email
-        ['field', 174140, null], // csat_feedback
-      ],
-      'order-by': [['desc', ['field', 174139, null]]],
-      limit,
-    },
-  });
-
-  const cols = data.data.cols.map(c => c.name);
-  return data.data.rows.map(row => {
-    const obj = {};
-    cols.forEach((col, i) => { obj[col] = row[i]; });
-    return obj;
-  });
-}
-
 async function queryMetabase(token, query) {
   const resp = await fetch(`${METABASE_URL}/api/dataset`, {
     method: 'POST',

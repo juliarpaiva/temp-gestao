@@ -212,9 +212,6 @@
     .outros-nota-neg { color: var(--rosa); font-weight: 700; }
     .outros-link { color: var(--preto); font-weight: 700; text-decoration: none; }
     .outros-link:hover { color: var(--rosa); }
-    .modal-tab-row { display: flex; gap: 4px; padding: 0 24px 12px; border-bottom: 1px solid var(--borda); margin-bottom: 4px; }
-    .modal-tab { padding: 5px 14px; border-radius: 6px; border: 1px solid var(--borda); background: transparent; font-size: 11px; font-weight: 700; color: var(--muted); cursor: pointer; transition: all .15s; }
-    .modal-tab.ativo { background: var(--preto); border-color: var(--preto); color: #fff; }
     .btn-voltar-modal { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 6px; border: 1px solid var(--borda); background: transparent; font-size: 11px; font-weight: 700; color: var(--muted); cursor: pointer; transition: all .15s; margin-bottom: 4px; }
     .btn-voltar-modal:hover { border-color: var(--preto); color: var(--preto); }
     .modal-secao-head { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .7px; padding: 10px 0 8px; display: flex; align-items: center; gap: 6px; }
@@ -346,7 +343,6 @@
   let periodoLoading = false;
 
   const DIAS_SEMANA  = ['Seg','Ter','Qua','Qui','Sex'];
-  const MESES_FULL   = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
   function computeTagsFromTickets(tickets) {
     const tags = {};
@@ -411,7 +407,7 @@
 
   function abrirReportPanel(date) {
     const [da, dm, dd] = date.split('-');
-    const titulo = `${Number(dd)} de ${MESES_FULL[Number(dm)-1]} de ${da}`;
+    const titulo = `${Number(dd)} de ${MESES_PT[Number(dm)-1]} de ${da}`;
     document.getElementById('report-panel-title').textContent = `Relatório — ${titulo}`;
     document.getElementById('report-panel-extlink').href = `report.html?date=${date}`;
     document.getElementById('report-iframe').src = `report.html?date=${date}&embed=true`;
@@ -634,7 +630,8 @@
   async function verPeriodo() {
     const ini = document.getElementById('periodo-ini');
     const fim = document.getElementById('periodo-fim');
-    if (!ini || !fim || !ini.value || !fim.value) return;
+    if (!ini || !fim || !ini.value || !fim.value) { alert('Preencha as datas de início e fim.'); return; }
+    if (ini.value > fim.value) { alert('A data inicial deve ser menor ou igual à data final.'); return; }
     periodoInicio  = ini.value;
     periodoFim     = fim.value;
     filterMode     = 'periodo';
@@ -664,7 +661,8 @@
       (d.tickets_positivos || []).forEach(t => { (t.tags||[]).forEach(tag => { tagsPos[tag] = (tagsPos[tag]||0) + 1; }); });
     });
 
-    periodoCache   = { por_agente: porAgente, por_agente_positivos: porAgentePos, tags, tags_positivos: tagsPos };
+    const totRecebidosPeriodo = dates.reduce((s, d) => s + ((dayDataCache[d]?.total_recebidos) || 0), 0);
+    periodoCache   = { por_agente: porAgente, por_agente_positivos: porAgentePos, tags, tags_positivos: tagsPos, total_recebidos: totRecebidosPeriodo };
     periodoLoading = false;
     render();
   }
@@ -688,7 +686,7 @@
         const fmt = d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
         document.getElementById('footer-update').textContent = `Atualizado por último em: ${fmt}`;
       } else {
-        document.getElementById('footer-update').textContent = '';
+        document.getElementById('footer-update').textContent = 'Atualizado todo dia útil às 7h';
       }
       const mesesKeys = Object.keys(dadosGestao.meses).sort().reverse();
       mesAtivo = mesesKeys[0] || null;
@@ -730,12 +728,12 @@
         total_negativos:dayData.total           || 0,
       };
       const [,dm,dd] = selectedDay.split('-');
-      kpiLabel = `${Number(dd)} de ${MESES_FULL[Number(dm)-1]}`;
+      kpiLabel = `${Number(dd)} de ${MESES_PT[Number(dm)-1]}`;
     } else if (filterMode === 'dia' && selectedDay) {
       // Carregando dados do dia
       activeDados = { por_agente:{}, por_agente_positivos:{}, tags:{}, tags_positivos:{}, total:0, total_recebidos:0, total_avaliados:0, total_positivos:0, total_negativos:0 };
       const [,dm,dd] = selectedDay.split('-');
-      kpiLabel = `${Number(dd)} de ${MESES_FULL[Number(dm)-1]}`;
+      kpiLabel = `${Number(dd)} de ${MESES_PT[Number(dm)-1]}`;
       showRankings = false; showTags = false;
     } else if (filterMode === 'semana' && selectedWeek && semanas[selectedWeek]) {
       const sw = semanas[selectedWeek];
@@ -761,7 +759,7 @@
         por_agente_positivos: periodoCache ? periodoCache.por_agente_positivos : {},
         tags:                 periodoCache ? periodoCache.tags                 : {},
         tags_positivos:       periodoCache ? periodoCache.tags_positivos       : {},
-        total:totNeg, total_recebidos:0, total_avaliados:totAv, total_positivos:totPos, total_negativos:totNeg,
+        total:totNeg, total_recebidos: periodoCache ? (periodoCache.total_recebidos || 0) : 0, total_avaliados:totAv, total_positivos:totPos, total_negativos:totNeg,
       };
       const fmt = d => `${Number(d.slice(8))}/${MESES_ABR[Number(d.slice(5,7))-1]}`;
       kpiLabel = `${fmt(periodoInicio)} a ${fmt(periodoFim)}`;
@@ -789,7 +787,6 @@
     const pctSatisfacao  = totalAvaliados > 0 ? Math.round(totalPositivos / totalAvaliados * 100) : null;
     const totalOutros    = Math.max(0, totalRecebidos - totalAvaliados);
 
-    const media = mesDados.dias ? (mesDados.total / mesDados.dias).toFixed(1) : '0';
     let vsHtml = '<span class="kpi-sub flat">sem mês anterior</span>';
     if (filterMode === 'mes' && mesAnterior && mesAnterior.total > 0) {
       const diff = mesDados.total - mesAnterior.total;
@@ -895,51 +892,6 @@
         <div class="tag-bar-wrap"><div class="tag-bar" style="width:${Math.round(cnt/maxTagPos*100)}%;background:#16a34a"></div></div>
         <span class="tag-cnt">${cnt}</span>
       </div>`).join('') : '<p style="color:var(--muted);font-size:12px">Sem tags</p>';
-
-    // ── Semanas (últimas 8 em ordem cronológica, mais antiga → mais recente) ──
-    const semanasKeys = Object.keys(semanas).sort().slice(-8);
-    const last = semanasKeys.length - 1;
-    const semanasHtml = semanasKeys.map((mon, i) => {
-      const s        = semanas[mon];
-      const anterior = semanas[semanasKeys[i-1]];
-      const pos = s.total_positivos || 0;
-      const neg = s.total;
-      const av  = s.total_avaliados || (pos + neg);
-      const pct = av > 0 ? Math.round(pos / av * 100) : null;
-      const corPct = pct === null ? 'var(--muted)' : pct >= 75 ? '#16a34a' : pct >= 55 ? '#ca8a04' : '#dc2626';
-
-      let vsEl = '';
-      if (anterior) {
-        const posAnt = anterior.total_positivos || 0;
-        const avAnt  = anterior.total_avaliados || (posAnt + anterior.total);
-        const pctAnt = avAnt > 0 ? Math.round(posAnt / avAnt * 100) : null;
-        if (pct !== null && pctAnt !== null) {
-          const diff = pct - pctAnt;
-          if (diff > 0)      vsEl = `<div class="semana-vs down">↑ +${diff}pp vs. anterior</div>`;
-          else if (diff < 0) vsEl = `<div class="semana-vs up">↓ ${diff}pp vs. anterior</div>`;
-          else               vsEl = `<div class="semana-vs flat">→ igual à anterior</div>`;
-        }
-      }
-
-      return `
-        <div class="semana-card${i===last?' atual':''}">
-          <div class="semana-range">${semanaLabel(mon)}</div>
-          <div class="semana-total" style="color:${corPct}">${pct !== null ? pct + '%' : '—'}</div>
-          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-top:-2px;margin-bottom:6px">satisfação</div>
-          ${vsEl || '<div style="margin-bottom:12px"></div>'}
-          <div class="semana-csat-row">
-            <span class="semana-csat-item pos" style="font-size:13px;font-weight:800;padding:5px 12px">✓ ${pos}</span>
-            <span class="semana-csat-item neg" style="font-size:13px;font-weight:800;padding:5px 12px">✗ ${neg}</span>
-          </div>
-          <div class="semana-detalhe">
-            <div class="semana-csat-row" style="margin-top:0">
-              <span class="semana-csat-item">Recebidos <b>${s.total_recebidos || av}</b></span>
-              <span class="semana-csat-item">Monitoradas <b>${av}</b></span>
-            </div>
-            <span style="font-size:11px;color:var(--muted);margin-top:6px;display:block">${s.dias} dia${s.dias!==1?'s':''} ${s.dias!==1?'úteis':'útil'}</span>
-          </div>
-        </div>`;
-    }).join('');
 
     // ── Calendário ──
     const [cAno, cMes] = mesAtivo.split('-').map(Number);
