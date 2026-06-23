@@ -292,6 +292,8 @@ async function runDailyReport(dateOverride = null, force = false) {
 
   const relatorio = {
     date,
+    generated_at: new Date().toISOString(),
+    indevidas_removidas: indevidasSet.size,
     total: tickets.length,
     total_recebidos: comNota.length,
     total_avaliados: tickets.length + positivosMonitorados.length,
