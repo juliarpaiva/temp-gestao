@@ -209,7 +209,7 @@ app.post('/reset-password', express.urlencoded({ extended: false }), async (req,
   const r2 = encodeURIComponent(token);
   if (!token || !password || password !== confirm)
     return res.redirect(`/reset-password?token=${r2}&erro=campos`);
-  if (password.length < 6)
+  if (password.length < 8 || !/\d/.test(password) || /^[a-zA-Z0-9]*$/.test(password))
     return res.redirect(`/reset-password?token=${r2}&erro=curta`);
   try {
     const r = await pool.query(
