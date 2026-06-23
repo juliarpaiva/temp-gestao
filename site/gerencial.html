@@ -237,7 +237,11 @@
     .report-panel-link:hover { background: var(--rosa); border-color: var(--rosa); color: #fff; }
     .report-panel-close { background: none; border: none; color: #666; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; transition: color .15s; }
     .report-panel-close:hover { color: #fff; }
-    .report-panel iframe { display: block; width: 100%; height: 680px; border: 1px solid var(--borda); border-top: none; border-radius: 0 0 var(--r) var(--r); background: var(--bg); }
+    .report-panel iframe { display: block; width: 100%; height: 680px; border: 1px solid var(--borda); border-top: none; border-bottom: none; background: var(--bg); }
+    .report-panel-outros { border: 1px solid var(--borda); border-radius: 0 0 var(--r) var(--r); background: var(--card); padding: 18px 24px; }
+    .report-panel-outros-head { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    .report-panel-outros-head::before { content:""; display:block; width:3px; height:13px; background:#94a3b8; border-radius:2px; }
+    .report-panel-outros-grid { display: flex; flex-wrap: wrap; gap: 8px; }
 
     /* FOOTER */
     .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--borda); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
@@ -293,6 +297,7 @@
       </div>
     </div>
     <iframe id="report-iframe" src="" title="Relatório do dia"></iframe>
+    <div id="report-panel-outros" class="report-panel-outros" style="display:none"></div>
   </div>
 
   <div class="footer">
@@ -411,12 +416,52 @@
     document.getElementById('report-panel-extlink').href = `report.html?date=${date}`;
     document.getElementById('report-iframe').src = `report.html?date=${date}&embed=true`;
     document.getElementById('report-panel').classList.add('visivel');
+    _renderOutrosNoPanel(date);
     setTimeout(() => { document.getElementById('report-panel').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
+  }
+
+  function _renderOutrosNoPanel(date) {
+    const el = document.getElementById('report-panel-outros');
+    const dayData = dayDataCache[date];
+    const porAg = (dayData && dayData.por_agente_outros) ? dayData.por_agente_outros : null;
+    if (!porAg || !Object.keys(porAg).length) { el.style.display = 'none'; return; }
+    const sorted = Object.entries(porAg).sort((a, b) => b[1] - a[1]);
+    el.style.display = 'block';
+    el.innerHTML = `
+      <div class="report-panel-outros-head">Outros agentes neste dia</div>
+      <div class="report-panel-outros-grid">
+        ${sorted.map(([nome, cnt]) => {
+          const nomeEsc = escHtml(nome).replace(/'/g, "\\'");
+          return `<button onclick="outrosAgenteDoDia('${nomeEsc}','${date}')"
+            style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;border:1px solid var(--borda);background:#f8fafc;font-size:12px;font-weight:600;color:var(--preto);cursor:pointer;transition:all .15s"
+            onmouseover="this.style.borderColor='var(--rosa)';this.style.color='var(--rosa)'"
+            onmouseout="this.style.borderColor='var(--borda)';this.style.color='var(--preto)'">
+            ${escHtml(nome)}
+            <span style="background:#e2e8f0;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;color:#64748b">${cnt}</span>
+          </button>`;
+        }).join('')}
+      </div>`;
+  }
+
+  async function outrosAgenteDoDia(nome, date) {
+    // Garante que temos os dados do dia e abre o modal direto no agente
+    if (!dayDataCache[date]) {
+      try { const r = await fetch(`${API}/data/${date}`); if (r.ok) dayDataCache[date] = await r.json(); } catch(e) {}
+    }
+    // Prepara estado do modal para esse dia específico
+    outrosModalPorAg   = (dayDataCache[date]?.por_agente_outros) || {};
+    outrosModalTickets = (dayDataCache[date]?.tickets_outros)    || [];
+    const [,dm,dd] = date.split('-');
+    outrosModalTitulo  = `Outros agentes — ${Number(dd)}/${Number(dm)}`;
+    document.getElementById('modal-outros-titulo').textContent = outrosModalTitulo;
+    document.getElementById('modal-outros').classList.add('aberto');
+    await verTicketsAgente(nome);
   }
 
   function fecharReportPanel() {
     document.getElementById('report-panel').classList.remove('visivel');
     document.getElementById('report-iframe').src = '';
+    document.getElementById('report-panel-outros').style.display = 'none';
   }
 
   let outrosModalPorAg   = {};
