@@ -421,7 +421,7 @@
   // ── Métricas Operacionais ────────────────────────────────────────────────
   let kpisOp       = null;
   let semanaOp     = null;
-  let filterModeOp = 'hoje'; // 'hoje' | 'dia' | 'semana' | 'mes' | 'periodo'
+  let filterModeOp = 'dia'; // 'dia' | 'semana' | 'mes' | 'periodo'
   let opsDiaAtivo  = null;
   let opsMesAtivo  = null;
   let opsPeriodoI  = null;
@@ -466,7 +466,6 @@
   }
 
   function opsNavHtml() {
-    if (filterModeOp === 'hoje') return '';
     if (filterModeOp === 'semana') {
       const semanas = gerarSemanasOps(8);
       return semanas.map(s =>
@@ -560,7 +559,6 @@
       el.innerHTML = `
         <div class="section-head">Métricas Operacionais</div>
         <div class="filter-tabs" style="margin-bottom:14px">
-          <button class="filter-tab${filterModeOp==='hoje'   ?' ativo':''}" onclick="mudarFilterModeOp('hoje')">Hoje</button>
           <button class="filter-tab${filterModeOp==='dia'    ?' ativo':''}" onclick="mudarFilterModeOp('dia')">Dia</button>
           <button class="filter-tab${filterModeOp==='semana' ?' ativo':''}" onclick="mudarFilterModeOp('semana')">Semana</button>
           <button class="filter-tab${filterModeOp==='mes'    ?' ativo':''}" onclick="mudarFilterModeOp('mes')">Mês</button>
@@ -575,7 +573,6 @@
     const metaVol = kpisOp.meta_volume_por_agente || 45;
     const tabsHtml = `
       <div class="filter-tabs" style="margin-bottom:14px">
-        <button class="filter-tab${filterModeOp==='hoje'   ?' ativo':''}" onclick="mudarFilterModeOp('hoje')">Hoje</button>
         <button class="filter-tab${filterModeOp==='dia'    ?' ativo':''}" onclick="mudarFilterModeOp('dia')">Dia</button>
         <button class="filter-tab${filterModeOp==='semana' ?' ativo':''}" onclick="mudarFilterModeOp('semana')">Semana</button>
         <button class="filter-tab${filterModeOp==='mes'    ?' ativo':''}" onclick="mudarFilterModeOp('mes')">Mês</button>
@@ -720,15 +717,7 @@
 
   async function mudarFilterModeOp(modo) {
     filterModeOp = modo;
-    if (modo === 'hoje') {
-      opsDiaAtivo = gerarDiasOps(14)[0];
-      kpisOp = null;
-      renderKpisOp();
-      try {
-        kpisOp = await _fetchKpisOp(`dia=${opsDiaAtivo}`);
-        renderKpisOp();
-      } catch (e) { _opsErro(e); }
-    } else if (modo === 'semana') {
+    if (modo === 'semana') {
       if (!semanaOp) semanaOp = gerarSemanasOps(1)[0];
       kpisOp = null;
       renderKpisOp();
