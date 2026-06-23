@@ -1050,7 +1050,13 @@
       </div>
 
       <div class="painel" style="margin-bottom:32px" id="section-satisfacao">
-        <div class="painel-title">Satisfação por agente — ${kpiLabel}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+          <div class="painel-title" style="margin-bottom:0">Satisfação por agente — ${kpiLabel}</div>
+          <div style="display:flex;gap:12px;font-size:11px;color:var(--muted);font-weight:600">
+            <span>🥇 ≥ 85% (meta)</span>
+            <span>🥈 ≥ 75%</span>
+          </div>
+        </div>
         ${showRankings ? satisfacaoHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando dados do período…</p>' : '<p style="color:var(--muted);font-size:12px">Selecione um dia, semana ou mês para ver o ranking por agente.</p>'}
       </div>
 
