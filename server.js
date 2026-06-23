@@ -705,7 +705,7 @@ app.get('/kpis-semanais', async (req, res) => {
           ROUND(((AVG(CASE WHEN csat_score IS NOT NULL THEN csat_score END) - 1) / 4.0 * 100)::numeric, 1) AS csat
         FROM dw.fact_cloudchat_tickets
         WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'
-          AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Júlia','Hari','Henri')
+          AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa')
         GROUP BY 1
         ORDER BY volume DESC
       `)
