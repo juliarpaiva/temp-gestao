@@ -578,14 +578,16 @@
       return `
       <tr>
         <td class="ops-agente">${escHtml(ag.agente)}</td>
-        <td class="r">${ag.volume}</td>
+        <td class="r" style="color:${ag.volume >= 45 ? '#16a34a' : ag.volume >= 35 ? '#ca8a04' : '#dc2626'};font-weight:700">${ag.volume}</td>
         <td class="r">${opsCsatPill(ag.csat)}</td>
         <td class="r" style="color:${trCor};font-weight:700">${ag.tempo_resp_h !== null ? ag.tempo_resp_h + 'h' : '—'}</td>
         <td class="r">${ag.tempo_enc_h  !== null ? ag.tempo_enc_h  + 'h' : '—'}</td>
       </tr>`;
     }).join('');
 
-    const volOk   = atual.media_diaria >= 45;
+    const agentesComMeta = (atual.por_agente || []).filter(ag => ag.volume >= 45).length;
+    const totalAgentesOp = (atual.por_agente || []).length;
+    const volCor  = totalAgentesOp > 0 && agentesComMeta === totalAgentesOp ? '#16a34a' : agentesComMeta > 0 ? '#ca8a04' : '#dc2626';
     const csatOk  = atual.csat_time  !== null && atual.csat_time  >= 75;
     const csatCor = atual.csat_time  !== null ? (atual.csat_time  >= 75 ? '#16a34a' : atual.csat_time  >= 55 ? '#ca8a04' : '#dc2626') : 'var(--rosa)';
     const respOk  = atual.tempo_resposta_h !== null && atual.tempo_resposta_h <= 1;
@@ -597,11 +599,11 @@
       <div class="ops-week-nav">${opsNavHtml()}</div>
 
       <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(155px,1fr));margin-bottom:20px">
-        <div class="kpi" style="border-left:4px solid ${volOk?'#16a34a':'#dc2626'}">
+        <div class="kpi" style="border-left:4px solid ${volCor}">
           <div class="kpi-label">Volume total</div>
           <div class="ops-kpi-num">${atual.volume.toLocaleString('pt-BR')}</div>
-          <div class="kpi-sub" style="color:${volOk?'#16a34a':'#dc2626'};margin-top:6px">${volOk?'✓':'✗'} ${atual.media_diaria}/dia · meta 45</div>
-          <div class="kpi-sub flat" style="margin-top:3px">${opsVs(atual.volume, anterior.volume, false)}</div>
+          <div class="kpi-sub" style="color:${volCor};margin-top:6px">${agentesComMeta}/${totalAgentesOp} agentes ≥ 45/dia</div>
+          <div class="kpi-sub flat" style="margin-top:3px">${opsVs(atual.volume, anterior.volume, false)} · média ${atual.media_diaria}/dia</div>
         </div>
         <div class="kpi" style="border-left:4px solid ${csatCor}">
           <div class="kpi-label">CSAT geral</div>
