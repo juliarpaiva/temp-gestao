@@ -894,13 +894,17 @@
       return { nome: ag, pos, neg, tot, pct: tot > 0 ? Math.round(pos / tot * 100) : 0 };
     }).sort((a, b) => b.pct - a.pct);
 
-    const satisfacaoHtml = satisfSorted.length ? satisfSorted.map((d, i) => {
-      const cor   = d.pct >= 75 ? '#16a34a' : d.pct >= 50 ? '#ca8a04' : '#dc2626';
-      const isTop = i === 0 && d.tot > 0;
-      return `<div class="agente-row" style="${isTop ? 'background:#fffbeb;border-radius:8px;padding:4px 8px;margin:0 -8px 8px' : ''}">
+    const satisfacaoHtml = satisfSorted.length ? satisfSorted.map((d) => {
+      const cor      = d.pct >= 75 ? '#16a34a' : d.pct >= 50 ? '#ca8a04' : '#dc2626';
+      const isGold   = d.pct >= 85 && d.tot > 0;
+      const isSilver = d.pct >= 75 && d.pct < 85 && d.tot > 0;
+      const bg       = isGold ? '#fffbeb' : isSilver ? '#f8fafc' : '';
+      const medal    = isGold ? '🥇 ' : isSilver ? '🥈 ' : '';
+      const barCor   = isGold ? '#ca8a04' : isSilver ? '#94a3b8' : cor;
+      return `<div class="agente-row" style="${bg ? `background:${bg};border-radius:8px;padding:4px 8px;margin:0 -8px 8px` : ''}">
         <span class="agente-pos" style="color:${cor};width:36px;font-size:12px">${d.pct}%</span>
-        <span class="agente-nome">${isTop ? '🥇 ' : ''}${d.nome.split(' ')[0]}</span>
-        <div class="agente-bar-wrap"><div class="agente-bar" style="width:${d.pct}%;background:${isTop ? '#ca8a04' : cor}"></div></div>
+        <span class="agente-nome">${medal}${d.nome.split(' ')[0]}</span>
+        <div class="agente-bar-wrap"><div class="agente-bar" style="width:${d.pct}%;background:${barCor}"></div></div>
         <span class="agente-num" style="font-size:11px;color:var(--muted);width:56px">${d.pos}↑ ${d.neg}↓</span>
       </div>`;
     }).join('') : '<p style="color:var(--muted);font-size:12px">Sem dados — reprocesse os dias do mês</p>';
