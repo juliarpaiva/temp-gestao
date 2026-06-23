@@ -153,6 +153,39 @@
     .btn-sugerir { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 8px; border: 1.5px solid var(--rosa); background: #fff0f6; color: var(--rosa); font-size: 11px; font-weight: 700; cursor: pointer; transition: all .15s; }
     .btn-sugerir:hover { background: var(--rosa); color: #fff; }
 
+    /* CALENDÁRIO */
+    .cal-wrap { margin-bottom: 24px; }
+    .calendar { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; }
+    .cal-header { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--preto); }
+    .cal-header span { padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 1px; }
+    .cal-grid { display: grid; grid-template-columns: repeat(5, 1fr); }
+    .cal-cell { min-height: 64px; border: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: center; }
+    .cal-cell.empty { background: #fafafa; }
+    .cal-day { width: 52px; height: 52px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; gap: 0; cursor: default; color: #cbd5e1; transition: transform .15s, box-shadow .15s; }
+    .cal-day.tem-dados { cursor: pointer; }
+    .cal-day.tem-dados:hover { transform: scale(1.08); box-shadow: 0 4px 14px rgba(233,30,140,.25); }
+    .cal-day.vol-baixo  { background: #fff; border: 2px solid #e91e8c; color: #e91e8c; }
+    .cal-day.vol-medio  { background: #e91e8c; border: 2px solid #e91e8c; color: #fff; }
+    .cal-day.vol-alto   { background: #9d1366; border: 2px solid #9d1366; color: #fff; }
+    .cal-day.selecionado { outline: 3px solid var(--preto); outline-offset: 2px; transform: scale(1.08); }
+    .cal-num  { font-size: 16px; font-weight: 900; line-height: 1; }
+    .cal-csat { font-size: 10px; font-weight: 700; opacity: .8; margin-top: 2px; letter-spacing: .3px; }
+    .legenda  { display: flex; align-items: center; gap: 16px; margin-top: 10px; font-size: 11px; color: var(--muted); flex-wrap: wrap; }
+    .legenda-item { display: flex; align-items: center; gap: 5px; }
+    .legenda-dot  { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+    /* DIA SELECIONADO BADGE */
+    .dia-badge { display: inline-flex; align-items: center; gap: 10px; background: var(--preto); color: #fff; padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 700; margin-bottom: 18px; }
+    .dia-badge-link { color: #aaa; font-size: 11px; font-weight: 600; text-decoration: none; border: 1px solid #333; border-radius: 5px; padding: 2px 8px; transition: all .15s; }
+    .dia-badge-link:hover { background: var(--rosa); border-color: var(--rosa); color: #fff; }
+    .dia-badge-clear { background: none; border: none; color: #666; cursor: pointer; font-size: 16px; line-height: 1; padding: 0 2px; transition: color .15s; }
+    .dia-badge-clear:hover { color: #fff; }
+
+    /* KPI CLICÁVEL */
+    .kpi.clicavel { cursor: pointer; transition: box-shadow .15s, transform .15s; }
+    .kpi.clicavel:hover { box-shadow: var(--sh-lg); transform: translateY(-2px); }
+    .kpi.clicavel::after { content: "↓"; position: absolute; bottom: 10px; right: 14px; font-size: 11px; color: var(--muted); opacity: .5; }
+
     /* FOOTER */
     .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--borda); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
     .footer-brand { font-weight: 900; font-size: 14px; color: var(--preto); }
@@ -170,9 +203,9 @@
       <h1>Painel de Gestão — CSAT</h1>
       <p>Visão geral + monitoramento de positivos e negativos · Atualizado todo dia útil às 7h</p>
     </div>
-    <a class="btn-back" href="/">
-      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-      Voltar
+    <a class="btn-back" href="report.html?date=" id="btn-ver-dia" style="display:none">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+      Ver relatório
     </a>
   </div>
 </header>
@@ -222,19 +255,82 @@
     return `${d} ${MESES_ABR[m-1]} – ${dFri} ${MESES_ABR[mFri]}`;
   }
 
-  let dadosGestao   = null;
+  let dadosGestao    = null;
   let dadosIndevidas = [];
-  let mesAtivo = null;
+  let summaryMap     = {};   // date → { total, total_avaliados, total_positivos }
+  let dayDataCache   = {};   // date → full /data/:date response
+  let mesAtivo       = null;
+  let selectedDay    = null;
+
+  const DIAS_SEMANA  = ['Seg','Ter','Qua','Qui','Sex'];
+  const MESES_FULL   = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+  function volClass(neg) { return neg >= 8 ? 'vol-alto' : neg >= 4 ? 'vol-medio' : 'vol-baixo'; }
+
+  function renderCalendarioGestao(ano, mes) {
+    const totalDias  = new Date(ano, mes, 0).getDate();
+    const dow1       = new Date(ano, mes - 1, 1).getDay();
+    const offset     = ({ 1:0, 2:1, 3:2, 4:3, 5:4, 6:0, 0:0 })[dow1];
+    let cells = '';
+    for (let i = 0; i < offset; i++) cells += `<div class="cal-cell empty"></div>`;
+    for (let dia = 1; dia <= totalDias; dia++) {
+      const dow = new Date(ano, mes - 1, dia).getDay();
+      if (dow === 0 || dow === 6) continue;
+      const ds = `${ano}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+      const sm = summaryMap[ds];
+      const isSel = ds === selectedDay;
+      if (sm) {
+        const av = sm.total_avaliados || 0;
+        const pos = sm.total_positivos || 0;
+        let vc, label;
+        if (av > 0) {
+          const pct = Math.round(pos / av * 100);
+          vc = pct >= 75 ? 'vol-baixo' : pct >= 55 ? 'vol-medio' : 'vol-alto';
+          label = `${av} av`;
+        } else {
+          vc = volClass(sm.total || 0);
+          label = `${sm.total || 0} neg`;
+        }
+        cells += `<div class="cal-cell"><div class="cal-day tem-dados ${vc}${isSel?' selecionado':''}" onclick="selecionarDia('${ds}')"><span class="cal-num">${dia}</span><span class="cal-csat">${label}</span></div></div>`;
+      } else {
+        cells += `<div class="cal-cell"><div class="cal-day"><span class="cal-num">${dia}</span></div></div>`;
+      }
+    }
+    return `<div class="calendar"><div class="cal-header">${DIAS_SEMANA.map(d=>`<span>${d}</span>`).join('')}</div><div class="cal-grid">${cells}</div></div>`;
+  }
+
+  async function selecionarDia(date) {
+    if (selectedDay === date) { selectedDay = null; render(); return; }
+    selectedDay = date;
+    // Muda o mês ativo se necessário
+    const novoMes = date.slice(0, 7);
+    if (novoMes !== mesAtivo) { mesAtivo = novoMes; }
+    // Carrega dados do dia se não estiver em cache
+    if (!dayDataCache[date]) {
+      try {
+        const r = await fetch(`${API}/data/${date}`);
+        if (r.ok) dayDataCache[date] = await r.json();
+      } catch(e) {}
+    }
+    render();
+    // Atualiza botão "Ver relatório" no header
+    const btn = document.getElementById('btn-ver-dia');
+    btn.href = `report.html?date=${date}`;
+    btn.style.display = 'inline-flex';
+  }
 
   async function init() {
     try {
-      const [r, rIndev] = await Promise.all([
+      const [r, rIndev, rSum] = await Promise.all([
         fetch(`${API}/gestao`),
         fetch(`${API}/indevidas-resumo`),
+        fetch(`${API}/summary`),
       ]);
       if (!r.ok) throw new Error('Erro ao buscar dados');
       dadosGestao    = await r.json();
       dadosIndevidas = await rIndev.json().catch(() => []);
+      const sumRows  = await rSum.json().catch(() => []);
+      sumRows.forEach(s => { summaryMap[s.date] = s; });
       const mesesKeys = Object.keys(dadosGestao.meses).sort().reverse();
       mesAtivo = mesesKeys[0] || null;
       if (!mesAtivo) { document.getElementById('conteudo').innerHTML = '<div class="erro">Sem dados disponíveis ainda.</div>'; return; }
@@ -264,13 +360,6 @@
         ${mesesKeys.map(k => `<button class="mes-btn${k===mesAtivo?' ativo':''}" onclick="selecionarMes('${k}')">${mesLabel(k)}</button>`).join('')}
       </div>` : '';
 
-    // ── KPIs gerais ──
-    const totalRecebidos = mesDados.total_recebidos || 0;
-    const totalAvaliados = mesDados.total_avaliados || 0;
-    const totalPositivos = mesDados.total_positivos || 0;
-    const totalNegAll    = mesDados.total_negativos || mesDados.total;
-    const taxaResposta   = totalRecebidos > 0 ? Math.round(totalAvaliados / totalRecebidos * 100) : null;
-    const pctSatisfacao  = totalAvaliados > 0 ? Math.round(totalPositivos / totalAvaliados * 100) : null;
     const media = mesDados.dias ? (mesDados.total / mesDados.dias).toFixed(1) : '0';
 
     let vsHtml = '<span class="kpi-sub flat">sem mês anterior</span>';
@@ -394,9 +483,38 @@
         </div>`;
     }).join('');
 
-    // ── Indevidas do mês ──
-    const indevidasMes = dadosIndevidas.filter(i => i.date && i.date.startsWith(mesAtivo));
-    const totalOutros  = Math.max(0, totalRecebidos - totalAvaliados);
+    // ── Calendário ──
+    const [cAno, cMes] = mesAtivo.split('-').map(Number);
+    const calHtml = renderCalendarioGestao(cAno, cMes);
+
+    // ── Dia selecionado: sobrescreve KPIs ──
+    let kpiSource = mesDados;
+    let kpiLabel  = mesLabel(mesAtivo);
+    const dayData = selectedDay ? dayDataCache[selectedDay] : null;
+    if (dayData) {
+      kpiSource = {
+        total:            dayData.total          || 0,
+        total_recebidos:  dayData.total_recebidos || 0,
+        total_avaliados:  dayData.total_avaliados || 0,
+        total_positivos:  dayData.total_positivos || 0,
+        total_negativos:  dayData.total           || 0,
+      };
+      const [da, dm, dd] = selectedDay.split('-');
+      kpiLabel = `${Number(dd)} de ${MESES_FULL[Number(dm)-1]}`;
+    }
+
+    const totalRecebidos = kpiSource.total_recebidos || 0;
+    const totalAvaliados = kpiSource.total_avaliados || 0;
+    const totalPositivos = kpiSource.total_positivos || 0;
+    const totalNegAll    = kpiSource.total_negativos || kpiSource.total || 0;
+    const taxaResposta   = totalRecebidos > 0 ? Math.round(totalAvaliados / totalRecebidos * 100) : null;
+    const pctSatisfacao  = totalAvaliados > 0 ? Math.round(totalPositivos / totalAvaliados * 100) : null;
+
+    // ── Indevidas do mês (ou dia) ──
+    const indevidasMes = selectedDay
+      ? dadosIndevidas.filter(i => i.date === selectedDay)
+      : dadosIndevidas.filter(i => i.date && i.date.startsWith(mesAtivo));
+    const totalOutros = Math.max(0, totalRecebidos - totalAvaliados);
 
     const indevidasListHtml = indevidasMes.length
       ? `<table class="indev-table">
@@ -424,32 +542,54 @@
         </table>`
       : '<p style="color:var(--muted);font-size:12px;padding:4px 0">Nenhuma avaliação marcada como indevida neste mês.</p>';
 
+    const diaBadge = selectedDay ? (() => {
+      const [da,dm,dd] = selectedDay.split('-');
+      return `<div class="dia-badge">
+        <span>${Number(dd)} de ${MESES_FULL[Number(dm)-1]} de ${da}</span>
+        <a class="dia-badge-link" href="report.html?date=${selectedDay}" target="_blank">Ver relatório completo</a>
+        <button class="dia-badge-clear" onclick="selecionarDia('${selectedDay}')" title="Voltar para visão do mês">✕</button>
+      </div>`;
+    })() : '';
+
     document.getElementById('conteudo').innerHTML = `
       ${navHtml}
 
-      <div class="section-head">Visão geral — ${mesLabel(mesAtivo)}</div>
+      <div class="cal-wrap">
+        <div class="section-head">Calendário — ${mesLabel(mesAtivo)}</div>
+        ${calHtml}
+        <div class="legenda">
+          <span>Satisfação:</span>
+          <span class="legenda-item"><span class="legenda-dot" style="background:#fff;border:2px solid #e91e8c;box-sizing:border-box"></span> Alta (≥75%)</span>
+          <span class="legenda-item"><span class="legenda-dot" style="background:#e91e8c"></span> Média (55–74%)</span>
+          <span class="legenda-item"><span class="legenda-dot" style="background:#9d1366"></span> Baixa (&lt;55%)</span>
+          <span style="margin-left:8px;color:#94a3b8">· Clique num dia para ver os KPIs daquele dia</span>
+        </div>
+      </div>
+
+      <div class="section-head">Visão geral — ${kpiLabel}</div>
+      ${diaBadge}
 
       <div class="kpi-secao">
         <div class="kpi-grupo-label">Equipe monitorada</div>
         <div class="kpi-grid">
-          <div class="kpi destaque">
+          <div class="kpi destaque clicavel" onclick="document.getElementById('section-satisfacao').scrollIntoView({behavior:'smooth'})">
             <div class="kpi-label">% Satisfação</div>
             <div class="kpi-num">${pctSatisfacao !== null ? pctSatisfacao + '%' : '—'}</div>
             <div class="kpi-sub flat">${totalPositivos}↑ · ${totalNegAll}↓</div>
           </div>
-          <div class="kpi" style="border-left:4px solid #16a34a">
-            <div class="kpi-label">Positivos no mês</div>
+          <div class="kpi clicavel" style="border-left:4px solid #16a34a" onclick="document.getElementById('section-positivos').scrollIntoView({behavior:'smooth'})">
+            <div class="kpi-label">Positivos${selectedDay?'':' no mês'}</div>
             <div class="kpi-num" style="color:#16a34a">${totalPositivos || '—'}</div>
             <div class="kpi-sub flat">Mari, Fer, Paty, Lu, Rafa</div>
           </div>
-          <div class="kpi">
-            <div class="kpi-label">Negativos no mês</div>
+          <div class="kpi clicavel" onclick="document.getElementById('section-negativos').scrollIntoView({behavior:'smooth'})">
+            <div class="kpi-label">Negativos${selectedDay?'':' no mês'}</div>
             <div class="kpi-num">${totalNegAll || mesDados.total}</div>
-            ${vsHtml}
+            ${selectedDay ? '' : vsHtml}
           </div>
-          <div class="kpi" style="border-left:4px solid #94a3b8">
-            <div class="kpi-label">Indevidas no mês</div>
-            <div class="kpi-num" style="color:#64748b">${indevidasMes.length || '—'}</div>
+          <div class="kpi clicavel" style="border-left:4px solid #94a3b8" onclick="document.getElementById('section-indevidas').scrollIntoView({behavior:'smooth'})">
+            <div class="kpi-label">Indevidas${selectedDay?'':' no mês'}</div>
+            <div class="kpi-num" style="color:#64748b">${indevidasMes.length || (selectedDay && !dayData ? '...' : '—')}</div>
             <div class="kpi-sub flat">marcadas via CloudChat</div>
           </div>
         </div>
@@ -466,12 +606,12 @@
         </div>
       </div>
 
-      <div class="painel" style="margin-bottom:32px">
-        <div class="painel-title">Satisfação por agente — ${mesLabel(mesAtivo)}</div>
+      <div class="painel" style="margin-bottom:32px" id="section-satisfacao">
+        <div class="painel-title">Satisfação por agente — ${kpiLabel}</div>
         ${satisfacaoHtml}
       </div>
 
-      <div class="section-head pos">Monitoramento de positivos</div>
+      <div class="section-head pos" id="section-positivos">Monitoramento de positivos</div>
       <div class="dois-col">
         <div class="painel pos">
           <div class="painel-title">Positivos por agente</div>
@@ -483,7 +623,7 @@
         </div>
       </div>
 
-      <div class="section-head">Monitoramento de negativos</div>
+      <div class="section-head" id="section-negativos">Monitoramento de negativos</div>
       <div class="dois-col">
         <div class="painel">
           <div class="painel-title">Negativos por agente</div>
@@ -502,7 +642,7 @@
       </div>
 
       <div class="section">
-        <div class="section-head indev-head">Avaliações indevidas — ${mesLabel(mesAtivo)}</div>
+        <div class="section-head indev-head" id="section-indevidas">Avaliações indevidas — ${kpiLabel}</div>
         <div class="painel" style="padding:0;overflow:hidden">
           ${indevidasListHtml}
         </div>
@@ -553,6 +693,9 @@
 
   function selecionarMes(chave) {
     mesAtivo = chave;
+    selectedDay = null;
+    const btn = document.getElementById('btn-ver-dia');
+    if (btn) btn.style.display = 'none';
     render();
     carregarNotas();
     renderNotasLista('comportamentos');
