@@ -692,7 +692,7 @@ app.get('/kpis-semanais', async (req, res) => {
       sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND agent_on_resolution_name ILIKE '%claudia%' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name ILIKE '%claudia%' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(AVG(first_agent_reply_time_min) / 60.0, 1) FROM dw.fact_cloudchat_tickets WHERE first_agent_first_reply_at_local IS NOT NULL AND first_agent_reply_time_min IS NOT NULL AND first_agent_reply_time_min >= 0 AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
-      sqlScalar(`SELECT ROUND(AVG(first_agent_resolution_time_min) / 60.0, 1) FROM dw.fact_cloudchat_tickets WHERE resolved_at_local IS NOT NULL AND first_agent_resolution_time_min IS NOT NULL AND first_agent_resolution_time_min > 0 AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
+      sqlScalar(`SELECT ROUND(AVG(first_agent_resolution_time_min) / 60.0, 1) FROM dw.fact_cloudchat_tickets WHERE resolved_at_local IS NOT NULL AND first_agent_resolution_time_min IS NOT NULL AND first_agent_resolution_time_min > 0 AND first_agent_resolution_time_min < 2880 AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT COUNT(ticket_id) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${pd0}' AND created_at_local < '${d0}'`),
       sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name ILIKE '%claudia%' AND created_at_local >= '${pd0}' AND created_at_local < '${d0}'`),
       sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND created_at_local >= '${pd0}' AND created_at_local < '${d0}'`),
@@ -701,7 +701,7 @@ app.get('/kpis-semanais', async (req, res) => {
           COALESCE(agent_on_resolution_name, '(sem agente)') AS agente,
           COUNT(*) AS volume,
           ROUND(AVG(CASE WHEN first_agent_reply_time_min IS NOT NULL AND first_agent_first_reply_at_local IS NOT NULL AND first_agent_reply_time_min >= 0 THEN first_agent_reply_time_min END) / 60.0, 1) AS tempo_resp_h,
-          ROUND(AVG(CASE WHEN first_agent_resolution_time_min IS NOT NULL AND first_agent_resolution_time_min > 0 AND resolved_at_local IS NOT NULL THEN first_agent_resolution_time_min END) / 60.0, 1) AS tempo_enc_h,
+          ROUND(AVG(CASE WHEN first_agent_resolution_time_min IS NOT NULL AND first_agent_resolution_time_min > 0 AND first_agent_resolution_time_min < 2880 AND resolved_at_local IS NOT NULL THEN first_agent_resolution_time_min END) / 60.0, 1) AS tempo_enc_h,
           ROUND(((AVG(CASE WHEN csat_score IS NOT NULL THEN csat_score END) - 1) / 4.0 * 100)::numeric, 1) AS csat
         FROM dw.fact_cloudchat_tickets
         WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'
@@ -721,6 +721,7 @@ app.get('/kpis-semanais', async (req, res) => {
 
     const diasUteis = countBusinessDays(d0, d1);
     const kpisResult = {
+      fetched_at: new Date().toISOString(),
       modo: modoLabel,
       semana: d0,
       semana_fim: new Date(new Date(d1) - 86400000).toISOString().slice(0, 10),

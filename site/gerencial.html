@@ -605,13 +605,19 @@
     const metaTotalVol   = metaVol * totalAgentesOp;
     const pctMeta        = metaTotalVol > 0 ? Math.round(atual.volume / metaTotalVol * 100) : 0;
     const volCor  = totalAgentesOp > 0 && agentesComMeta === totalAgentesOp ? '#16a34a' : agentesComMeta > 0 ? '#ca8a04' : '#dc2626';
+    const fetchedLabel = kpisOp.fetched_at
+      ? 'Coletado em ' + new Date(kpisOp.fetched_at).toLocaleString('pt-BR', { timeZone:'America/Sao_Paulo', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+      : '';
     const csatOk  = atual.csat_time  !== null && atual.csat_time  >= 75;
     const csatCor = atual.csat_time  !== null ? (atual.csat_time  >= 75 ? '#16a34a' : atual.csat_time  >= 55 ? '#ca8a04' : '#dc2626') : 'var(--rosa)';
     const respOk  = atual.tempo_resposta_h !== null && atual.tempo_resposta_h <= 1;
     const respCor = atual.tempo_resposta_h !== null ? (atual.tempo_resposta_h <= 1 ? '#16a34a' : atual.tempo_resposta_h <= 2 ? '#ca8a04' : '#dc2626') : 'inherit';
 
     el.innerHTML = `
-      <div class="section-head">Métricas Operacionais — ${opsPeriodoLabel()}</div>
+      <div class="section-head" style="display:flex;align-items:baseline;gap:12px">
+        Métricas Operacionais — ${opsPeriodoLabel()}
+        ${fetchedLabel ? `<span style="font-size:11px;font-weight:500;color:var(--muted)">${fetchedLabel}</span>` : ''}
+      </div>
       ${tabsHtml}
       <div class="ops-week-nav">${opsNavHtml()}</div>
 
@@ -663,8 +669,32 @@
             <th class="r">Encerramento</th>
           </tr></thead>
           <tbody>${tabelaHtml}</tbody>
-        </table>` : '<p style="color:var(--muted);font-size:12px">Sem dados para esta semana.</p>'}
+        </table>
+        <div style="text-align:right;margin-top:10px">
+          <button onclick="exportarOpsCSV()" style="background:none;border:1px solid var(--borda);color:var(--muted);font-size:11px;font-weight:600;padding:4px 12px;border-radius:6px;cursor:pointer;font-family:inherit">↓ Exportar CSV</button>
+        </div>` : '<p style="color:var(--muted);font-size:12px">Sem dados para esta semana.</p>'}
       </div>`;
+  }
+
+  function exportarOpsCSV() {
+    if (!kpisOp || !kpisOp.atual || !kpisOp.atual.por_agente) return;
+    const periodo = opsPeriodoLabel();
+    const linhas = [
+      ['Agente','Tickets','CSAT %','1ª Resposta','Encerramento'],
+      ...kpisOp.atual.por_agente.map(ag => [
+        ag.agente,
+        ag.volume,
+        ag.csat !== null ? ag.csat + '%' : '—',
+        fmtHora(ag.tempo_resp_h),
+        fmtHora(ag.tempo_enc_h),
+      ])
+    ];
+    const csv = linhas.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `ops_agentes_${periodo.replace(/\//g,'-').replace(/\s/g,'_')}.csv`;
+    a.click();
   }
 
   async function _fetchKpisOp(qs) {
