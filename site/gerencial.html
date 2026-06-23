@@ -335,6 +335,7 @@
   let summaryMap     = {};   // date → { total, total_avaliados, total_positivos }
   let dayDataCache   = {};   // date → full /data/:date response
   let mesAtivo       = null;
+  let calViewMes     = null;  // mês exibido no calendário (independente do filtro ativo)
   let selectedDay    = null;
   let filterMode     = 'mes';  // 'dia' | 'semana' | 'mes' | 'periodo'
   let selectedWeek   = null;
@@ -835,7 +836,7 @@
       else               vsHtml = `<span class="kpi-sub flat">→ igual ao mês anterior</span>`;
     }
 
-    // ── Satisfação vs semana anterior (modo Semana) ──
+    // ── Satisfação vs período anterior ──
     let satisfVsHtml = '';
     if (filterMode === 'semana' && selectedWeek) {
       const allSemKeys = Object.keys(semanas).sort();
@@ -850,6 +851,15 @@
           else if (diff < 0) satisfVsHtml = `<span class="kpi-sub up"   style="margin-top:4px">↓ ${diff}pp vs. sem. anterior</span>`;
           else               satisfVsHtml = `<span class="kpi-sub flat"  style="margin-top:4px">→ igual à sem. anterior</span>`;
         }
+      }
+    } else if (filterMode === 'mes' && mesAnterior) {
+      const avAnt  = mesAnterior.total_avaliados || 0;
+      const pctAnt = avAnt > 0 ? Math.round((mesAnterior.total_positivos || 0) / avAnt * 100) : null;
+      if (pctSatisfacao !== null && pctAnt !== null) {
+        const diff = pctSatisfacao - pctAnt;
+        if (diff > 0)      satisfVsHtml = `<span class="kpi-sub down" style="margin-top:4px">↑ +${diff}pp vs. ${MESES_ABR[mm-2>=0?mm-2:11]}</span>`;
+        else if (diff < 0) satisfVsHtml = `<span class="kpi-sub up"   style="margin-top:4px">↓ ${diff}pp vs. ${MESES_ABR[mm-2>=0?mm-2:11]}</span>`;
+        else               satisfVsHtml = `<span class="kpi-sub flat"  style="margin-top:4px">→ igual a ${MESES_ABR[mm-2>=0?mm-2:11]}</span>`;
       }
     }
 
@@ -911,7 +921,7 @@
         <span class="agente-pos" style="color:${cor};width:36px;font-size:12px">${d.pct}%</span>
         <span class="agente-nome">${medal}${d.nome.split(' ')[0]}</span>
         <div class="agente-bar-wrap"><div class="agente-bar" style="width:${d.pct}%;background:${barCor}"></div></div>
-        <span class="agente-num" style="font-size:11px;color:var(--muted);width:56px">✓ ${d.pos} ✗ ${d.neg}</span>
+        <span class="agente-num" style="font-size:11px;width:56px"><span style="color:#16a34a">✓ ${d.pos}</span> <span style="color:var(--rosa)">✗ ${d.neg}</span></span>
       </div>`;
     }).join('') : '<p style="color:var(--muted);font-size:12px">Sem dados — reprocesse os dias do mês</p>';
 
@@ -956,8 +966,12 @@
       </div>`).join('') : '<p style="color:var(--muted);font-size:12px">Sem tags</p>';
 
     // ── Calendário ──
-    const [cAno, cMes] = mesAtivo.split('-').map(Number);
+    const calMesRef = calViewMes || mesAtivo;
+    const [cAno, cMes] = calMesRef.split('-').map(Number);
     const calHtml = renderCalendarioGestao(cAno, cMes);
+    const allCalMeses = [...new Set(Object.keys(summaryMap).map(d => d.slice(0,7)))].sort();
+    const calCanPrev = allCalMeses.indexOf(calMesRef) > 0;
+    const calCanNext = allCalMeses.indexOf(calMesRef) < allCalMeses.length - 1;
 
     // ── Indevidas filtradas pelo modo ──
     const indevidasMes = (() => {
@@ -1001,7 +1015,13 @@
 
     document.getElementById('conteudo').innerHTML = `
       <div class="cal-wrap">
-        <div class="section-head">Calendário — ${mesLabel(mesAtivo)}</div>
+        <div class="section-head" style="display:flex;align-items:center;justify-content:space-between">
+          <span>Calendário — ${mesLabel(calMesRef)}</span>
+          <div style="display:flex;gap:4px">
+            <button onclick="navCal(-1)" style="background:none;border:1px solid var(--borda);border-radius:6px;padding:2px 10px;cursor:pointer;font-size:15px;color:var(--text);opacity:${calCanPrev?1:.25};pointer-events:${calCanPrev?'auto':'none'}">‹</button>
+            <button onclick="navCal(1)"  style="background:none;border:1px solid var(--borda);border-radius:6px;padding:2px 10px;cursor:pointer;font-size:15px;color:var(--text);opacity:${calCanNext?1:.25};pointer-events:${calCanNext?'auto':'none'}">›</button>
+          </div>
+        </div>
         ${streak > 0 ? `<div class="streak-badge">🔥 ${streak} dia${streak!==1?'s':''} seguido${streak!==1?'s':''} acima de 75% de satisfação</div>` : ''}
         ${calHtml}
         <div class="legenda">
@@ -1150,8 +1170,20 @@
     fetch(`${API}/run?date=${date}&force=true`).catch(() => {});
   }
 
+  function navCal(delta) {
+    const base = calViewMes || mesAtivo;
+    const [a, m] = base.split('-').map(Number);
+    const d = new Date(a, m - 1 + delta, 1);
+    const novo = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const allMeses = [...new Set(Object.keys(summaryMap).map(d => d.slice(0,7)))].sort();
+    if (!allMeses.includes(novo)) return;
+    calViewMes = novo;
+    render();
+  }
+
   function selecionarMes(chave) {
     mesAtivo    = chave;
+    calViewMes  = null;
     selectedDay = null;
     filterMode  = 'mes';
     fecharReportPanel();
