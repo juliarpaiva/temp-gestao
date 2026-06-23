@@ -161,7 +161,7 @@
     .cal-grid { display: grid; grid-template-columns: repeat(5, 1fr); }
     .cal-cell { min-height: 64px; border: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: center; }
     .cal-cell.empty { background: #fafafa; }
-    .cal-day { width: 52px; height: 52px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; gap: 0; cursor: default; color: #cbd5e1; transition: transform .15s, box-shadow .15s; }
+    .cal-day { width: 52px; height: 52px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; gap: 0; cursor: default; color: #cbd5e1; transition: transform .15s, box-shadow .15s; position: relative; }
     .cal-day.tem-dados { cursor: pointer; }
     .cal-day.tem-dados:hover { transform: scale(1.08); box-shadow: 0 4px 14px rgba(233,30,140,.25); }
     .cal-day.vol-baixo  { background: #fff; border: 2px solid #e91e8c; color: #e91e8c; }
@@ -239,6 +239,9 @@
     .report-panel-outros-head { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
     .report-panel-outros-head::before { content:""; display:block; width:3px; height:13px; background:#94a3b8; border-radius:2px; }
     .report-panel-outros-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    /* STREAK */
+    .streak-badge { display: inline-flex; align-items: center; gap: 8px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 700; color: #c2410c; margin-bottom: 12px; }
 
     /* FOOTER */
     .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--borda); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
@@ -344,6 +347,38 @@
 
   function volClass(neg) { return neg >= 8 ? 'vol-alto' : neg >= 4 ? 'vol-medio' : 'vol-baixo'; }
 
+  // Calendar tooltip
+  (function(){
+    const tip = document.createElement('div');
+    tip.id = 'cal-tip';
+    tip.style.cssText = 'position:fixed;background:#0f0f0f;color:#fff;font-size:11px;font-weight:700;padding:5px 12px;border-radius:7px;pointer-events:none;display:none;z-index:400;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.25)';
+    document.body.appendChild(tip);
+  })();
+
+  function showCalTip(el, txt) {
+    const tip = document.getElementById('cal-tip');
+    tip.textContent = txt;
+    tip.style.display = 'block';
+    const rect = el.getBoundingClientRect();
+    const x = Math.min(window.innerWidth - tip.offsetWidth - 8, Math.max(8, rect.left + rect.width / 2 - tip.offsetWidth / 2));
+    tip.style.left = x + 'px';
+    tip.style.top  = (rect.top - tip.offsetHeight - 8) + 'px';
+  }
+  function hideCalTip() { document.getElementById('cal-tip').style.display = 'none'; }
+
+  function computeStreak() {
+    const dates = Object.keys(summaryMap).sort().reverse();
+    let streak = 0;
+    for (const d of dates) {
+      const s = summaryMap[d];
+      const av = s.total_avaliados || 0;
+      if (av === 0) break;
+      const pct = Math.round((s.total_positivos || 0) / av * 100);
+      if (pct >= 75) streak++; else break;
+    }
+    return streak;
+  }
+
   function renderCalendarioGestao(ano, mes) {
     const totalDias  = new Date(ano, mes, 0).getDate();
     const dow1       = new Date(ano, mes - 1, 1).getDay();
@@ -368,7 +403,8 @@
           vc = volClass(sm.total || 0);
           label = `${sm.total || 0} neg`;
         }
-        cells += `<div class="cal-cell"><div class="cal-day tem-dados ${vc}${isSel?' selecionado':''}" onclick="selecionarDia('${ds}')"><span class="cal-num">${dia}</span><span class="cal-csat">${label}</span></div></div>`;
+        const tipTxt = av > 0 ? `✓ ${pos}  ✗ ${sm.total||0}  ·  ${pct||Math.round(pos/av*100)}%` : `✗ ${sm.total||0} negativos`;
+        cells += `<div class="cal-cell"><div class="cal-day tem-dados ${vc}${isSel?' selecionado':''}" onclick="selecionarDia('${ds}')" onmouseenter="showCalTip(this,'${tipTxt}')" onmouseleave="hideCalTip()"><span class="cal-num">${dia}</span><span class="cal-csat">${label}</span></div></div>`;
       } else {
         cells += `<div class="cal-cell"><div class="cal-day"><span class="cal-num">${dia}</span></div></div>`;
       }
@@ -793,6 +829,26 @@
       else               vsHtml = `<span class="kpi-sub flat">→ igual ao mês anterior</span>`;
     }
 
+    // ── Satisfação vs semana anterior (modo Semana) ──
+    let satisfVsHtml = '';
+    if (filterMode === 'semana' && selectedWeek) {
+      const allSemKeys = Object.keys(semanas).sort();
+      const idx = allSemKeys.indexOf(selectedWeek);
+      if (idx > 0) {
+        const prevSem = semanas[allSemKeys[idx - 1]];
+        const avAnt   = prevSem.total_avaliados || 0;
+        const pctAnt  = avAnt > 0 ? Math.round((prevSem.total_positivos || 0) / avAnt * 100) : null;
+        if (pctSatisfacao !== null && pctAnt !== null) {
+          const diff = pctSatisfacao - pctAnt;
+          if (diff > 0)      satisfVsHtml = `<span class="kpi-sub down" style="margin-top:4px">↑ +${diff}pp vs. sem. anterior</span>`;
+          else if (diff < 0) satisfVsHtml = `<span class="kpi-sub up"   style="margin-top:4px">↓ ${diff}pp vs. sem. anterior</span>`;
+          else               satisfVsHtml = `<span class="kpi-sub flat"  style="margin-top:4px">→ igual à sem. anterior</span>`;
+        }
+      }
+    }
+
+    const streak = computeStreak();
+
     // ── Filter tabs ──
     const filterTabsHtml = `
       <div class="filter-tabs">
@@ -838,12 +894,13 @@
       return { nome: ag, pos, neg, tot, pct: tot > 0 ? Math.round(pos / tot * 100) : 0 };
     }).sort((a, b) => b.pct - a.pct);
 
-    const satisfacaoHtml = satisfSorted.length ? satisfSorted.map(d => {
-      const cor = d.pct >= 75 ? '#16a34a' : d.pct >= 50 ? '#ca8a04' : '#dc2626';
-      return `<div class="agente-row">
+    const satisfacaoHtml = satisfSorted.length ? satisfSorted.map((d, i) => {
+      const cor   = d.pct >= 75 ? '#16a34a' : d.pct >= 50 ? '#ca8a04' : '#dc2626';
+      const isTop = i === 0 && d.tot > 0;
+      return `<div class="agente-row" style="${isTop ? 'background:#fffbeb;border-radius:8px;padding:4px 8px;margin:0 -8px 8px' : ''}">
         <span class="agente-pos" style="color:${cor};width:36px;font-size:12px">${d.pct}%</span>
-        <span class="agente-nome">${d.nome.split(' ')[0]}</span>
-        <div class="agente-bar-wrap"><div class="agente-bar" style="width:${d.pct}%;background:${cor}"></div></div>
+        <span class="agente-nome">${isTop ? '🥇 ' : ''}${d.nome.split(' ')[0]}</span>
+        <div class="agente-bar-wrap"><div class="agente-bar" style="width:${d.pct}%;background:${isTop ? '#ca8a04' : cor}"></div></div>
         <span class="agente-num" style="font-size:11px;color:var(--muted);width:56px">${d.pos}↑ ${d.neg}↓</span>
       </div>`;
     }).join('') : '<p style="color:var(--muted);font-size:12px">Sem dados — reprocesse os dias do mês</p>';
@@ -871,10 +928,10 @@
     const posAgentes = Object.entries(activeDados.por_agente_positivos || {}).sort((a,b) => b[1]-a[1]);
     const maxPosAg   = posAgentes[0]?.[1] || 1;
     const posRankingHtml = posAgentes.length ? posAgentes.map(([nome,cnt], i) => `
-      <div class="agente-row">
-        <span class="agente-pos">${i+1}</span>
+      <div class="agente-row" ${i===0?'style="background:#fffbeb;border-radius:8px;padding:4px 8px;margin:0 -8px 8px"':''}>
+        <span class="agente-pos">${i===0?'🥇':i+1}</span>
         <span class="agente-nome">${nome.split(' ')[0]}</span>
-        <div class="agente-bar-wrap"><div class="agente-bar" style="width:${Math.round(cnt/maxPosAg*100)}%;background:#16a34a"></div></div>
+        <div class="agente-bar-wrap"><div class="agente-bar" style="width:${Math.round(cnt/maxPosAg*100)}%;background:${i===0?'#ca8a04':'#16a34a'}"></div></div>
         <span class="agente-num">${cnt}</span>
       </div>`).join('') : '<p style="color:var(--muted);font-size:12px">Sem dados</p>';
 
@@ -935,6 +992,7 @@
     document.getElementById('conteudo').innerHTML = `
       <div class="cal-wrap">
         <div class="section-head">Calendário — ${mesLabel(mesAtivo)}</div>
+        ${streak > 0 ? `<div class="streak-badge">🔥 ${streak} dia${streak!==1?'s':''} seguido${streak!==1?'s':''} acima de 75% de satisfação</div>` : ''}
         ${calHtml}
         <div class="legenda">
           <span>Satisfação:</span>
@@ -956,6 +1014,7 @@
             <div class="kpi-label">% Satisfação</div>
             <div class="kpi-num">${pctSatisfacao !== null ? pctSatisfacao + '%' : '—'}</div>
             <div class="kpi-sub flat">${totalPositivos}↑ · ${totalNegAll}↓</div>
+            ${satisfVsHtml}
           </div>
           <div class="kpi clicavel" style="border-left:4px solid #16a34a" onclick="document.getElementById('section-positivos').scrollIntoView({behavior:'smooth'})">
             <div class="kpi-label">Positivos</div>
