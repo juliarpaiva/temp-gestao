@@ -251,11 +251,17 @@
     <div id="msg-senha-modal" style="display:none;border-radius:8px;padding:10px 14px;font-size:12px;font-weight:600;margin-bottom:16px"></div>
     <div style="margin-bottom:14px">
       <label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Senha atual</label>
-      <input type="password" id="inp-atual" placeholder="••••••••" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:14px;outline:none;font-family:inherit" onfocus="this.style.borderColor='#e91e8c'" onblur="this.style.borderColor='#e2e8f0'">
+      <div style="position:relative">
+        <input type="password" id="inp-atual" placeholder="••••••••" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 40px 9px 12px;font-size:14px;outline:none;font-family:inherit" onfocus="this.style.borderColor='#e91e8c'" onblur="this.style.borderColor='#e2e8f0'">
+        <button type="button" onclick="toggleModal('inp-atual',this)" tabindex="-1" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;padding:4px;display:flex;align-items:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
     </div>
     <div style="margin-bottom:8px">
       <label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Nova senha</label>
-      <input type="password" id="inp-nova" placeholder="••••••••" oninput="validarNovaSenha()" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:14px;outline:none;font-family:inherit" onfocus="this.style.borderColor='#e91e8c'" onblur="this.style.borderColor='#e2e8f0'">
+      <div style="position:relative">
+        <input type="password" id="inp-nova" placeholder="••••••••" oninput="validarNovaSenha()" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 40px 9px 12px;font-size:14px;outline:none;font-family:inherit" onfocus="this.style.borderColor='#e91e8c'" onblur="this.style.borderColor='#e2e8f0'">
+        <button type="button" onclick="toggleModal('inp-nova',this)" tabindex="-1" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;padding:4px;display:flex;align-items:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
     </div>
     <div id="reqs-modal" style="background:#f8f9fb;border-radius:8px;padding:8px 12px;margin-bottom:14px">
       <div id="rm-len" style="font-size:12px;color:#94a3b8;padding:2px 0">· Mínimo 8 caracteres</div>
@@ -264,7 +270,10 @@
     </div>
     <div style="margin-bottom:20px">
       <label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Confirmar nova senha</label>
-      <input type="password" id="inp-confirm" placeholder="••••••••" oninput="validarNovaSenha()" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:14px;outline:none;font-family:inherit" onfocus="this.style.borderColor='#e91e8c'" onblur="this.style.borderColor='#e2e8f0'">
+      <div style="position:relative">
+        <input type="password" id="inp-confirm" placeholder="••••••••" oninput="validarNovaSenha()" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 40px 9px 12px;font-size:14px;outline:none;font-family:inherit" onfocus="this.style.borderColor='#e91e8c'" onblur="this.style.borderColor='#e2e8f0'">
+        <button type="button" onclick="toggleModal('inp-confirm',this)" tabindex="-1" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;padding:4px;display:flex;align-items:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
     </div>
     <button id="btn-salvar-senha" onclick="salvarSenha()" disabled style="width:100%;background:#e91e8c;color:#fff;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:background .15s">Salvar</button>
   </div>
@@ -1175,6 +1184,12 @@
   init();
 
   // ── Alterar senha ───────────────────────────────────────────────────────────
+  function toggleModal(inputId, btn) {
+    const inp = document.getElementById(inputId);
+    const showing = inp.type === 'text';
+    inp.type = showing ? 'password' : 'text';
+    btn.style.opacity = showing ? '1' : '0.4';
+  }
   function abrirAlterarSenha() {
     document.getElementById('modal-senha').style.display = 'flex';
     document.getElementById('inp-atual').value = '';
