@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -713,6 +713,104 @@ app.get('/admin/indevidas-junho', async (req, res) => {
 
 // Importa lista de indevidas históricas e reprocessa as datas afetadas
 // Body: { tickets: [{ticket_id, date, motivo?, observacao?}] }
+// Verifica se as datas das indevidas importadas batem com o Metabase e corrige se necessário
+app.get('/admin/corrigir-datas-indevidas', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  const dryRun = req.query.dry !== 'false';
+  try {
+    const token = await getMetabaseToken();
+
+    // Pega todas as indevidas de junho no banco
+    const { rows: indevidas } = await pool.query(
+      "SELECT ticket_id, date FROM support_bi.csat_indevidas WHERE date LIKE '2026-06%'"
+    );
+
+    const ticketIds = indevidas.map(r => r.ticket_id);
+    if (!ticketIds.length) return res.json({ msg: 'Sem indevidas de junho no banco' });
+
+    // Busca esses tickets no Metabase para ver qual data (field 174139) cada um tem
+    const filter = ticketIds.length === 1
+      ? ['=', ['field', 174172, null], Number(ticketIds[0])]
+      : ['or', ...ticketIds.map(id => ['=', ['field', 174172, null], Number(id)])];
+
+    const data = await queryMetabase(token, {
+      database: METABASE_DATABASE_ID,
+      type: 'query',
+      query: {
+        'source-table': METABASE_TABLE_ID,
+        filter,
+        fields: [
+          ['field', 174172, null], // ticket_id (interno)
+          ['field', 174143, null], // display_ticket_id
+          ['field', 174139, null], // data usada pelo sistema
+        ],
+        limit: 500,
+      },
+    });
+
+    const cols = data.data.cols.map(c => c.name);
+    const metabasePorTicket = {};
+    for (const row of data.data.rows) {
+      const obj = {};
+      cols.forEach((c, i) => { obj[c] = row[i]; });
+      if (obj.display_ticket_id) {
+        metabasePorTicket[String(obj.display_ticket_id)] = obj[cols[2]]; // data
+      }
+    }
+
+    // Verifica mismatches
+    const mismatches = [];
+    const matches = [];
+    for (const inv of indevidas) {
+      const metaDate = metabasePorTicket[String(inv.ticket_id)];
+      if (!metaDate) {
+        mismatches.push({ ticket_id: inv.ticket_id, banco: inv.date, metabase: 'não encontrado' });
+      } else {
+        const metaDateStr = metaDate.slice(0, 10);
+        if (metaDateStr !== inv.date) {
+          mismatches.push({ ticket_id: inv.ticket_id, banco: inv.date, metabase: metaDateStr });
+        } else {
+          matches.push({ ticket_id: inv.ticket_id, date: inv.date });
+        }
+      }
+    }
+
+    if (dryRun) {
+      return res.json({ dry_run: true, total: indevidas.length, corretos: matches.length, mismatches });
+    }
+
+    // Corrige as datas erradas
+    const datesParaReprocessar = new Set();
+    let corrigidos = 0;
+    for (const m of mismatches) {
+      if (m.metabase === 'não encontrado') continue;
+      await pool.query(
+        'UPDATE support_bi.csat_indevidas SET date=$1 WHERE ticket_id=$2',
+        [m.metabase, m.ticket_id]
+      );
+      datesParaReprocessar.add(m.banco);      // reprocessa data antiga
+      datesParaReprocessar.add(m.metabase);   // e nova
+      corrigidos++;
+    }
+
+    // Reprocessa datas afetadas
+    const resultados = [];
+    for (const date of [...datesParaReprocessar].sort()) {
+      try {
+        const r = await runDailyReport(date, true);
+        resultados.push({ date, status: 'ok', ...r });
+      } catch (e) {
+        resultados.push({ date, status: 'erro', error: e.message });
+      }
+    }
+
+    res.json({ dry_run: false, total: indevidas.length, corretos: matches.length, mismatches_encontrados: mismatches.length, corrigidos, datas_reprocessadas: resultados });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Diagnóstico: indevidas no banco + totais dos reports de junho
 app.get('/admin/diagnostico-junho', async (req, res) => {
   if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY)
