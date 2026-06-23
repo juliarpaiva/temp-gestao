@@ -573,40 +573,52 @@
         <button class="filter-tab${filterModeOp==='periodo'?' ativo':''}" onclick="mudarFilterModeOp('periodo')">Período</button>
       </div>`;
 
-    const tabelaHtml = (atual.por_agente || []).map(ag => `
+    const tabelaHtml = (atual.por_agente || []).map(ag => {
+      const trCor = ag.tempo_resp_h !== null ? (ag.tempo_resp_h <= 1 ? '#16a34a' : ag.tempo_resp_h <= 2 ? '#ca8a04' : '#dc2626') : 'inherit';
+      return `
       <tr>
         <td class="ops-agente">${escHtml(ag.agente)}</td>
         <td class="r">${ag.volume}</td>
         <td class="r">${opsCsatPill(ag.csat)}</td>
-        <td class="r">${ag.tempo_resp_h !== null ? ag.tempo_resp_h + 'h' : '—'}</td>
+        <td class="r" style="color:${trCor};font-weight:700">${ag.tempo_resp_h !== null ? ag.tempo_resp_h + 'h' : '—'}</td>
         <td class="r">${ag.tempo_enc_h  !== null ? ag.tempo_enc_h  + 'h' : '—'}</td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
 
     el.innerHTML = `
       <div class="section-head">Métricas Operacionais — ${opsPeriodoLabel()}</div>
       ${tabsHtml}
       <div class="ops-week-nav">${opsNavHtml()}</div>
 
+      ${(function(){
+        const volOk   = atual.media_diaria >= 45;
+        const csatOk  = atual.csat_time  !== null && atual.csat_time  >= 75;
+        const csatCor = atual.csat_time  !== null ? (atual.csat_time  >= 75 ? '#16a34a' : atual.csat_time  >= 55 ? '#ca8a04' : '#dc2626') : 'var(--rosa)';
+        const respOk  = atual.tempo_resposta_h !== null && atual.tempo_resposta_h <= 1;
+        const respCor = atual.tempo_resposta_h !== null ? (atual.tempo_resposta_h <= 1 ? '#16a34a' : atual.tempo_resposta_h <= 2 ? '#ca8a04' : '#dc2626') : 'inherit';
+        return `
       <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(155px,1fr));margin-bottom:20px">
-        <div class="kpi">
+        <div class="kpi" style="border-left:4px solid ${volOk?'#16a34a':'#dc2626'}">
           <div class="kpi-label">Volume total</div>
           <div class="ops-kpi-num">${atual.volume.toLocaleString('pt-BR')}</div>
-          <div class="kpi-sub flat">${opsVs(atual.volume, anterior.volume, false)} Média ${atual.media_diaria}/dia</div>
+          <div class="kpi-sub" style="color:${volOk?'#16a34a':'#dc2626'};margin-top:6px">${volOk?'✓':'✗'} ${atual.media_diaria}/dia · meta 45</div>
+          <div class="kpi-sub flat" style="margin-top:3px">${opsVs(atual.volume, anterior.volume, false)}</div>
         </div>
-        <div class="kpi destaque">
+        <div class="kpi" style="border-left:4px solid ${csatCor}">
           <div class="kpi-label">CSAT geral</div>
-          <div class="ops-kpi-num" style="color:var(--rosa)">${atual.csat_time !== null ? atual.csat_time + '%' : '—'}</div>
-          <div class="kpi-sub flat">${opsVs(atual.csat_time, anterior.csat_time, false)}</div>
+          <div class="ops-kpi-num" style="color:${csatCor}">${atual.csat_time !== null ? atual.csat_time + '%' : '—'}</div>
+          <div class="kpi-sub" style="color:${csatCor};margin-top:6px">${atual.csat_time !== null ? (csatOk?'✓':'✗')+' meta 75%' : '—'}</div>
+          <div class="kpi-sub flat" style="margin-top:3px">${opsVs(atual.csat_time, anterior.csat_time, false)}</div>
         </div>
         <div class="kpi">
           <div class="kpi-label">CSAT Claudia</div>
           <div class="ops-kpi-num">${atual.csat_claudia !== null ? atual.csat_claudia + '%' : '—'}</div>
           <div class="kpi-sub flat">IA — escala 1–5 → %</div>
         </div>
-        <div class="kpi">
+        <div class="kpi" style="border-left:4px solid ${respCor}">
           <div class="kpi-label">Tempo 1ª resposta</div>
-          <div class="ops-kpi-num">${atual.tempo_resposta_h !== null ? atual.tempo_resposta_h + 'h' : '—'}</div>
-          <div class="kpi-sub flat">média do período</div>
+          <div class="ops-kpi-num" style="color:${respCor}">${atual.tempo_resposta_h !== null ? atual.tempo_resposta_h + 'h' : '—'}</div>
+          <div class="kpi-sub" style="color:${respCor};margin-top:6px">${atual.tempo_resposta_h !== null ? (respOk?'✓':'✗')+' meta 1h' : '—'}</div>
         </div>
         <div class="kpi">
           <div class="kpi-label">Tempo encerramento</div>
@@ -619,7 +631,8 @@
           <div class="kpi-sub flat">${opsVs(atual.retencao_n1, anterior.retencao_n1, false) || 'resolvidos pela IA'}</div>
           ${anterior.retencao_n1 ? `<div class="kpi-sub flat" style="margin-top:2px;font-weight:500">${anterior.retencao_n1.toLocaleString('pt-BR')} no período ant.</div>` : ''}
         </div>
-      </div>
+      </div>`;
+      })()
 
       <div class="painel">
         <div class="painel-title">Tempos e volume por agente — ${opsPeriodoLabel()}</div>
