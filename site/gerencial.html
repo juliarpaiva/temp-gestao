@@ -476,29 +476,59 @@
       return;
     }
     const max = sorted[0][1] || 1;
-    const temTickets = outrosModalTickets !== null;
     bodyEl.innerHTML = `<div style="max-height:420px;overflow-y:auto;padding-top:4px">${
       sorted.map(([nome, cnt]) => {
-        const cls = temTickets ? 'outros-ag-row clicavel' : 'outros-ag-row';
-        const click = temTickets ? `onclick="verTicketsAgente('${escHtml(nome).replace(/'/g,"\\'")}')"` : '';
-        const hint  = temTickets ? `<span style="font-size:10px;color:#cbd5e1;margin-left:4px">›</span>` : '';
-        return `<div class="${cls}" ${click}>
-          <span class="outros-ag-nome">${escHtml(nome)}${hint}</span>
+        const nomeEsc = escHtml(nome).replace(/'/g, "\\'");
+        return `<div class="outros-ag-row clicavel" onclick="verTicketsAgente('${nomeEsc}')">
+          <span class="outros-ag-nome">${escHtml(nome)} <span style="font-size:10px;color:#cbd5e1">›</span></span>
           <div class="outros-ag-bar-wrap"><div class="outros-ag-bar" style="width:${Math.round(cnt/max*100)}%"></div></div>
           <span class="outros-ag-cnt">${cnt}</span>
         </div>`;
       }).join('')
-    }</div>${!temTickets ? '<p style="color:var(--muted);font-size:11px;margin-top:10px">Clique em um dia no calendário para ver os tickets individuais.</p>' : ''}`;
+    }</div>`;
   }
 
-  function verTicketsAgente(nome) {
-    if (!outrosModalTickets) return;
-    const todos  = outrosModalTickets.filter(t => t.agente === nome);
-    const pos    = todos.filter(t => t.nota >= 4);
-    const neg    = todos.filter(t => t.nota <= 3);
+  async function verTicketsAgente(nome) {
+    // Mostra loading imediato
     document.getElementById('modal-outros-titulo').textContent = nome;
     document.getElementById('modal-outros-nav').innerHTML =
       `<button class="btn-voltar-modal" onclick="voltarListaAgentes()">← Todos os agentes</button>`;
+    document.getElementById('modal-outros-body').innerHTML =
+      '<p style="color:var(--muted);font-size:12px;padding:8px 0">Carregando tickets…</p>';
+
+    // Determina datas relevantes para o modo ativo
+    let dates = [];
+    if (filterMode === 'dia' && selectedDay) {
+      dates = [selectedDay];
+    } else if (filterMode === 'semana' && selectedWeek) {
+      const [sa,sm,sd] = selectedWeek.split('-').map(Number);
+      const fimSem = new Date(sa, sm-1, sd+4).toISOString().slice(0,10);
+      dates = Object.keys(summaryMap).filter(d => d >= selectedWeek && d <= fimSem);
+    } else if (filterMode === 'periodo' && periodoInicio && periodoFim) {
+      dates = Object.keys(summaryMap).filter(d => d >= periodoInicio && d <= periodoFim);
+    } else {
+      dates = Object.keys(summaryMap).filter(d => d.startsWith(mesAtivo));
+    }
+
+    // Busca dias não cacheados
+    await Promise.all(dates.map(async date => {
+      if (!dayDataCache[date]) {
+        try {
+          const r = await fetch(`${API}/data/${date}`);
+          if (r.ok) dayDataCache[date] = await r.json();
+        } catch(e) {}
+      }
+    }));
+
+    // Agrega tickets_outros do agente em todos os dias
+    const todos = [];
+    dates.forEach(date => {
+      (dayDataCache[date]?.tickets_outros || [])
+        .filter(t => t.agente === nome)
+        .forEach(t => todos.push(t));
+    });
+    const pos = todos.filter(t => t.nota >= 4);
+    const neg = todos.filter(t => t.nota <= 3);
 
     function rowHtml(t) {
       const link = t.link || `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.id}`;
