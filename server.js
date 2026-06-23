@@ -2,6 +2,7 @@ const express = require('express');
 const { Pool } = require('pg');
 const cron = require('node-cron');
 const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 
 const app = express();
 
@@ -62,7 +63,90 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/health', '/run', '/webhook/csat-invalida'];
+const AUTH_SKIP = ['/login', '/logout', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida'];
+
+// ── Email / reset de senha ────────────────────────────────────────────────────
+
+function getMailer() {
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return null;
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: false,
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  });
+}
+
+async function sendResetEmail(email, link, isNew) {
+  const mailer = getMailer();
+  const subject = isNew ? 'Crie sua senha — CSAT INK' : 'Redefinição de senha — CSAT INK';
+  const intro   = isNew
+    ? 'Sua conta no Painel CSAT INK foi criada. Clique no link para definir sua senha (válido por 1 hora):'
+    : 'Recebemos uma solicitação para redefinir a senha da sua conta no Painel CSAT INK (válido por 1 hora):';
+  const html = `<div style="font-family:sans-serif;max-width:480px">
+    <h2 style="color:#e91e8c">INK<span style="color:#0f0f0f">.</span></h2>
+    <p>${intro}</p>
+    <p><a href="${link}" style="background:#e91e8c;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-block;margin:12px 0">Acessar link</a></p>
+    <p style="color:#94a3b8;font-size:12px">Se você não solicitou, ignore este e-mail.</p>
+  </div>`;
+  if (mailer) {
+    await mailer.sendMail({ from: `"CSAT INK" <${process.env.SMTP_USER}>`, to: email, subject, html });
+    console.log('[email] enviado para', email);
+  } else {
+    console.log('[reset-link] SMTP não configurado. Link:', link);
+  }
+}
+
+app.get('/forgot-password', (req, res) => res.sendFile(__dirname + '/site/forgot-password.html'));
+
+app.post('/forgot-password', express.urlencoded({ extended: false }), async (req, res) => {
+  const email = (req.body.email || '').toLowerCase().trim();
+  if (!email) return res.redirect('/forgot-password?erro=email');
+  try {
+    const r = await pool.query('SELECT email FROM support_bi.csat_users WHERE email=$1', [email]);
+    if (r.rows.length) {
+      const token   = crypto.randomBytes(32).toString('hex');
+      const expires = new Date(Date.now() + 3600000);
+      await pool.query(
+        `INSERT INTO support_bi.csat_reset_tokens (email, token, expires_at) VALUES ($1,$2,$3)`,
+        [email, token, expires]);
+      const base = process.env.APP_URL || 'https://csat-negativo-78f436cca6a0.herokuapp.com';
+      await sendResetEmail(email, `${base}/reset-password?token=${token}`, false);
+    }
+    res.redirect('/forgot-password?enviado=1');
+  } catch(e) {
+    console.error('[forgot-password]', e.message);
+    res.redirect('/forgot-password?erro=1');
+  }
+});
+
+app.get('/reset-password', (req, res) => res.sendFile(__dirname + '/site/reset-password.html'));
+
+app.post('/reset-password', express.urlencoded({ extended: false }), async (req, res) => {
+  const token    = (req.body.token || '').trim();
+  const password = req.body.password || '';
+  const confirm  = req.body.confirm  || '';
+  const r2 = encodeURIComponent(token);
+  if (!token || !password || password !== confirm)
+    return res.redirect(`/reset-password?token=${r2}&erro=campos`);
+  if (password.length < 6)
+    return res.redirect(`/reset-password?token=${r2}&erro=curta`);
+  try {
+    const r = await pool.query(
+      `SELECT email FROM support_bi.csat_reset_tokens
+       WHERE token=$1 AND expires_at > NOW() AND used_at IS NULL`, [token]);
+    if (!r.rows.length)
+      return res.redirect(`/reset-password?token=${r2}&erro=expirado`);
+    const email = r.rows[0].email;
+    const hash  = await hashPassword(password);
+    await pool.query('UPDATE support_bi.csat_users SET password_hash=$1 WHERE email=$2', [hash, email]);
+    await pool.query('UPDATE support_bi.csat_reset_tokens SET used_at=NOW() WHERE token=$1', [token]);
+    res.redirect('/login?senha=ok');
+  } catch(e) {
+    console.error('[reset-password]', e.message);
+    res.redirect(`/reset-password?token=${r2}&erro=1`);
+  }
+});
 
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
@@ -102,16 +186,36 @@ app.post('/logout', (req, res) => {
 app.post('/admin/add-user', express.json(), async (req, res) => {
   if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY)
     return res.status(403).json({ error: 'Proibido' });
-  const { email, name, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'email e password obrigatórios' });
+  const { email, name, password, invite } = req.body;
+  if (!email) return res.status(400).json({ error: 'email obrigatório' });
+  const em = email.toLowerCase().trim();
   try {
-    const hash = await hashPassword(password);
-    await pool.query(
-      `INSERT INTO support_bi.csat_users (email, name, password_hash)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (email) DO UPDATE SET name=$2, password_hash=$3`,
-      [email.toLowerCase().trim(), name || null, hash]);
-    res.json({ ok: true, email: email.toLowerCase().trim() });
+    if (password) {
+      const hash = await hashPassword(password);
+      await pool.query(
+        `INSERT INTO support_bi.csat_users (email, name, password_hash)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (email) DO UPDATE SET name=$2, password_hash=$3`,
+        [em, name || null, hash]);
+    } else {
+      await pool.query(
+        `INSERT INTO support_bi.csat_users (email, name, password_hash)
+         VALUES ($1, $2, NULL)
+         ON CONFLICT (email) DO UPDATE SET name=$2`,
+        [em, name || null]);
+    }
+    if (invite || !password) {
+      const token   = crypto.randomBytes(32).toString('hex');
+      const expires = new Date(Date.now() + 48 * 3600000);
+      await pool.query(
+        `INSERT INTO support_bi.csat_reset_tokens (email, token, expires_at) VALUES ($1,$2,$3)`,
+        [em, token, expires]);
+      const base = process.env.APP_URL || 'https://csat-negativo-78f436cca6a0.herokuapp.com';
+      const link = `${base}/reset-password?token=${token}`;
+      await sendResetEmail(em, link, true);
+      return res.json({ ok: true, email: em, invite_link: link });
+    }
+    res.json({ ok: true, email: em });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -618,8 +722,18 @@ async function initDb() {
       id            SERIAL PRIMARY KEY,
       email         TEXT UNIQUE NOT NULL,
       name          TEXT,
-      password_hash TEXT NOT NULL,
+      password_hash TEXT,
       created_at    TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS support_bi.csat_reset_tokens (
+      id         SERIAL PRIMARY KEY,
+      email      TEXT NOT NULL,
+      token      TEXT UNIQUE NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      used_at    TIMESTAMPTZ,
+      created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
   console.log('Banco de dados pronto.');

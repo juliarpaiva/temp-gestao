@@ -96,6 +96,27 @@
     text-align: center;
     margin-top: 16px;
   }
+  .forgot {
+    display: block;
+    text-align: center;
+    margin-top: 14px;
+    font-size: 12px;
+    color: #94a3b8;
+    text-decoration: none;
+  }
+  .forgot:hover { color: #e91e8c; }
+  .msg-sucesso {
+    background: #f0fdf4;
+    border: 1px solid #86efac;
+    color: #15803d;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    display: none;
+  }
+  .msg-sucesso.visivel { display: block; }
 </style>
 </head>
 <body>
@@ -103,6 +124,7 @@
   <div class="logo">INK<b>.</b></div>
   <div class="subtitle">Painel de Gestão — CSAT · Acesso restrito</div>
 
+  <div class="msg-sucesso" id="sucesso-msg">Senha atualizada com sucesso! Faça login.</div>
   <div class="erro" id="erro-msg">E-mail ou senha incorretos.</div>
 
   <form method="POST" action="/login">
@@ -117,6 +139,7 @@
     </div>
     <button type="submit" class="btn">Entrar</button>
   </form>
+  <a href="/forgot-password" class="forgot">Esqueci minha senha</a>
 
   <hr class="divider">
   <p class="footer-hint">Problemas? Fale com a Julia.</p>
@@ -124,8 +147,9 @@
 
 <script>
   const params = new URLSearchParams(location.search);
-  if (params.get('erro')) document.getElementById('erro-msg').classList.add('visivel');
-  if (params.get('r')) document.getElementById('redirect-field').value = params.get('r');
+  if (params.get('erro'))   document.getElementById('erro-msg').classList.add('visivel');
+  if (params.get('senha'))  document.getElementById('sucesso-msg').classList.add('visivel');
+  if (params.get('r'))      document.getElementById('redirect-field').value = params.get('r');
 </script>
 </body>
 </html>
