@@ -114,7 +114,7 @@
 
     /* Tabela indevidas */
     .indev-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    .indev-table th { text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); padding: 0 12px 10px; border-bottom: 1px solid var(--borda); }
+    .indev-table th { text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); padding: 16px 12px 10px; border-bottom: 1px solid var(--borda); }
     .indev-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
     .indev-table tr:last-child td { border-bottom: none; }
     .indev-table tr:hover td { background: #fafbfc; }
@@ -307,14 +307,6 @@
   const API = 'https://csat-negativo-78f436cca6a0.herokuapp.com';
   const MESES_PT   = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const MESES_ABR  = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-  const TAG_COR    = { Entrega:'#1d4ed8', Financeiro:'#15803d', Troca:'#b45309', Produto:'#7e22ce', Cancelamento:'#c2410c', Atendimento:'#0369a1' };
-  const TAG_CAT    = { entrega:'Entrega', atraso:'Entrega', rastreio:'Entrega', envio:'Entrega', extravio:'Entrega', financeiro:'Financeiro', estorno:'Financeiro', reembolso:'Financeiro', chargeback:'Financeiro', troca:'Troca', devoluc:'Troca', defeito:'Produto', cancelamento:'Cancelamento', atendimento:'Atendimento', demora:'Atendimento' };
-
-  function tagCor(nome) {
-    const n = (nome||'').toLowerCase().replace(/[_\s]/g,'');
-    for (const [k,cat] of Object.entries(TAG_CAT)) { if (n.includes(k)) return TAG_COR[cat] || '#475569'; }
-    return '#475569';
-  }
   function formatTag(s) { return (s||'').replace(/_/g,' '); }
   function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function mesLabel(chave) {
@@ -651,18 +643,19 @@
     }));
 
     // Agrega por-agente e tags de todos os dias do período
-    const porAgente = {}, porAgentePos = {}, tags = {}, tagsPos = {};
+    const porAgente = {}, porAgentePos = {}, porAgenteOutros = {}, tags = {}, tagsPos = {};
     dates.forEach(date => {
       const d = dayDataCache[date];
       if (!d) return;
       Object.entries(d.por_agente || {}).forEach(([ag,cnt]) => { porAgente[ag] = (porAgente[ag]||0) + cnt; });
       Object.entries(d.por_agente_positivos || {}).forEach(([ag,cnt]) => { porAgentePos[ag] = (porAgentePos[ag]||0) + cnt; });
+      Object.entries(d.por_agente_outros || {}).forEach(([ag,cnt]) => { porAgenteOutros[ag] = (porAgenteOutros[ag]||0) + cnt; });
       (d.tickets || []).forEach(t => { (t.tags||[]).forEach(tag => { tags[tag] = (tags[tag]||0) + 1; }); });
       (d.tickets_positivos || []).forEach(t => { (t.tags||[]).forEach(tag => { tagsPos[tag] = (tagsPos[tag]||0) + 1; }); });
     });
 
     const totRecebidosPeriodo = dates.reduce((s, d) => s + ((dayDataCache[d]?.total_recebidos) || 0), 0);
-    periodoCache   = { por_agente: porAgente, por_agente_positivos: porAgentePos, tags, tags_positivos: tagsPos, total_recebidos: totRecebidosPeriodo };
+    periodoCache   = { por_agente: porAgente, por_agente_positivos: porAgentePos, por_agente_outros: porAgenteOutros, tags, tags_positivos: tagsPos, total_recebidos: totRecebidosPeriodo };
     periodoLoading = false;
     render();
   }
@@ -719,6 +712,7 @@
       activeDados = {
         por_agente:           dayData.por_agente           || {},
         por_agente_positivos: dayData.por_agente_positivos || {},
+        por_agente_outros:    dayData.por_agente_outros    || {},
         tags:                 computeTagsFromTickets(dayData.tickets),
         tags_positivos:       computeTagsFromTickets(dayData.tickets_positivos),
         total:          dayData.total           || 0,
@@ -731,7 +725,7 @@
       kpiLabel = `${Number(dd)} de ${MESES_PT[Number(dm)-1]}`;
     } else if (filterMode === 'dia' && selectedDay) {
       // Carregando dados do dia
-      activeDados = { por_agente:{}, por_agente_positivos:{}, tags:{}, tags_positivos:{}, total:0, total_recebidos:0, total_avaliados:0, total_positivos:0, total_negativos:0 };
+      activeDados = { por_agente:{}, por_agente_positivos:{}, por_agente_outros:{}, tags:{}, tags_positivos:{}, total:0, total_recebidos:0, total_avaliados:0, total_positivos:0, total_negativos:0 };
       const [,dm,dd] = selectedDay.split('-');
       kpiLabel = `${Number(dd)} de ${MESES_PT[Number(dm)-1]}`;
       showRankings = false; showTags = false;
@@ -740,6 +734,7 @@
       activeDados = {
         por_agente:           sw.por_agente           || {},
         por_agente_positivos: sw.por_agente_positivos || {},
+        por_agente_outros:    sw.por_agente_outros    || {},
         tags:{}, tags_positivos:{},
         total:          sw.total           || 0,
         total_recebidos:sw.total_recebidos || 0,
@@ -757,6 +752,7 @@
       activeDados = {
         por_agente:           periodoCache ? periodoCache.por_agente           : {},
         por_agente_positivos: periodoCache ? periodoCache.por_agente_positivos : {},
+        por_agente_outros:    periodoCache ? periodoCache.por_agente_outros    : {},
         tags:                 periodoCache ? periodoCache.tags                 : {},
         tags_positivos:       periodoCache ? periodoCache.tags_positivos       : {},
         total:totNeg, total_recebidos: periodoCache ? (periodoCache.total_recebidos || 0) : 0, total_avaliados:totAv, total_positivos:totPos, total_negativos:totNeg,
@@ -769,6 +765,7 @@
       activeDados = {
         por_agente:           mesDados.por_agente           || {},
         por_agente_positivos: mesDados.por_agente_positivos || {},
+        por_agente_outros:    mesDados.por_agente_outros    || {},
         tags:           mesDados.tags           || {},
         tags_positivos: mesDados.tags_positivos || {},
         total:          mesDados.total           || 0,
@@ -785,7 +782,7 @@
     const totalPositivos = activeDados.total_positivos || 0;
     const totalNegAll    = activeDados.total_negativos || activeDados.total || 0;
     const pctSatisfacao  = totalAvaliados > 0 ? Math.round(totalPositivos / totalAvaliados * 100) : null;
-    const totalOutros    = Math.max(0, totalRecebidos - totalAvaliados);
+    const totalOutros    = Object.values(activeDados.por_agente_outros || {}).reduce((s, v) => s + v, 0);
 
     let vsHtml = '<span class="kpi-sub flat">sem mês anterior</span>';
     if (filterMode === 'mes' && mesAnterior && mesAnterior.total > 0) {
@@ -863,15 +860,13 @@
 
     const topTags = Object.entries(activeDados.tags || {}).sort((a,b) => b[1]-a[1]).slice(0,6);
     const maxTag  = topTags[0]?.[1] || 1;
-    const tagsHtml = topTags.length ? topTags.map(([tag,cnt]) => {
-      const cor = tagCor(tag);
-      return `<div class="tag-row">
-        <span class="tag-dot" style="background:${cor}"></span>
+    const tagsHtml = topTags.length ? topTags.map(([tag,cnt]) => `
+      <div class="tag-row">
+        <span class="tag-dot" style="background:var(--rosa)"></span>
         <span class="tag-nome">${formatTag(tag)}</span>
-        <div class="tag-bar-wrap"><div class="tag-bar" style="width:${Math.round(cnt/maxTag*100)}%;background:${cor}"></div></div>
+        <div class="tag-bar-wrap"><div class="tag-bar" style="width:${Math.round(cnt/maxTag*100)}%;background:var(--rosa)"></div></div>
         <span class="tag-cnt">${cnt}</span>
-      </div>`;
-    }).join('') : '<p style="color:var(--muted);font-size:12px">Sem tags</p>';
+      </div>`).join('') : '<p style="color:var(--muted);font-size:12px">Sem tags</p>';
 
     const posAgentes = Object.entries(activeDados.por_agente_positivos || {}).sort((a,b) => b[1]-a[1]);
     const maxPosAg   = posAgentes[0]?.[1] || 1;
