@@ -117,6 +117,24 @@
     display: none;
   }
   .msg-sucesso.visivel { display: block; }
+  .btn-novo {
+    display: block;
+    width: 100%;
+    background: #fff;
+    color: #e91e8c;
+    border: 1.5px solid #e91e8c;
+    border-radius: 8px;
+    padding: 11px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+    font-family: inherit;
+    margin-top: 10px;
+    transition: background .15s, color .15s;
+  }
+  .btn-novo:hover { background: #fce7f3; }
 </style>
 </head>
 <body>
@@ -124,7 +142,7 @@
   <div class="logo">INK<b>.</b></div>
   <div class="subtitle">Painel de Gestão — CSAT · Acesso restrito</div>
 
-  <div class="msg-sucesso" id="sucesso-msg">Senha atualizada com sucesso! Faça login.</div>
+  <div class="msg-sucesso" id="sucesso-msg" style="display:none"></div>
   <div class="erro" id="erro-msg">E-mail ou senha incorretos.</div>
 
   <form method="POST" action="/login">
@@ -140,16 +158,19 @@
     <button type="submit" class="btn">Entrar</button>
   </form>
   <a href="/forgot-password" class="forgot">Esqueci minha senha</a>
+  <a href="/register" class="btn-novo">Novo aqui? Criar conta</a>
 
   <hr class="divider">
-  <p class="footer-hint">Problemas? Fale com a Julia.</p>
+  <p class="footer-hint">Apenas e-mails @reserva.ink</p>
 </div>
 
 <script>
   const params = new URLSearchParams(location.search);
-  if (params.get('erro'))   document.getElementById('erro-msg').classList.add('visivel');
-  if (params.get('senha'))  document.getElementById('sucesso-msg').classList.add('visivel');
-  if (params.get('r'))      document.getElementById('redirect-field').value = params.get('r');
+  const msg = document.getElementById('sucesso-msg');
+  if (params.get('erro'))    document.getElementById('erro-msg').classList.add('visivel');
+  if (params.get('senha'))  { msg.textContent = 'Senha atualizada! Faça login.'; msg.style.display = 'block'; }
+  if (params.get('cadastro')){ msg.textContent = 'Conta criada com sucesso! Faça login.'; msg.style.display = 'block'; }
+  if (params.get('r'))       document.getElementById('redirect-field').value = params.get('r');
 </script>
 </body>
 </html>

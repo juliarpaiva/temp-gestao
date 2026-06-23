@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -96,6 +96,32 @@ async function sendResetEmail(email, link, isNew) {
     console.log('[reset-link] SMTP não configurado. Link:', link);
   }
 }
+
+app.get('/register', (req, res) => res.sendFile(__dirname + '/site/register.html'));
+
+app.post('/register', express.urlencoded({ extended: false }), async (req, res) => {
+  const email    = (req.body.email    || '').toLowerCase().trim();
+  const password = req.body.password  || '';
+  const confirm  = req.body.confirm   || '';
+  if (!email.endsWith('@reserva.ink'))
+    return res.redirect('/register?erro=dominio');
+  if (password.length < 8 || !/\d/.test(password) || /^[a-zA-Z0-9]*$/.test(password))
+    return res.redirect('/register?erro=senha');
+  if (password !== confirm)
+    return res.redirect('/register?erro=confirm');
+  try {
+    const exists = await pool.query('SELECT 1 FROM support_bi.csat_users WHERE email=$1', [email]);
+    if (exists.rows.length) return res.redirect('/register?erro=existe');
+    const hash = await hashPassword(password);
+    await pool.query(
+      'INSERT INTO support_bi.csat_users (email, password_hash) VALUES ($1,$2)',
+      [email, hash]);
+    res.redirect('/login?cadastro=ok');
+  } catch(e) {
+    console.error('[register]', e.message);
+    res.redirect('/register?erro=1');
+  }
+});
 
 app.get('/forgot-password', (req, res) => res.sendFile(__dirname + '/site/forgot-password.html'));
 

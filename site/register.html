@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Criar conta — CSAT INK</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f8f9fb;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 4px 32px rgba(0,0,0,.10);
+    padding: 48px 40px 40px;
+    width: 100%;
+    max-width: 400px;
+  }
+  .logo { font-size: 22px; font-weight: 900; letter-spacing: -1px; color: #0f0f0f; margin-bottom: 4px; }
+  .logo b { color: #e91e8c; }
+  .subtitle { font-size: 12px; color: #94a3b8; font-weight: 500; margin-bottom: 28px; }
+  label {
+    display: block; font-size: 11px; font-weight: 700; color: #64748b;
+    text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px;
+  }
+  input[type="email"], input[type="password"] {
+    width: 100%; border: 1.5px solid #e2e8f0; border-radius: 8px;
+    padding: 10px 14px; font-size: 14px; color: #0f0f0f; outline: none;
+    transition: border-color .15s; font-family: inherit;
+  }
+  input:focus { border-color: #e91e8c; }
+  input.invalid { border-color: #ef4444; }
+  input.valid   { border-color: #16a34a; }
+  .field { margin-bottom: 18px; }
+  .domain-hint { font-size: 11px; color: #94a3b8; margin-top: 5px; }
+  .reqs {
+    background: #f8f9fb; border-radius: 8px; padding: 10px 14px;
+    margin-top: 8px; margin-bottom: 0;
+  }
+  .req {
+    font-size: 12px; color: #94a3b8; display: flex; align-items: center;
+    gap: 6px; padding: 2px 0; transition: color .2s;
+  }
+  .req.ok  { color: #16a34a; }
+  .req.bad { color: #ef4444; }
+  .req .dot { font-size: 14px; font-weight: 700; width: 14px; text-align: center; }
+  .btn {
+    width: 100%; background: #e91e8c; color: #fff; border: none; border-radius: 8px;
+    padding: 12px; font-size: 14px; font-weight: 700; cursor: pointer;
+    transition: background .15s; font-family: inherit; margin-top: 20px;
+  }
+  .btn:hover { background: #c2185b; }
+  .btn:disabled { background: #e2e8f0; color: #94a3b8; cursor: not-allowed; }
+  .msg {
+    border-radius: 8px; padding: 12px 14px; font-size: 13px; font-weight: 600;
+    margin-bottom: 20px; display: none;
+  }
+  .msg.erro    { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; display: block; }
+  .msg.existe  { background: #fff7ed; border: 1px solid #fed7aa; color: #c2410c; display: block; }
+  .back { display: block; text-align: center; margin-top: 20px; font-size: 12px; color: #94a3b8; text-decoration: none; }
+  .back:hover { color: #e91e8c; }
+  hr { border: none; border-top: 1px solid #f1f5f9; margin: 24px 0 0; }
+  .footer-hint { font-size: 11px; color: #cbd5e1; text-align: center; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">INK<b>.</b></div>
+  <div class="subtitle">Criar conta — acesso restrito a @reserva.ink</div>
+
+  <div class="msg erro"   id="msg-erro">Ocorreu um erro. Tente novamente.</div>
+  <div class="msg existe" id="msg-existe">Este e-mail já possui uma conta. <a href="/login" style="color:#c2410c">Faça login.</a></div>
+  <div class="msg erro"   id="msg-dominio">Apenas e-mails @reserva.ink são permitidos.</div>
+  <div class="msg erro"   id="msg-senha">A senha não atende aos requisitos.</div>
+  <div class="msg erro"   id="msg-confirm">As senhas não coincidem.</div>
+
+  <form method="POST" action="/register" id="form" novalidate>
+    <div class="field">
+      <label for="email">E-mail corporativo</label>
+      <input type="email" id="email" name="email" placeholder="voce@reserva.ink" autocomplete="email" required>
+      <p class="domain-hint">Apenas contas @reserva.ink</p>
+    </div>
+
+    <div class="field">
+      <label for="password">Senha</label>
+      <input type="password" id="password" name="password" placeholder="••••••••" autocomplete="new-password" required>
+      <div class="reqs" id="reqs">
+        <div class="req" id="req-len"><span class="dot">·</span> Mínimo 8 caracteres</div>
+        <div class="req" id="req-num"><span class="dot">·</span> Ao menos 1 número</div>
+        <div class="req" id="req-esp"><span class="dot">·</span> Ao menos 1 caractere especial (!@#$...)</div>
+      </div>
+    </div>
+
+    <div class="field" style="margin-bottom:0">
+      <label for="confirm">Confirmar senha</label>
+      <input type="password" id="confirm" name="confirm" placeholder="••••••••" autocomplete="new-password" required>
+    </div>
+
+    <button type="submit" class="btn" id="btn-submit" disabled>Criar conta</button>
+  </form>
+
+  <a href="/login" class="back">← Já tenho conta</a>
+  <hr>
+  <p class="footer-hint">Problemas? Fale com a Julia.</p>
+</div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  if (params.get('erro') === 'existe')   document.getElementById('msg-existe').style.display   = 'block';
+  else if (params.get('erro') === 'dominio') document.getElementById('msg-dominio').style.display = 'block';
+  else if (params.get('erro') === 'senha')   document.getElementById('msg-senha').style.display   = 'block';
+  else if (params.get('erro') === 'confirm') document.getElementById('msg-confirm').style.display = 'block';
+  else if (params.get('erro'))               document.getElementById('msg-erro').style.display    = 'block';
+
+  const emailEl   = document.getElementById('email');
+  const passwordEl = document.getElementById('password');
+  const confirmEl  = document.getElementById('confirm');
+  const btnEl      = document.getElementById('btn-submit');
+
+  function hasNum(v)  { return /\d/.test(v); }
+  function hasEsp(v)  { return /[^a-zA-Z0-9]/.test(v); }
+  function hasLen(v)  { return v.length >= 8; }
+  function validEmail(v) { return v.toLowerCase().endsWith('@reserva.ink'); }
+
+  function setReq(id, ok) {
+    const el = document.getElementById(id);
+    el.classList.toggle('ok', ok);
+    el.classList.toggle('bad', !ok && el.closest('#reqs').dataset.touched === '1');
+    el.querySelector('.dot').textContent = ok ? '✓' : (el.closest('#reqs').dataset.touched === '1' ? '✗' : '·');
+  }
+
+  function validate() {
+    const pw = passwordEl.value;
+    const cf = confirmEl.value;
+    const em = emailEl.value;
+    const lenOk = hasLen(pw), numOk = hasNum(pw), espOk = hasEsp(pw);
+    setReq('req-len', lenOk);
+    setReq('req-num', numOk);
+    setReq('req-esp', espOk);
+    const pwOk    = lenOk && numOk && espOk;
+    const cfOk    = cf.length === 0 || pw === cf;
+    confirmEl.classList.toggle('invalid', cf.length > 0 && pw !== cf);
+    confirmEl.classList.toggle('valid',   cf.length > 0 && pw === cf);
+    const emOk = validEmail(em);
+    emailEl.classList.toggle('invalid', em.length > 0 && !emOk);
+    emailEl.classList.toggle('valid',   emOk);
+    btnEl.disabled = !(pwOk && pw === cf && cf.length > 0 && emOk);
+  }
+
+  passwordEl.addEventListener('input', () => {
+    document.getElementById('reqs').dataset.touched = '1';
+    validate();
+  });
+  confirmEl.addEventListener('input', validate);
+  emailEl.addEventListener('input', validate);
+</script>
+</body>
+</html>
