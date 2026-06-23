@@ -528,13 +528,17 @@
     return `${sd} ${MESES_OP[sm]} – ${fd} ${MESES_OP[fm]}`;
   }
 
-  function opsVs(atual, ant, inverso) {
-    if (ant === null || ant === 0 || atual === null) return '';
+  function opsVs(atual, ant, inverso, isPct) {
+    if (ant === null || ant === undefined || atual === null || atual === undefined) return '';
     const diff = atual - ant;
     if (diff === 0) return '<span class="ops-vs flat">= sem variação</span>';
-    const pct  = Math.round(Math.abs(diff) / Math.abs(ant) * 100);
     const sobe = inverso ? diff < 0 : diff > 0;
-    return `<span class="ops-vs ${sobe ? 'up' : 'down'}">${diff > 0 ? '+' : ''}${pct}% vs ant.</span>`;
+    const sign = diff > 0 ? '+' : '';
+    if (isPct) {
+      return `<span class="ops-vs ${sobe ? 'up' : 'down'}">${sign}${Math.round(diff)}pp vs ant.</span>`;
+    }
+    const pct = Math.round(Math.abs(diff) / Math.abs(ant) * 100);
+    return `<span class="ops-vs ${sobe ? 'up' : 'down'}">${sign}${pct}% vs ant.</span>`;
   }
 
   function fmtHora(h) {
@@ -650,7 +654,7 @@
           <div class="kpi-label">CSAT geral</div>
           <div class="ops-kpi-num" style="color:${csatCor}">${atual.csat_time !== null ? atual.csat_time + '%' : '—'}</div>
           <div class="kpi-sub" style="color:${csatCor};margin-top:6px">${atual.csat_time !== null ? (csatOk?'✓':'✗')+' meta 75%' : '—'}</div>
-          <div class="kpi-sub flat" style="margin-top:3px">${opsVs(atual.csat_time, anterior.csat_time, false)}</div>
+          <div class="kpi-sub flat" style="margin-top:3px">${opsVs(atual.csat_time, anterior.csat_time, false, true)}</div>
         </div>
         <div class="kpi">
           <div class="kpi-label">CSAT Claudia</div>
