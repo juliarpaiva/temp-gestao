@@ -223,6 +223,8 @@
     .ops-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     .ops-table th { text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); padding: 0 12px 10px; border-bottom: 1px solid var(--borda); white-space: nowrap; }
     .ops-table th.r { text-align: right; }
+    .ops-table th[onclick] { cursor: pointer; user-select: none; }
+    .ops-table th[onclick]:hover { color: var(--preto); }
     .ops-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
     .ops-table td.r { text-align: right; font-variant-numeric: tabular-nums; }
     .ops-table tr:last-child td { border-bottom: none; }
@@ -426,6 +428,8 @@
   let opsMesAtivo  = null;
   let opsPeriodoI  = null;
   let opsPeriodoF  = null;
+  let opsSortCol   = null;
+  let opsSortDir   = 1;
 
   const MESES_OP = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 
@@ -561,6 +565,16 @@
     return `${semana.split('-').reverse().slice(0,2).join('/')} – ${(semana_fim||semana).split('-').reverse().slice(0,2).join('/')}`;
   }
 
+  function sortOps(col) {
+    if (opsSortCol === col) {
+      opsSortDir *= -1;
+    } else {
+      opsSortCol = col;
+      opsSortDir = col === 'agente' ? 1 : -1;
+    }
+    renderKpisOp();
+  }
+
   function renderKpisOp() {
     const el = document.getElementById('secao-kpis-op');
     if (!el) return;
@@ -588,7 +602,17 @@
         <button class="filter-tab${filterModeOp==='periodo'?' ativo':''}" onclick="mudarFilterModeOp('periodo')">Período</button>
       </div>`;
 
-    const tabelaHtml = (atual.por_agente || []).map(ag => {
+    const _agentes = [...(atual.por_agente || [])];
+    if (opsSortCol) {
+      _agentes.sort((a, b) => {
+        const av = a[opsSortCol], bv = b[opsSortCol];
+        if (av === null || av === undefined) return 1;
+        if (bv === null || bv === undefined) return -1;
+        if (typeof av === 'string') return av.localeCompare(bv, 'pt-BR') * opsSortDir;
+        return (av - bv) * opsSortDir;
+      });
+    }
+    const tabelaHtml = _agentes.map(ag => {
       const trCor = ag.tempo_resp_h !== null ? (ag.tempo_resp_h <= 1 ? '#16a34a' : ag.tempo_resp_h <= 2 ? '#ca8a04' : '#dc2626') : 'inherit';
       return `
       <tr>
@@ -656,11 +680,11 @@
         ${tabelaHtml ? `
         <table class="ops-table">
           <thead><tr>
-            <th>Agente</th>
-            <th class="r">Tickets</th>
-            <th class="r">CSAT</th>
-            <th class="r">1ª Resposta</th>
-            <th class="r">Encerramento</th>
+            <th onclick="sortOps('agente')">Agente ${opsSortCol==='agente'?(opsSortDir>0?'▲':'▼'):'⇅'}</th>
+            <th class="r" onclick="sortOps('volume')">Tickets ${opsSortCol==='volume'?(opsSortDir>0?'▲':'▼'):'⇅'}</th>
+            <th class="r" onclick="sortOps('csat')">CSAT ${opsSortCol==='csat'?(opsSortDir>0?'▲':'▼'):'⇅'}</th>
+            <th class="r" onclick="sortOps('tempo_resp_h')">1ª Resposta ${opsSortCol==='tempo_resp_h'?(opsSortDir>0?'▲':'▼'):'⇅'}</th>
+            <th class="r" onclick="sortOps('tempo_enc_h')">Encerramento ${opsSortCol==='tempo_enc_h'?(opsSortDir>0?'▲':'▼'):'⇅'}</th>
           </tr></thead>
           <tbody>${tabelaHtml}</tbody>
         </table>
@@ -1298,9 +1322,9 @@
     let vsHtml = '<span class="kpi-sub flat">sem mês anterior</span>';
     if (filterMode === 'mes' && mesAnterior && mesAnterior.total > 0) {
       const diff = mesDados.total - mesAnterior.total;
-      const pct  = Math.round(Math.abs(diff) / mesAnterior.total * 100);
-      if (diff > 0)      vsHtml = `<span class="kpi-sub up">↑ +${pct}% vs. ${MESES_ABR[mm-2>=0?mm-2:11]}</span>`;
-      else if (diff < 0) vsHtml = `<span class="kpi-sub down">↓ −${pct}% vs. ${MESES_ABR[mm-2>=0?mm-2:11]}</span>`;
+      const mesN = MESES_ABR[mm-2>=0?mm-2:11];
+      if (diff > 0)      vsHtml = `<span class="kpi-sub up">↑ +${diff} neg. vs. ${mesN}</span>`;
+      else if (diff < 0) vsHtml = `<span class="kpi-sub down">↓ ${diff} neg. vs. ${mesN}</span>`;
       else               vsHtml = `<span class="kpi-sub flat">→ igual ao mês anterior</span>`;
     }
 
@@ -1565,10 +1589,7 @@
       <div class="painel" style="margin-bottom:32px" id="section-satisfacao">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
           <div class="painel-title" style="margin-bottom:0">Satisfação por agente — ${kpiLabel}</div>
-          <div style="display:flex;gap:12px;font-size:11px;color:var(--muted);font-weight:600">
-            <span>🥇 ≥ 85% (meta)</span>
-            <span>🥈 ≥ 75%</span>
-          </div>
+          <div style="font-size:10px;color:#94a3b8">🥇 ≥ 85% &nbsp;·&nbsp; 🥈 ≥ 75%</div>
         </div>
         ${showRankings ? satisfacaoHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando dados do período…</p>' : '<p style="color:var(--muted);font-size:12px">Selecione um dia, semana ou mês para ver o ranking por agente.</p>'}
       </div>
