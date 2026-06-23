@@ -416,7 +416,7 @@
   // ── Métricas Operacionais ────────────────────────────────────────────────
   let kpisOp       = null;
   let semanaOp     = null;
-  let filterModeOp = 'semana'; // 'semana' | 'dia' | 'mes' | 'periodo'
+  let filterModeOp = 'dia'; // 'semana' | 'dia' | 'mes' | 'periodo'
   let opsDiaAtivo  = null;
   let opsMesAtivo  = null;
   let opsPeriodoI  = null;
@@ -730,10 +730,8 @@
 
   async function initKpisOp() {
     try {
-      const semanas = gerarSemanasOps(1);
-      semanaOp = semanas[0];
-      kpisOp   = await _fetchKpisOp(`semana=${semanaOp}`);
-      semanaOp = kpisOp.semana;
+      opsDiaAtivo = gerarDiasOps(14)[0];
+      kpisOp      = await _fetchKpisOp(`dia=${opsDiaAtivo}`);
       renderKpisOp();
     } catch (e) {
       const el = document.getElementById('secao-kpis-op');
