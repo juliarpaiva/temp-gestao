@@ -187,7 +187,7 @@ app.post('/forgot-password', express.urlencoded({ extended: false }), async (req
       await pool.query(
         `INSERT INTO support_bi.csat_reset_tokens (email, token, expires_at) VALUES ($1,$2,$3)`,
         [email, token, expires]);
-      const base = process.env.APP_URL || 'https://csat-negativo-78f436cca6a0.herokuapp.com';
+      const base = process.env.APP_URL || 'https://csat-sup-ink.herokuapp.com';
       await sendResetEmail(email, `${base}/reset-password?token=${token}`, false);
     }
     res.redirect('/forgot-password?enviado=1');
@@ -287,7 +287,7 @@ app.post('/admin/add-user', express.json(), async (req, res) => {
       await pool.query(
         `INSERT INTO support_bi.csat_reset_tokens (email, token, expires_at) VALUES ($1,$2,$3)`,
         [em, token, expires]);
-      const base = process.env.APP_URL || 'https://csat-negativo-78f436cca6a0.herokuapp.com';
+      const base = process.env.APP_URL || 'https://csat-sup-ink.herokuapp.com';
       const link = `${base}/reset-password?token=${token}`;
       await sendResetEmail(em, link, true);
       return res.json({ ok: true, email: em, invite_link: link });
