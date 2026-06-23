@@ -51,7 +51,10 @@
     .section-head::before { content:""; display:block; width:3px; height:14px; background:var(--rosa); border-radius:2px; flex-shrink:0; }
 
     /* KPI CARDS */
-    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; margin-bottom: 32px; }
+    .kpi-secao { margin-bottom: 28px; }
+    .kpi-secao + .kpi-secao { margin-top: -8px; }
+    .kpi-grupo-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); margin-bottom: 10px; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
     .kpi { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); padding: 20px 22px; position: relative; overflow: hidden; }
     .kpi.destaque { border-left: 4px solid var(--rosa); }
     .kpi-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 10px; }
@@ -106,7 +109,20 @@
     .semana-csat-item.pos { color: #16a34a; border-color: #bbf7d0; background: #f0fdf4; }
     .semana-csat-item.neg { color: var(--rosa); border-color: #fce7f3; background: #fdf2f8; }
     .section-head.pos::before { background: #16a34a; }
+    .section-head.indev-head::before { background: #94a3b8; }
     .painel.pos .painel-title::before { background: #16a34a; }
+
+    /* Tabela indevidas */
+    .indev-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .indev-table th { text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); padding: 0 12px 10px; border-bottom: 1px solid var(--borda); }
+    .indev-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .indev-table tr:last-child td { border-bottom: none; }
+    .indev-table tr:hover td { background: #fafbfc; }
+    .indev-link { color: var(--preto); font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+    .indev-link:hover { color: var(--rosa); }
+    .indev-badge { display: inline-block; padding: 2px 8px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 5px; font-size: 10px; font-weight: 700; color: #64748b; }
+    .btn-desfazer-sm { padding: 3px 10px; border-radius: 6px; border: 1px solid #e2e8f0; background: transparent; font-size: 10px; font-weight: 600; color: #94a3b8; cursor: pointer; transition: all .15s; white-space: nowrap; }
+    .btn-desfazer-sm:hover { border-color: #ef4444; color: #ef4444; }
 
     /* NOTAS REUNIÃO */
     .notas-card { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; }
@@ -193,6 +209,7 @@
     return '#475569';
   }
   function formatTag(s) { return (s||'').replace(/_/g,' '); }
+  function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function mesLabel(chave) {
     const [a,m] = chave.split('-').map(Number);
     return `${MESES_PT[m-1]} ${a}`;
@@ -205,14 +222,19 @@
     return `${d} ${MESES_ABR[m-1]} – ${dFri} ${MESES_ABR[mFri]}`;
   }
 
-  let dadosGestao = null;
+  let dadosGestao   = null;
+  let dadosIndevidas = [];
   let mesAtivo = null;
 
   async function init() {
     try {
-      const r = await fetch(`${API}/gestao`);
+      const [r, rIndev] = await Promise.all([
+        fetch(`${API}/gestao`),
+        fetch(`${API}/indevidas-resumo`),
+      ]);
       if (!r.ok) throw new Error('Erro ao buscar dados');
-      dadosGestao = await r.json();
+      dadosGestao    = await r.json();
+      dadosIndevidas = await rIndev.json().catch(() => []);
       const mesesKeys = Object.keys(dadosGestao.meses).sort().reverse();
       mesAtivo = mesesKeys[0] || null;
       if (!mesAtivo) { document.getElementById('conteudo').innerHTML = '<div class="erro">Sem dados disponíveis ainda.</div>'; return; }
@@ -372,35 +394,75 @@
         </div>`;
     }).join('');
 
+    // ── Indevidas do mês ──
+    const indevidasMes = dadosIndevidas.filter(i => i.date && i.date.startsWith(mesAtivo));
+    const totalOutros  = Math.max(0, totalRecebidos - totalAvaliados);
+
+    const indevidasListHtml = indevidasMes.length
+      ? `<table class="indev-table">
+          <thead><tr>
+            <th>Ticket</th>
+            <th>Data</th>
+            <th>Marcado por</th>
+            <th>Quando</th>
+            <th></th>
+          </tr></thead>
+          <tbody>
+            ${indevidasMes.map(i => {
+              const link = `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${i.ticket_id}`;
+              const data = i.date ? i.date.split('-').reverse().join('/') : '—';
+              const quando = i.marcado_em ? new Date(i.marcado_em).toLocaleString('pt-BR') : '—';
+              return `<tr>
+                <td><a class="indev-link" href="${link}" target="_blank" rel="noopener">#${i.ticket_id}<svg width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></td>
+                <td>${data}</td>
+                <td>${escHtml(i.observacao || '—')}</td>
+                <td style="color:var(--muted)">${quando}</td>
+                <td><button class="btn-desfazer-sm" onclick="desfazerIndevida('${i.ticket_id}','${i.date}')">Desfazer</button></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`
+      : '<p style="color:var(--muted);font-size:12px;padding:4px 0">Nenhuma avaliação marcada como indevida neste mês.</p>';
+
     document.getElementById('conteudo').innerHTML = `
       ${navHtml}
 
       <div class="section-head">Visão geral — ${mesLabel(mesAtivo)}</div>
-      <div class="kpi-grid">
-        <div class="kpi destaque">
-          <div class="kpi-label">% Satisfação</div>
-          <div class="kpi-num">${pctSatisfacao !== null ? pctSatisfacao + '%' : '—'}</div>
-          <div class="kpi-sub flat">${totalPositivos}↑ · ${totalNegAll}↓ · monitoradas</div>
+
+      <div class="kpi-secao">
+        <div class="kpi-grupo-label">Equipe monitorada</div>
+        <div class="kpi-grid">
+          <div class="kpi destaque">
+            <div class="kpi-label">% Satisfação</div>
+            <div class="kpi-num">${pctSatisfacao !== null ? pctSatisfacao + '%' : '—'}</div>
+            <div class="kpi-sub flat">${totalPositivos}↑ · ${totalNegAll}↓</div>
+          </div>
+          <div class="kpi" style="border-left:4px solid #16a34a">
+            <div class="kpi-label">Positivos no mês</div>
+            <div class="kpi-num" style="color:#16a34a">${totalPositivos || '—'}</div>
+            <div class="kpi-sub flat">Mari, Fer, Paty, Lu, Rafa</div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-label">Negativos no mês</div>
+            <div class="kpi-num">${totalNegAll || mesDados.total}</div>
+            ${vsHtml}
+          </div>
+          <div class="kpi" style="border-left:4px solid #94a3b8">
+            <div class="kpi-label">Indevidas no mês</div>
+            <div class="kpi-num" style="color:#64748b">${indevidasMes.length || '—'}</div>
+            <div class="kpi-sub flat">marcadas via CloudChat</div>
+          </div>
         </div>
-        <div class="kpi">
-          <div class="kpi-label">Avaliações recebidas</div>
-          <div class="kpi-num">${totalRecebidos || '—'}</div>
-          <div class="kpi-sub flat">inclui IA e outras equipes</div>
-        </div>
-        <div class="kpi">
-          <div class="kpi-label">Monitoradas / Total</div>
-          <div class="kpi-num">${taxaResposta !== null ? taxaResposta + '%' : '—'}</div>
-          <div class="kpi-sub flat">${totalAvaliados} monitoradas de ${totalRecebidos}</div>
-        </div>
-        <div class="kpi" style="border-left:4px solid #16a34a">
-          <div class="kpi-label">Positivos no mês</div>
-          <div class="kpi-num" style="color:#16a34a">${totalPositivos || '—'}</div>
-          <div class="kpi-sub flat">monitoradas</div>
-        </div>
-        <div class="kpi">
-          <div class="kpi-label">Negativos no mês</div>
-          <div class="kpi-num">${totalNegAll || mesDados.total}</div>
-          ${vsHtml}
+      </div>
+
+      <div class="kpi-secao">
+        <div class="kpi-grupo-label">Todos os canais</div>
+        <div class="kpi-grid" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr))">
+          <div class="kpi">
+            <div class="kpi-label">Total de avaliações recebidas</div>
+            <div class="kpi-num">${totalRecebidos || '—'}</div>
+            <div class="kpi-sub flat">${totalAvaliados} equipe · ${totalOutros} outros canais (IA, gestão)</div>
+          </div>
         </div>
       </div>
 
@@ -440,6 +502,13 @@
       </div>
 
       <div class="section">
+        <div class="section-head indev-head">Avaliações indevidas — ${mesLabel(mesAtivo)}</div>
+        <div class="painel" style="padding:0;overflow:hidden">
+          ${indevidasListHtml}
+        </div>
+      </div>
+
+      <div class="section">
         <div class="section-head">Notas para reunião de segunda</div>
         <div class="notas-card">
           <div class="notas-topo">
@@ -470,6 +539,16 @@
           </div>
         </div>
       </div>`;
+  }
+
+  async function desfazerIndevida(ticketId, date) {
+    if (!confirm(`Remover marcação de indevida do ticket #${ticketId}?`)) return;
+    const r = await fetch(`${API}/indevida/${ticketId}`, { method: 'DELETE' });
+    if (!r.ok) { alert('Erro ao remover.'); return; }
+    // Reprocessa o dia e atualiza os dados locais
+    dadosIndevidas = dadosIndevidas.filter(i => String(i.ticket_id) !== String(ticketId));
+    render();
+    fetch(`${API}/run?date=${date}&force=true`).catch(() => {});
   }
 
   function selecionarMes(chave) {

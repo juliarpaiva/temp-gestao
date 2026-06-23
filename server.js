@@ -136,6 +136,17 @@ app.delete('/indevida/:ticket_id', async (req, res) => {
   }
 });
 
+app.get('/indevidas-resumo', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT ticket_id, date, motivo, observacao, marcado_em FROM support_bi.csat_indevidas ORDER BY marcado_em DESC'
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/gestao', async (req, res) => {
   try {
     const result = await pool.query(
