@@ -186,6 +186,33 @@
     .kpi.clicavel:hover { box-shadow: var(--sh-lg); transform: translateY(-2px); }
     .kpi.clicavel::after { content: "↓"; position: absolute; bottom: 10px; right: 14px; font-size: 11px; color: var(--muted); opacity: .5; }
 
+    /* MODAL OUTROS */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 500; display: none; align-items: flex-start; justify-content: center; padding: 60px 16px; overflow-y: auto; }
+    .modal-overlay.aberto { display: flex; }
+    .modal { background: #fff; border-radius: var(--r); box-shadow: 0 8px 40px rgba(0,0,0,.18); width: 560px; max-width: 96vw; }
+    .modal-head { padding: 20px 24px 0; display: flex; align-items: center; justify-content: space-between; }
+    .modal-title { font-size: 15px; font-weight: 800; }
+    .modal-close { background: none; border: none; font-size: 20px; color: var(--muted); cursor: pointer; line-height: 1; padding: 0 2px; }
+    .modal-close:hover { color: var(--preto); }
+    .modal-body  { padding: 16px 24px 24px; }
+    .outros-ag-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .outros-ag-nome { font-size: 13px; font-weight: 600; min-width: 130px; }
+    .outros-ag-bar-wrap { flex: 1; height: 7px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+    .outros-ag-bar { height: 100%; background: #94a3b8; border-radius: 4px; }
+    .outros-ag-cnt { font-size: 12px; font-weight: 700; color: var(--muted); width: 28px; text-align: right; }
+    .outros-ticket-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .outros-ticket-table th { text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); padding: 0 10px 8px; border-bottom: 1px solid var(--borda); }
+    .outros-ticket-table td { padding: 9px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .outros-ticket-table tr:last-child td { border-bottom: none; }
+    .outros-ticket-table tr:hover td { background: #fafbfc; }
+    .outros-nota-pos { color: #16a34a; font-weight: 700; }
+    .outros-nota-neg { color: var(--rosa); font-weight: 700; }
+    .outros-link { color: var(--preto); font-weight: 700; text-decoration: none; }
+    .outros-link:hover { color: var(--rosa); }
+    .modal-tab-row { display: flex; gap: 4px; padding: 0 24px 12px; border-bottom: 1px solid var(--borda); margin-bottom: 4px; }
+    .modal-tab { padding: 5px 14px; border-radius: 6px; border: 1px solid var(--borda); background: transparent; font-size: 11px; font-weight: 700; color: var(--muted); cursor: pointer; transition: all .15s; }
+    .modal-tab.ativo { background: var(--preto); border-color: var(--preto); color: #fff; }
+
     /* FILTER TABS */
     .filter-tabs { display: flex; gap: 4px; margin-bottom: 20px; background: #f1f5f9; border-radius: 10px; padding: 4px; width: fit-content; }
     .filter-tab { padding: 7px 20px; border-radius: 7px; border: none; background: transparent; font-size: 12px; font-weight: 700; color: var(--muted); cursor: pointer; transition: all .15s; }
@@ -237,6 +264,18 @@
       ${[1,2,3,4].map(()=>`<div style="background:var(--card);border:1px solid var(--borda);border-radius:var(--r);padding:18px 20px"><div class="sk" style="width:70px;height:10px;margin-bottom:10px"></div><div class="sk" style="width:50px;height:32px;margin-bottom:10px"></div><div class="sk" style="width:90px;height:10px"></div></div>`).join('')}
     </div>
   </div>
+  <!-- Modal: avaliações de outros canais -->
+  <div class="modal-overlay" id="modal-outros" onclick="if(event.target===this)fecharModalOutros()">
+    <div class="modal">
+      <div class="modal-head">
+        <span class="modal-title" id="modal-outros-titulo">Outros canais</span>
+        <button class="modal-close" onclick="fecharModalOutros()">✕</button>
+      </div>
+      <div class="modal-tab-row" id="modal-outros-tabs"></div>
+      <div class="modal-body" id="modal-outros-body"></div>
+    </div>
+  </div>
+
   <div id="report-panel" class="report-panel">
     <div class="report-panel-header">
       <span class="report-panel-title" id="report-panel-title">Relatório do dia</span>
@@ -370,6 +409,100 @@
   function fecharReportPanel() {
     document.getElementById('report-panel').classList.remove('visivel');
     document.getElementById('report-iframe').src = '';
+  }
+
+  let outrosModalTab = 'agentes'; // 'agentes' | 'tickets'
+
+  function fecharModalOutros() {
+    document.getElementById('modal-outros').classList.remove('aberto');
+  }
+
+  function abrirModalOutros() {
+    // Coleta por_agente_outros do contexto ativo
+    const { meses, semanas } = dadosGestao;
+    const mesDados   = meses[mesAtivo] || {};
+    const dayData    = selectedDay ? dayDataCache[selectedDay] : null;
+
+    let porAg = {};
+    let tickets = null; // só disponível em modo dia
+    let titulo  = 'Outros canais';
+
+    if (filterMode === 'dia' && dayData) {
+      porAg   = dayData.por_agente_outros || {};
+      tickets = dayData.tickets_outros    || null;
+      const [,dm,dd] = selectedDay.split('-');
+      titulo = `Outros canais — ${Number(dd)}/${Number(dm)}`;
+    } else if (filterMode === 'semana' && selectedWeek && semanas[selectedWeek]) {
+      porAg  = semanas[selectedWeek].por_agente_outros || {};
+      titulo = `Outros canais — semana ${semanaLabel(selectedWeek)}`;
+    } else if (filterMode === 'periodo' && periodoCache) {
+      // Agrega por_agente_outros dos dias em cache no período
+      const dates = Object.keys(summaryMap).filter(d => d >= periodoInicio && d <= periodoFim);
+      dates.forEach(date => {
+        Object.entries((dayDataCache[date]?.por_agente_outros) || {}).forEach(([ag,cnt]) => {
+          porAg[ag] = (porAg[ag] || 0) + cnt;
+        });
+      });
+      const fmt = d => `${Number(d.slice(8))}/${MESES_ABR[Number(d.slice(5,7))-1]}`;
+      titulo = `Outros canais — ${fmt(periodoInicio)} a ${fmt(periodoFim)}`;
+    } else {
+      porAg  = mesDados.por_agente_outros || {};
+      titulo = `Outros canais — ${mesLabel(mesAtivo)}`;
+    }
+
+    document.getElementById('modal-outros-titulo').textContent = titulo;
+
+    // Tabs: só mostra aba Tickets se dados do dia disponíveis
+    const tabsEl = document.getElementById('modal-outros-tabs');
+    if (tickets !== null) {
+      tabsEl.innerHTML = `
+        <button class="modal-tab${outrosModalTab==='agentes'?' ativo':''}" onclick="trocarAbaOutros('agentes')">Por agente</button>
+        <button class="modal-tab${outrosModalTab==='tickets'?' ativo':''}" onclick="trocarAbaOutros('tickets')">Tickets (${tickets.length})</button>`;
+    } else {
+      tabsEl.innerHTML = '';
+      outrosModalTab = 'agentes';
+    }
+
+    renderModalOutrosBody(porAg, tickets);
+    document.getElementById('modal-outros').classList.add('aberto');
+  }
+
+  function trocarAbaOutros(aba) {
+    outrosModalTab = aba;
+    abrirModalOutros(); // re-abre com nova aba ativa
+  }
+
+  function renderModalOutrosBody(porAg, tickets) {
+    const bodyEl = document.getElementById('modal-outros-body');
+    if (outrosModalTab === 'tickets' && tickets) {
+      if (!tickets.length) { bodyEl.innerHTML = '<p style="color:var(--muted);font-size:12px">Nenhum ticket de outros canais neste dia.</p>'; return; }
+      const rows = tickets.map(t => {
+        const link = t.link || `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.id}`;
+        const notaCls = t.nota >= 4 ? 'outros-nota-pos' : 'outros-nota-neg';
+        const fb = (t.feedback || '').slice(0, 80);
+        return `<tr>
+          <td><a class="outros-link" href="${link}" target="_blank" rel="noopener">#${t.id}</a></td>
+          <td>${escHtml(t.agente)}</td>
+          <td class="${notaCls}">${t.nota}</td>
+          <td style="color:var(--muted);font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(fb)}</td>
+        </tr>`;
+      }).join('');
+      bodyEl.innerHTML = `<div style="max-height:400px;overflow-y:auto"><table class="outros-ticket-table">
+        <thead><tr><th>Ticket</th><th>Agente</th><th>Nota</th><th>Feedback</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+    } else {
+      const sorted = Object.entries(porAg).sort((a,b) => b[1]-a[1]);
+      if (!sorted.length) { bodyEl.innerHTML = '<p style="color:var(--muted);font-size:12px">Nenhuma avaliação de outros canais neste período.</p>'; return; }
+      const max = sorted[0][1] || 1;
+      bodyEl.innerHTML = `<div style="max-height:400px;overflow-y:auto;padding-top:4px">${
+        sorted.map(([nome,cnt]) => `<div class="outros-ag-row">
+          <span class="outros-ag-nome">${escHtml(nome)}</span>
+          <div class="outros-ag-bar-wrap"><div class="outros-ag-bar" style="width:${Math.round(cnt/max*100)}%"></div></div>
+          <span class="outros-ag-cnt">${cnt}</span>
+        </div>`).join('')
+      }</div>`;
+    }
   }
 
   function setFilterMode(mode) {
@@ -790,9 +923,9 @@
       <div class="kpi-secao">
         <div class="kpi-grupo-label">Todos os canais</div>
         <div class="kpi-grid" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr))">
-          <div class="kpi">
+          <div class="kpi clicavel" onclick="abrirModalOutros()" style="cursor:pointer">
             <div class="kpi-label">Total de avaliações recebidas</div>
-            <div class="kpi-num">${totalRecebidos || (filterMode==='periodo'||filterMode==='semana'?'—':'—')}</div>
+            <div class="kpi-num">${totalRecebidos || '—'}</div>
             <div class="kpi-sub flat">${totalAvaliados ? `${totalAvaliados} equipe · ${totalOutros} outros (IA, gestão)` : 'inclui IA e outras equipes'}</div>
           </div>
         </div>

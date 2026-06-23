@@ -157,6 +157,7 @@ app.get('/gestao', async (req, res) => {
               COALESCE((data->>'total_positivos')::int, 0)      AS total_positivos,
               data->'por_agente'                                AS por_agente,
               data->'por_agente_positivos'                      AS por_agente_positivos,
+              COALESCE(data->'por_agente_outros', '{}')         AS por_agente_outros,
               data->'tags_resumo'                               AS tags_resumo,
               COALESCE(data->'tags_resumo_positivos', '{}')    AS tags_resumo_positivos
        FROM support_bi.csat_reports
@@ -165,9 +166,9 @@ app.get('/gestao', async (req, res) => {
     );
     const meses = {}, semanas = {};
     for (const row of result.rows) {
-      const { date, total = 0, total_recebidos = 0, total_avaliados = 0, total_positivos = 0, por_agente = {}, por_agente_positivos = {}, tags_resumo = {}, tags_resumo_positivos = {} } = row;
+      const { date, total = 0, total_recebidos = 0, total_avaliados = 0, total_positivos = 0, por_agente = {}, por_agente_positivos = {}, por_agente_outros = {}, tags_resumo = {}, tags_resumo_positivos = {} } = row;
       const mesChave = date.slice(0, 7);
-      if (!meses[mesChave]) meses[mesChave] = { total: 0, total_recebidos: 0, total_avaliados: 0, total_positivos: 0, dias: 0, por_agente: {}, por_agente_positivos: {}, tags: {}, tags_positivos: {} };
+      if (!meses[mesChave]) meses[mesChave] = { total: 0, total_recebidos: 0, total_avaliados: 0, total_positivos: 0, dias: 0, por_agente: {}, por_agente_positivos: {}, por_agente_outros: {}, tags: {}, tags_positivos: {} };
       meses[mesChave].total           += total;
       meses[mesChave].total_recebidos += total_recebidos;
       meses[mesChave].total_avaliados += total_avaliados;
@@ -175,6 +176,7 @@ app.get('/gestao', async (req, res) => {
       meses[mesChave].dias++;
       for (const [a, c] of Object.entries(por_agente))          meses[mesChave].por_agente[a]          = (meses[mesChave].por_agente[a]          || 0) + c;
       for (const [a, c] of Object.entries(por_agente_positivos)) meses[mesChave].por_agente_positivos[a] = (meses[mesChave].por_agente_positivos[a] || 0) + c;
+      for (const [a, c] of Object.entries(por_agente_outros))    meses[mesChave].por_agente_outros[a]    = (meses[mesChave].por_agente_outros[a]    || 0) + c;
       for (const [t, c] of Object.entries(tags_resumo))           meses[mesChave].tags[t]           = (meses[mesChave].tags[t]           || 0) + c;
       for (const [t, c] of Object.entries(tags_resumo_positivos)) meses[mesChave].tags_positivos[t] = (meses[mesChave].tags_positivos[t] || 0) + c;
       const d   = new Date(date + 'T12:00:00Z');
@@ -182,7 +184,7 @@ app.get('/gestao', async (req, res) => {
       const mon = new Date(d);
       mon.setUTCDate(d.getUTCDate() - (dow === 0 ? 6 : dow - 1));
       const semChave = mon.toISOString().slice(0, 10);
-      if (!semanas[semChave]) semanas[semChave] = { total: 0, total_recebidos: 0, total_avaliados: 0, total_positivos: 0, dias: 0, por_agente: {}, por_agente_positivos: {}, pior_dia: null, pior_total: 0 };
+      if (!semanas[semChave]) semanas[semChave] = { total: 0, total_recebidos: 0, total_avaliados: 0, total_positivos: 0, dias: 0, por_agente: {}, por_agente_positivos: {}, por_agente_outros: {}, pior_dia: null, pior_total: 0 };
       semanas[semChave].total           += total;
       semanas[semChave].total_recebidos += total_recebidos;
       semanas[semChave].total_avaliados += total_avaliados;
@@ -190,6 +192,7 @@ app.get('/gestao', async (req, res) => {
       semanas[semChave].dias++;
       for (const [a, c] of Object.entries(por_agente))          semanas[semChave].por_agente[a]          = (semanas[semChave].por_agente[a]          || 0) + c;
       for (const [a, c] of Object.entries(por_agente_positivos)) semanas[semChave].por_agente_positivos[a] = (semanas[semChave].por_agente_positivos[a] || 0) + c;
+      for (const [a, c] of Object.entries(por_agente_outros))    semanas[semChave].por_agente_outros[a]    = (semanas[semChave].por_agente_outros[a]    || 0) + c;
       if (total > semanas[semChave].pior_total) { semanas[semChave].pior_total = total; semanas[semChave].pior_dia = date; }
     }
     res.json({ meses, semanas });
@@ -289,6 +292,21 @@ async function runDailyReport(dateOverride = null, force = false) {
     por_agente_positivos[nome] = (por_agente_positivos[nome] || 0) + 1;
   }
 
+  // Tickets de agentes não monitoradas (inclui IA, gestão, etc.)
+  const outrosTickets = comNota.filter(t => !isAgentMonitorada(t.agent_on_resolution_name));
+  const por_agente_outros = {};
+  for (const t of outrosTickets) {
+    const nome = t.agent_on_resolution_name || 'Sem agente';
+    por_agente_outros[nome] = (por_agente_outros[nome] || 0) + 1;
+  }
+  const tickets_outros = outrosTickets.map(t => ({
+    id:       t.display_ticket_id,
+    link:     t.ticket_link || `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.display_ticket_id}`,
+    nota:     t.csat_score,
+    agente:   t.agent_on_resolution_name || 'Sem agente',
+    feedback: (t.csat_feedback || '').slice(0, 200),
+  }));
+
   for (const t of tickets) {
     for (const tag of (labelsByTicket[t.display_ticket_id] || [])) {
       tags_resumo[tag] = (tags_resumo[tag] || 0) + 1;
@@ -312,8 +330,10 @@ async function runDailyReport(dateOverride = null, force = false) {
     total_negativos: tickets.length,
     por_agente,
     por_agente_positivos,
+    por_agente_outros,
     tags_resumo,
     tags_resumo_positivos,
+    tickets_outros,
     tickets_positivos: positivosMonitorados.map(t => ({
       id: t.display_ticket_id,
       link: t.ticket_link,
