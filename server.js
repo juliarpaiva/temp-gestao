@@ -588,27 +588,62 @@ app.get('/admin/puxar-indevidas-cloudchat', async (req, res) => {
 
 app.get('/kpis-semanais', async (req, res) => {
   try {
-    let semana = req.query.semana;
-    if (!semana) {
-      const hoje = new Date();
-      const dow = hoje.getUTCDay();
-      const daysSinceLastFri = dow === 5 ? 7 : (dow - 5 + 7) % 7;
-      const lastFri = new Date(hoje);
-      lastFri.setUTCDate(lastFri.getUTCDate() - daysSinceLastFri);
-      const lastCompleteSat = new Date(lastFri);
-      lastCompleteSat.setUTCDate(lastCompleteSat.getUTCDate() - 6);
-      semana = lastCompleteSat.toISOString().slice(0, 10);
+    let d0, d1, pd0, pd1, modoLabel;
+
+    if (req.query.dia) {
+      // Modo dia
+      d0 = req.query.dia;
+      const fim = new Date(d0 + 'T12:00:00Z');
+      fim.setUTCDate(fim.getUTCDate() + 1);
+      d1  = fim.toISOString().slice(0, 10);
+      const prevD = new Date(d0 + 'T12:00:00Z');
+      prevD.setUTCDate(prevD.getUTCDate() - 1);
+      pd0 = prevD.toISOString().slice(0, 10);
+      pd1 = d0;
+      modoLabel = 'dia';
+    } else if (req.query.mes) {
+      // Modo mês  (YYYY-MM)
+      const [y, m] = req.query.mes.split('-').map(Number);
+      d0 = `${y}-${String(m).padStart(2, '0')}-01`;
+      d1 = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10);
+      pd0 = new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 10);
+      pd1 = d0;
+      modoLabel = 'mes';
+    } else if (req.query.inicio && req.query.fim) {
+      // Modo período livre
+      d0 = req.query.inicio;
+      const fimD = new Date(req.query.fim + 'T12:00:00Z');
+      fimD.setUTCDate(fimD.getUTCDate() + 1);
+      d1 = fimD.toISOString().slice(0, 10);
+      const durMs   = new Date(d1) - new Date(d0);
+      const durDays = Math.round(durMs / 86400000);
+      const prevS = new Date(d0 + 'T12:00:00Z');
+      prevS.setUTCDate(prevS.getUTCDate() - durDays);
+      pd0 = prevS.toISOString().slice(0, 10);
+      pd1 = d0;
+      modoLabel = 'periodo';
+    } else {
+      // Modo semana (padrão sáb–sex)
+      let semana = req.query.semana;
+      if (!semana) {
+        const hoje = new Date();
+        const dow  = hoje.getUTCDay();
+        const daysSinceLastFri = dow === 5 ? 7 : (dow - 5 + 7) % 7;
+        const lastFri = new Date(hoje);
+        lastFri.setUTCDate(lastFri.getUTCDate() - daysSinceLastFri);
+        const lastCompleteSat = new Date(lastFri);
+        lastCompleteSat.setUTCDate(lastCompleteSat.getUTCDate() - 6);
+        semana = lastCompleteSat.toISOString().slice(0, 10);
+      }
+      const sat = new Date(semana + 'T12:00:00Z');
+      const nextSat = new Date(sat); nextSat.setUTCDate(nextSat.getUTCDate() + 7);
+      const prevSat = new Date(sat); prevSat.setUTCDate(prevSat.getUTCDate() - 7);
+      d0  = semana;
+      d1  = nextSat.toISOString().slice(0, 10);
+      pd0 = prevSat.toISOString().slice(0, 10);
+      pd1 = d0;
+      modoLabel = 'semana';
     }
-
-    const sat = new Date(semana + 'T12:00:00Z');
-    const nextSat = new Date(sat);
-    nextSat.setUTCDate(nextSat.getUTCDate() + 7);
-    const prevSat = new Date(sat);
-    prevSat.setUTCDate(prevSat.getUTCDate() - 7);
-
-    const d0 = semana;
-    const d1 = nextSat.toISOString().slice(0, 10);
-    const pd0 = prevSat.toISOString().slice(0, 10);
 
     const token = await getMetabaseToken();
 
@@ -673,7 +708,9 @@ app.get('/kpis-semanais', async (req, res) => {
     }));
 
     res.json({
+      modo: modoLabel,
       semana: d0,
+      semana_fim: new Date(new Date(d1) - 86400000).toISOString().slice(0, 10),
       semana_anterior: pd0,
       atual: {
         volume:               volume      ?? 0,

@@ -393,10 +393,82 @@
   let periodoInicio  = null;
 
   // ── Métricas Operacionais ────────────────────────────────────────────────
-  let kpisOp    = null;
-  let semanaOp  = null;
+  let kpisOp       = null;
+  let semanaOp     = null;
+  let filterModeOp = 'semana'; // 'semana' | 'dia' | 'mes' | 'periodo'
+  let opsDiaAtivo  = null;
+  let opsMesAtivo  = null;
+  let opsPeriodoI  = null;
+  let opsPeriodoF  = null;
 
   const MESES_OP = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+
+  function gerarDiasOps(n) {
+    const hoje = new Date();
+    const dias = [];
+    for (let i = 1; i <= n; i++) {
+      const d = new Date(hoje);
+      d.setUTCDate(d.getUTCDate() - i);
+      const dow = d.getUTCDay();
+      if (dow === 0 || dow === 6) continue; // pula fim de semana
+      dias.push(d.toISOString().slice(0, 10));
+      if (dias.length >= n) break;
+    }
+    return dias.slice(0, 7);
+  }
+
+  function gerarMesesOps(n) {
+    const hoje = new Date();
+    const meses = [];
+    for (let i = 0; i < n; i++) {
+      const d = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth() - i, 1));
+      meses.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
+    }
+    return meses;
+  }
+
+  function diaBtnLabel(dateStr) {
+    const DIAS_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    return `${DIAS_PT[dt.getUTCDay()]} ${d}/${m}`;
+  }
+
+  function mesLabel2(mesStr) {
+    const [y, m] = mesStr.split('-').map(Number);
+    return `${MESES_OP[m - 1]}/${String(y).slice(2)}`;
+  }
+
+  function opsNavHtml() {
+    if (filterModeOp === 'semana') {
+      const semanas = gerarSemanasOps(8);
+      return semanas.map(s =>
+        `<button class="ops-week-btn${s === semanaOp ? ' ativo' : ''}" onclick="mudarSemanaOp('${s}')">${semanaOpsLabel(s)}</button>`
+      ).join('');
+    }
+    if (filterModeOp === 'dia') {
+      const dias = gerarDiasOps(14);
+      return dias.map(d =>
+        `<button class="ops-week-btn${d === opsDiaAtivo ? ' ativo' : ''}" onclick="loadKpisOpDia('${d}')">${diaBtnLabel(d)}</button>`
+      ).join('');
+    }
+    if (filterModeOp === 'mes') {
+      const meses = gerarMesesOps(6);
+      return meses.map(m =>
+        `<button class="ops-week-btn${m === opsMesAtivo ? ' ativo' : ''}" onclick="loadKpisOpMes('${m}')">${mesLabel2(m)}</button>`
+      ).join('');
+    }
+    if (filterModeOp === 'periodo') {
+      return `
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <input type="date" id="ops-periodo-inicio" value="${opsPeriodoI || ''}" style="border:1px solid var(--borda);border-radius:8px;padding:5px 10px;font-size:12px;font-family:inherit;outline:none" onchange="opsAtualizarPeriodo()">
+          <span style="font-size:12px;color:var(--muted);font-weight:600">até</span>
+          <input type="date" id="ops-periodo-fim" value="${opsPeriodoF || ''}" style="border:1px solid var(--borda);border-radius:8px;padding:5px 10px;font-size:12px;font-family:inherit;outline:none" onchange="opsAtualizarPeriodo()">
+          <button class="ops-week-btn ativo" onclick="opsAplicarPeriodo()" style="padding:5px 18px">Aplicar</button>
+        </div>`;
+    }
+    return '';
+  }
 
   function gerarSemanasOps(n) {
     const hoje = new Date();
@@ -441,16 +513,44 @@
     return `<span class="ops-pill ${cls}">${v}%</span>`;
   }
 
+  function opsPeriodoLabel() {
+    if (!kpisOp) return '';
+    const { semana, semana_fim, modo } = kpisOp;
+    if (modo === 'dia') return diaBtnLabel(semana);
+    if (modo === 'mes') {
+      const [y, m] = semana.split('-').map(Number);
+      return `${MESES_OP[m - 1]} ${y}`;
+    }
+    if (modo === 'semana') return semanaOpsLabel(semana);
+    // periodo
+    return `${semana.split('-').reverse().slice(0,2).join('/')} – ${(semana_fim||semana).split('-').reverse().slice(0,2).join('/')}`;
+  }
+
   function renderKpisOp() {
     const el = document.getElementById('secao-kpis-op');
     if (!el) return;
-    if (!kpisOp) { el.innerHTML = ''; return; }
+    if (!kpisOp) {
+      el.innerHTML = `
+        <div class="section-head">Métricas Operacionais</div>
+        <div class="filter-tabs" style="margin-bottom:14px">
+          <button class="filter-tab${filterModeOp==='dia'    ?' ativo':''}" onclick="mudarFilterModeOp('dia')">Dia</button>
+          <button class="filter-tab${filterModeOp==='semana' ?' ativo':''}" onclick="mudarFilterModeOp('semana')">Semana</button>
+          <button class="filter-tab${filterModeOp==='mes'    ?' ativo':''}" onclick="mudarFilterModeOp('mes')">Mês</button>
+          <button class="filter-tab${filterModeOp==='periodo'?' ativo':''}" onclick="mudarFilterModeOp('periodo')">Período</button>
+        </div>
+        <div class="ops-week-nav">${opsNavHtml()}</div>
+        <p style="color:var(--muted);font-size:12px;padding:8px 0">${filterModeOp==='periodo'&&(!opsPeriodoI||!opsPeriodoF)?'Selecione o intervalo e clique em Aplicar.':'Carregando…'}</p>`;
+      return;
+    }
 
     const { atual, anterior } = kpisOp;
-    const semanas    = gerarSemanasOps(8);
-    const weekNavHtml = semanas.map(s =>
-      `<button class="ops-week-btn${s === semanaOp ? ' ativo' : ''}" onclick="mudarSemanaOp('${s}')">${semanaOpsLabel(s)}</button>`
-    ).join('');
+    const tabsHtml = `
+      <div class="filter-tabs" style="margin-bottom:14px">
+        <button class="filter-tab${filterModeOp==='dia'    ?' ativo':''}" onclick="mudarFilterModeOp('dia')">Dia</button>
+        <button class="filter-tab${filterModeOp==='semana' ?' ativo':''}" onclick="mudarFilterModeOp('semana')">Semana</button>
+        <button class="filter-tab${filterModeOp==='mes'    ?' ativo':''}" onclick="mudarFilterModeOp('mes')">Mês</button>
+        <button class="filter-tab${filterModeOp==='periodo'?' ativo':''}" onclick="mudarFilterModeOp('periodo')">Período</button>
+      </div>`;
 
     const tabelaHtml = (atual.por_agente || []).map(ag => `
       <tr>
@@ -462,8 +562,9 @@
       </tr>`).join('');
 
     el.innerHTML = `
-      <div class="section-head">Métricas Operacionais — ${semanaOpsLabel(semanaOp)}</div>
-      <div class="ops-week-nav">${weekNavHtml}</div>
+      <div class="section-head">Métricas Operacionais — ${opsPeriodoLabel()}</div>
+      ${tabsHtml}
+      <div class="ops-week-nav">${opsNavHtml()}</div>
 
       <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(155px,1fr));margin-bottom:20px">
         <div class="kpi">
@@ -519,20 +620,94 @@
       </div>`;
   }
 
+  async function _fetchKpisOp(qs) {
+    const r = await fetch(`${API}/kpis-semanais?${qs}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  }
+
   async function mudarSemanaOp(semana) {
     semanaOp = semana;
-    renderKpisOp();          // re-render só para atualizar botão ativo enquanto carrega
-    document.getElementById('secao-kpis-op').querySelector('.painel-title') &&
-      (document.getElementById('secao-kpis-op').querySelector('.painel').innerHTML =
-        '<p style="color:var(--muted);font-size:12px;padding:8px 0">Carregando…</p>');
+    renderKpisOp();
     try {
-      const r = await fetch(`${API}/kpis-semanais?semana=${semana}`);
-      kpisOp = await r.json();
-      semanaOp = semana;
+      kpisOp   = await _fetchKpisOp(`semana=${semana}`);
+      semanaOp = kpisOp.semana;
       renderKpisOp();
-    } catch (e) {
-      document.getElementById('secao-kpis-op').insertAdjacentHTML('beforeend',
-        `<p style="color:#dc2626;font-size:12px">Erro: ${e.message}</p>`);
+    } catch (e) { _opsErro(e); }
+  }
+
+  async function loadKpisOpDia(dia) {
+    opsDiaAtivo = dia;
+    renderKpisOp();
+    try {
+      kpisOp = await _fetchKpisOp(`dia=${dia}`);
+      renderKpisOp();
+    } catch (e) { _opsErro(e); }
+  }
+
+  async function loadKpisOpMes(mes) {
+    opsMesAtivo = mes;
+    renderKpisOp();
+    try {
+      kpisOp = await _fetchKpisOp(`mes=${mes}`);
+      renderKpisOp();
+    } catch (e) { _opsErro(e); }
+  }
+
+  function opsAtualizarPeriodo() {
+    const ini = document.getElementById('ops-periodo-inicio');
+    const fim = document.getElementById('ops-periodo-fim');
+    if (ini) opsPeriodoI = ini.value;
+    if (fim) opsPeriodoF = fim.value;
+  }
+
+  async function opsAplicarPeriodo() {
+    opsAtualizarPeriodo();
+    if (!opsPeriodoI || !opsPeriodoF) return;
+    renderKpisOp();
+    try {
+      kpisOp = await _fetchKpisOp(`inicio=${opsPeriodoI}&fim=${opsPeriodoF}`);
+      renderKpisOp();
+    } catch (e) { _opsErro(e); }
+  }
+
+  function _opsErro(e) {
+    const el = document.getElementById('secao-kpis-op');
+    if (el) el.insertAdjacentHTML('beforeend',
+      `<p style="color:#dc2626;font-size:12px;margin-top:8px">Erro: ${e.message}</p>`);
+  }
+
+  async function mudarFilterModeOp(modo) {
+    filterModeOp = modo;
+    if (modo === 'semana') {
+      if (!semanaOp) semanaOp = gerarSemanasOps(1)[0];
+      kpisOp = null;
+      renderKpisOp();
+      try {
+        kpisOp   = await _fetchKpisOp(`semana=${semanaOp}`);
+        semanaOp = kpisOp.semana;
+        renderKpisOp();
+      } catch (e) { _opsErro(e); }
+    } else if (modo === 'dia') {
+      if (!opsDiaAtivo) opsDiaAtivo = gerarDiasOps(14)[0];
+      kpisOp = null;
+      renderKpisOp();
+      try {
+        kpisOp = await _fetchKpisOp(`dia=${opsDiaAtivo}`);
+        renderKpisOp();
+      } catch (e) { _opsErro(e); }
+    } else if (modo === 'mes') {
+      if (!opsMesAtivo) opsMesAtivo = gerarMesesOps(1)[0];
+      kpisOp = null;
+      renderKpisOp();
+      try {
+        kpisOp = await _fetchKpisOp(`mes=${opsMesAtivo}`);
+        renderKpisOp();
+      } catch (e) { _opsErro(e); }
+    } else if (modo === 'periodo') {
+      // mostra os inputs sem buscar ainda
+      kpisOp = null;
+      renderKpisOp();
     }
   }
 
@@ -540,8 +715,7 @@
     try {
       const semanas = gerarSemanasOps(1);
       semanaOp = semanas[0];
-      const r = await fetch(`${API}/kpis-semanais?semana=${semanaOp}`);
-      kpisOp = await r.json();
+      kpisOp   = await _fetchKpisOp(`semana=${semanaOp}`);
       semanaOp = kpisOp.semana;
       renderKpisOp();
     } catch (e) {
