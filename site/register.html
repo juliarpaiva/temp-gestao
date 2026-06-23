@@ -29,11 +29,19 @@
     display: block; font-size: 11px; font-weight: 700; color: #64748b;
     text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px;
   }
-  input[type="email"], input[type="password"] {
+  input[type="email"], input[type="password"], input[type="text"] {
     width: 100%; border: 1.5px solid #e2e8f0; border-radius: 8px;
     padding: 10px 14px; font-size: 14px; color: #0f0f0f; outline: none;
     transition: border-color .15s; font-family: inherit;
   }
+  .pw-wrap { position: relative; }
+  .pw-wrap input { padding-right: 42px; }
+  .eye-btn {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; padding: 4px;
+    color: #94a3b8; display: flex; align-items: center;
+  }
+  .eye-btn:hover { color: #475569; }
   input:focus { border-color: #e91e8c; }
   input.invalid { border-color: #ef4444; }
   input.valid   { border-color: #16a34a; }
@@ -89,7 +97,10 @@
 
     <div class="field">
       <label for="password">Senha</label>
-      <input type="password" id="password" name="password" placeholder="••••••••" autocomplete="new-password" required>
+      <div class="pw-wrap">
+        <input type="password" id="password" name="password" placeholder="••••••••" autocomplete="new-password" required>
+        <button type="button" class="eye-btn" onclick="toggleSenha('password',this)" tabindex="-1"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
       <div class="reqs" id="reqs">
         <div class="req" id="req-len"><span class="dot">·</span> Mínimo 8 caracteres</div>
         <div class="req" id="req-num"><span class="dot">·</span> Ao menos 1 número</div>
@@ -99,7 +110,10 @@
 
     <div class="field" style="margin-bottom:0">
       <label for="confirm">Confirmar senha</label>
-      <input type="password" id="confirm" name="confirm" placeholder="••••••••" autocomplete="new-password" required>
+      <div class="pw-wrap">
+        <input type="password" id="confirm" name="confirm" placeholder="••••••••" autocomplete="new-password" required>
+        <button type="button" class="eye-btn" onclick="toggleSenha('confirm',this)" tabindex="-1"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
     </div>
 
     <button type="submit" class="btn" id="btn-submit" disabled>Criar conta</button>
@@ -123,6 +137,12 @@
   const confirmEl  = document.getElementById('confirm');
   const btnEl      = document.getElementById('btn-submit');
 
+  function toggleSenha(id, btn) {
+    const inp = document.getElementById(id);
+    const showing = inp.type === 'text';
+    inp.type = showing ? 'password' : 'text';
+    btn.style.opacity = showing ? '1' : '0.4';
+  }
   function hasNum(v)  { return /\d/.test(v); }
   function hasEsp(v)  { return /[^a-zA-Z0-9]/.test(v); }
   function hasLen(v)  { return v.length >= 8; }
