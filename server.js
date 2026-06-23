@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -713,6 +713,22 @@ app.get('/admin/indevidas-junho', async (req, res) => {
 
 // Importa lista de indevidas históricas e reprocessa as datas afetadas
 // Body: { tickets: [{ticket_id, date, motivo?, observacao?}] }
+// Diagnóstico: indevidas no banco + totais dos reports de junho
+app.get('/admin/diagnostico-junho', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const [r1, r2] = await Promise.all([
+      pool.query("SELECT COUNT(*) FROM support_bi.csat_indevidas WHERE date LIKE '2026-06%'"),
+      pool.query("SELECT date, data->>'total' neg, data->>'total_positivos' pos, data->>'total_avaliados' aval, data->>'indevidas_removidas' indev FROM support_bi.csat_reports WHERE date LIKE '2026-06%' ORDER BY date"),
+    ]);
+    res.json({
+      indevidas_junho_banco: parseInt(r1.rows[0].count),
+      reports: r2.rows,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/admin/importar-indevidas', express.json(), async (req, res) => {
   if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY)
     return res.status(403).json({ error: 'Forbidden' });
