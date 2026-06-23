@@ -535,7 +535,7 @@
     const sobe = inverso ? diff < 0 : diff > 0;
     const sign = diff > 0 ? '+' : '';
     if (isPct) {
-      return `<span class="ops-vs ${sobe ? 'up' : 'down'}">${sign}${Math.round(diff)}pp vs ant.</span>`;
+      return `<span class="ops-vs ${sobe ? 'up' : 'down'}">${sign}${Math.round(diff)}% vs ant.</span>`;
     }
     const pct = Math.round(Math.abs(diff) / Math.abs(ant) * 100);
     return `<span class="ops-vs ${sobe ? 'up' : 'down'}">${sign}${pct}% vs ant.</span>`;
