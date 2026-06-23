@@ -911,7 +911,7 @@
         <span class="agente-pos" style="color:${cor};width:36px;font-size:12px">${d.pct}%</span>
         <span class="agente-nome">${medal}${d.nome.split(' ')[0]}</span>
         <div class="agente-bar-wrap"><div class="agente-bar" style="width:${d.pct}%;background:${barCor}"></div></div>
-        <span class="agente-num" style="font-size:11px;color:var(--muted);width:56px">${d.pos}↑ ${d.neg}↓</span>
+        <span class="agente-num" style="font-size:11px;color:var(--muted);width:56px">+${d.pos} −${d.neg}</span>
       </div>`;
     }).join('') : '<p style="color:var(--muted);font-size:12px">Sem dados — reprocesse os dias do mês</p>';
 
