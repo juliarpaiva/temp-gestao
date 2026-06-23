@@ -533,6 +533,15 @@
     return `<span class="ops-vs ${sobe ? 'up' : 'down'}">${diff > 0 ? '+' : ''}${pct}% vs ant.</span>`;
   }
 
+  function fmtHora(h) {
+    if (h === null || h === undefined) return '—';
+    const totalMin = Math.round(h * 60);
+    if (totalMin < 60) return totalMin + 'min';
+    const hrs = Math.floor(totalMin / 60);
+    const min = totalMin % 60;
+    return min === 0 ? hrs + 'h' : hrs + 'h ' + min + 'min';
+  }
+
   function opsCsatPill(v) {
     if (v === null) return '—';
     const cls = v >= 75 ? 'alto' : v >= 55 ? 'medio' : 'baixo';
@@ -586,8 +595,8 @@
         <td class="ops-agente">${escHtml(ag.agente)}</td>
         <td class="r" style="color:${ag.volume >= metaVol ? '#16a34a' : ag.volume >= metaVol * 0.8 ? '#ca8a04' : '#dc2626'};font-weight:700">${ag.volume}</td>
         <td class="r">${opsCsatPill(ag.csat)}</td>
-        <td class="r" style="color:${trCor};font-weight:700">${ag.tempo_resp_h !== null ? ag.tempo_resp_h + 'h' : '—'}</td>
-        <td class="r">${ag.tempo_enc_h  !== null ? ag.tempo_enc_h  + 'h' : '—'}</td>
+        <td class="r" style="color:${trCor};font-weight:700">${fmtHora(ag.tempo_resp_h)}</td>
+        <td class="r">${fmtHora(ag.tempo_enc_h)}</td>
       </tr>`;
     }).join('');
 
@@ -626,12 +635,12 @@
         </div>
         <div class="kpi" style="border-left:4px solid ${respCor}">
           <div class="kpi-label">Tempo 1ª resposta</div>
-          <div class="ops-kpi-num" style="color:${respCor}">${atual.tempo_resposta_h !== null ? atual.tempo_resposta_h + 'h' : '—'}</div>
-          <div class="kpi-sub" style="color:${respCor};margin-top:6px">${atual.tempo_resposta_h !== null ? (respOk?'✓':'✗')+' meta 1h' : '—'}</div>
+          <div class="ops-kpi-num" style="color:${respCor}">${fmtHora(atual.tempo_resposta_h)}</div>
+          <div class="kpi-sub" style="color:${respCor};margin-top:6px">${atual.tempo_resposta_h !== null ? (respOk?'✓':'✗')+' meta 60min' : '—'}</div>
         </div>
         <div class="kpi">
           <div class="kpi-label">Tempo encerramento</div>
-          <div class="ops-kpi-num">${atual.tempo_encerramento_h !== null ? atual.tempo_encerramento_h + 'h' : '—'}</div>
+          <div class="ops-kpi-num">${fmtHora(atual.tempo_encerramento_h)}</div>
           <div class="kpi-sub flat">média do período</div>
         </div>
         <div class="kpi">
