@@ -74,6 +74,9 @@ function getMailer() {
     port: parseInt(process.env.SMTP_PORT || '587'),
     secure: false,
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 10000,
   });
 }
 
@@ -188,7 +191,7 @@ app.post('/forgot-password', express.urlencoded({ extended: false }), async (req
         `INSERT INTO support_bi.csat_reset_tokens (email, token, expires_at) VALUES ($1,$2,$3)`,
         [email, token, expires]);
       const base = process.env.APP_URL || 'https://csat-sup-ink.herokuapp.com';
-      await sendResetEmail(email, `${base}/reset-password?token=${token}`, false);
+      sendResetEmail(email, `${base}/reset-password?token=${token}`, false).catch(e => console.error('[email]', e.message));
     }
     res.redirect('/forgot-password?enviado=1');
   } catch(e) {
@@ -289,7 +292,7 @@ app.post('/admin/add-user', express.json(), async (req, res) => {
         [em, token, expires]);
       const base = process.env.APP_URL || 'https://csat-sup-ink.herokuapp.com';
       const link = `${base}/reset-password?token=${token}`;
-      await sendResetEmail(em, link, true);
+      sendResetEmail(em, link, true).catch(e => console.error('[email]', e.message));
       return res.json({ ok: true, email: em, invite_link: link });
     }
     res.json({ ok: true, email: em });
