@@ -584,6 +584,118 @@ app.get('/admin/puxar-indevidas-cloudchat', async (req, res) => {
   }
 });
 
+// ── Métricas Operacionais Semanais ──────────────────────────────────────────
+
+app.get('/kpis-semanais', async (req, res) => {
+  try {
+    let semana = req.query.semana;
+    if (!semana) {
+      const hoje = new Date();
+      const dow = hoje.getUTCDay();
+      const daysSinceLastFri = dow === 5 ? 7 : (dow - 5 + 7) % 7;
+      const lastFri = new Date(hoje);
+      lastFri.setUTCDate(lastFri.getUTCDate() - daysSinceLastFri);
+      const lastCompleteSat = new Date(lastFri);
+      lastCompleteSat.setUTCDate(lastCompleteSat.getUTCDate() - 6);
+      semana = lastCompleteSat.toISOString().slice(0, 10);
+    }
+
+    const sat = new Date(semana + 'T12:00:00Z');
+    const nextSat = new Date(sat);
+    nextSat.setUTCDate(nextSat.getUTCDate() + 7);
+    const prevSat = new Date(sat);
+    prevSat.setUTCDate(prevSat.getUTCDate() - 7);
+
+    const d0 = semana;
+    const d1 = nextSat.toISOString().slice(0, 10);
+    const pd0 = prevSat.toISOString().slice(0, 10);
+
+    const token = await getMetabaseToken();
+
+    async function sqlScalar(sql) {
+      const resp = await fetch(`${METABASE_URL}/api/dataset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Metabase-Session': token },
+        body: JSON.stringify({ database: METABASE_DATABASE_ID, type: 'native', native: { query: sql } }),
+      });
+      const data = await resp.json();
+      const val = data.data?.rows?.[0]?.[0];
+      return (val !== undefined && val !== null) ? Number(val) : null;
+    }
+
+    async function sqlRows(sql) {
+      const resp = await fetch(`${METABASE_URL}/api/dataset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Metabase-Session': token },
+        body: JSON.stringify({ database: METABASE_DATABASE_ID, type: 'native', native: { query: sql } }),
+      });
+      const data = await resp.json();
+      return data.data?.rows || [];
+    }
+
+    const [
+      volume, mediaDiaria, csatTime, csatClaudia, retencaoN1,
+      tempoResposta, tempoEncerramento,
+      volAnterior, retencaoAnterior, csatAnterior,
+      porAgenteRows
+    ] = await Promise.all([
+      sqlScalar(`SELECT COUNT(ticket_id) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
+      sqlScalar(`SELECT ROUND(COUNT(*) * 1.0 / NULLIF(COUNT(DISTINCT DATE(created_at_local)), 0), 1) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
+      sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
+      sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND agent_on_resolution_name ILIKE '%claudia%' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
+      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name ILIKE '%claudia%' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
+      sqlScalar(`SELECT ROUND(AVG(first_agent_reply_time_min) / 60.0, 1) FROM dw.fact_cloudchat_tickets WHERE first_agent_first_reply_at_local IS NOT NULL AND first_agent_reply_time_min IS NOT NULL AND first_agent_reply_time_min >= 0 AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
+      sqlScalar(`SELECT ROUND(AVG(first_agent_resolution_time_min) / 60.0, 1) FROM dw.fact_cloudchat_tickets WHERE resolved_at_local IS NOT NULL AND first_agent_resolution_time_min IS NOT NULL AND first_agent_resolution_time_min > 0 AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
+      sqlScalar(`SELECT COUNT(ticket_id) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${pd0}' AND created_at_local < '${d0}'`),
+      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name ILIKE '%claudia%' AND created_at_local >= '${pd0}' AND created_at_local < '${d0}'`),
+      sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND created_at_local >= '${pd0}' AND created_at_local < '${d0}'`),
+      sqlRows(`
+        SELECT
+          COALESCE(agent_on_resolution_name, '(sem agente)') AS agente,
+          COUNT(*) AS volume,
+          ROUND(AVG(CASE WHEN first_agent_reply_time_min IS NOT NULL AND first_agent_first_reply_at_local IS NOT NULL AND first_agent_reply_time_min >= 0 THEN first_agent_reply_time_min END) / 60.0, 1) AS tempo_resp_h,
+          ROUND(AVG(CASE WHEN first_agent_resolution_time_min IS NOT NULL AND first_agent_resolution_time_min > 0 AND resolved_at_local IS NOT NULL THEN first_agent_resolution_time_min END) / 60.0, 1) AS tempo_enc_h,
+          ROUND(((AVG(CASE WHEN csat_score IS NOT NULL THEN csat_score END) - 1) / 4.0 * 100)::numeric, 1) AS csat
+        FROM dw.fact_cloudchat_tickets
+        WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'
+          AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Júlia','Hari','Henri')
+        GROUP BY 1
+        ORDER BY volume DESC
+      `)
+    ]);
+
+    const porAgente = porAgenteRows.map(r => ({
+      agente: r[0],
+      volume: Number(r[1]) || 0,
+      tempo_resp_h: r[2] !== null ? Number(r[2]) : null,
+      tempo_enc_h:  r[3] !== null ? Number(r[3]) : null,
+      csat:         r[4] !== null ? Number(r[4]) : null,
+    }));
+
+    res.json({
+      semana: d0,
+      semana_anterior: pd0,
+      atual: {
+        volume:               volume      ?? 0,
+        media_diaria:         mediaDiaria ?? 0,
+        csat_time:            csatTime,
+        csat_claudia:         csatClaudia,
+        retencao_n1:          retencaoN1  ?? 0,
+        tempo_resposta_h:     tempoResposta,
+        tempo_encerramento_h: tempoEncerramento,
+        por_agente:           porAgente,
+      },
+      anterior: {
+        volume:      volAnterior       ?? 0,
+        retencao_n1: retencaoAnterior  ?? 0,
+        csat_time:   csatAnterior,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Lista todas as tabelas do banco 2 no Metabase e busca por campos CSAT/invalid
 app.get('/admin/schema-invalida', async (req, res) => {
   if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY)

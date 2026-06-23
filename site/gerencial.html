@@ -215,6 +215,29 @@
     /* STREAK */
     .streak-badge { display: inline-flex; align-items: center; gap: 8px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 700; color: #c2410c; margin-bottom: 12px; }
 
+    /* MÉTRICAS OPERACIONAIS */
+    .ops-week-nav { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 20px; }
+    .ops-week-btn { padding: 5px 14px; border-radius: 20px; border: 1px solid var(--borda); background: var(--card); font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; transition: all .15s; white-space: nowrap; font-family: inherit; }
+    .ops-week-btn:hover { border-color: var(--rosa); color: var(--rosa); }
+    .ops-week-btn.ativo { background: var(--preto); border-color: var(--preto); color: #fff; }
+    .ops-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .ops-table th { text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); padding: 0 12px 10px; border-bottom: 1px solid var(--borda); white-space: nowrap; }
+    .ops-table th.r { text-align: right; }
+    .ops-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .ops-table td.r { text-align: right; font-variant-numeric: tabular-nums; }
+    .ops-table tr:last-child td { border-bottom: none; }
+    .ops-table tr:hover td { background: #fafbfc; }
+    .ops-agente { font-weight: 700; font-size: 13px; }
+    .ops-pill { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 700; }
+    .ops-pill.alto  { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+    .ops-pill.medio { background: #fefce8; color: #ca8a04; border: 1px solid #fde68a; }
+    .ops-pill.baixo { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+    .ops-vs { font-size: 10px; font-weight: 700; }
+    .ops-vs.up   { color: #dc2626; }
+    .ops-vs.down { color: #16a34a; }
+    .ops-vs.flat { color: var(--muted); }
+    .ops-kpi-num { font-size: 36px; font-weight: 900; letter-spacing: -1.5px; line-height: 1.1; }
+
     /* FOOTER */
     .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--borda); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
     .footer-brand { font-weight: 900; font-size: 14px; color: var(--preto); }
@@ -281,6 +304,17 @@
 </div>
 
 <main class="main">
+  <div id="secao-kpis-op" style="margin-bottom:36px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px">
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
+      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
+    </div>
+  </div>
   <div id="conteudo">
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:32px">
       <div style="background:var(--card);border:1px solid var(--borda);border-radius:var(--r);padding:20px 22px"><div class="sk" style="width:80px;height:10px;margin-bottom:14px"></div><div class="sk" style="width:55px;height:36px;margin-bottom:10px"></div><div class="sk" style="width:110px;height:10px"></div></div>
@@ -349,14 +383,173 @@
 
   let dadosGestao    = null;
   let dadosIndevidas = [];
-  let summaryMap     = {};   // date → { total, total_avaliados, total_positivos }
-  let dayDataCache   = {};   // date → full /data/:date response
+  let summaryMap     = {};
+  let dayDataCache   = {};
   let mesAtivo       = null;
-  let calViewMes     = null;  // mês exibido no calendário (independente do filtro ativo)
+  let calViewMes     = null;
   let selectedDay    = null;
-  let filterMode     = 'mes';  // 'dia' | 'semana' | 'mes' | 'periodo'
+  let filterMode     = 'mes';
   let selectedWeek   = null;
   let periodoInicio  = null;
+
+  // ── Métricas Operacionais ────────────────────────────────────────────────
+  let kpisOp    = null;
+  let semanaOp  = null;
+
+  const MESES_OP = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+
+  function gerarSemanasOps(n) {
+    const hoje = new Date();
+    const dow  = hoje.getUTCDay();
+    const daysSinceLastFri = dow === 5 ? 7 : (dow - 5 + 7) % 7;
+    const lastFri = new Date(hoje);
+    lastFri.setUTCDate(lastFri.getUTCDate() - daysSinceLastFri);
+    const semanas = [];
+    for (let i = 0; i < n; i++) {
+      const fri = new Date(lastFri);
+      fri.setUTCDate(fri.getUTCDate() - i * 7);
+      const sat = new Date(fri);
+      sat.setUTCDate(sat.getUTCDate() - 6);
+      semanas.push(sat.toISOString().slice(0, 10));
+    }
+    return semanas;
+  }
+
+  function semanaOpsLabel(satStr) {
+    const [ay, am, ad] = satStr.split('-').map(Number);
+    const sat = new Date(Date.UTC(ay, am - 1, ad));
+    const fri = new Date(sat);
+    fri.setUTCDate(fri.getUTCDate() + 6);
+    const sd = sat.getUTCDate(), sm = sat.getUTCMonth();
+    const fd = fri.getUTCDate(), fm = fri.getUTCMonth();
+    if (sm === fm) return `${sd}–${fd} ${MESES_OP[sm]}`;
+    return `${sd} ${MESES_OP[sm]} – ${fd} ${MESES_OP[fm]}`;
+  }
+
+  function opsVs(atual, ant, inverso) {
+    if (ant === null || ant === 0 || atual === null) return '';
+    const diff = atual - ant;
+    if (diff === 0) return '<span class="ops-vs flat">= sem variação</span>';
+    const pct  = Math.round(Math.abs(diff) / Math.abs(ant) * 100);
+    const sobe = inverso ? diff < 0 : diff > 0;
+    return `<span class="ops-vs ${sobe ? 'up' : 'down'}">${diff > 0 ? '+' : ''}${pct}% vs ant.</span>`;
+  }
+
+  function opsCsatPill(v) {
+    if (v === null) return '—';
+    const cls = v >= 75 ? 'alto' : v >= 55 ? 'medio' : 'baixo';
+    return `<span class="ops-pill ${cls}">${v}%</span>`;
+  }
+
+  function renderKpisOp() {
+    const el = document.getElementById('secao-kpis-op');
+    if (!el) return;
+    if (!kpisOp) { el.innerHTML = ''; return; }
+
+    const { atual, anterior } = kpisOp;
+    const semanas    = gerarSemanasOps(8);
+    const weekNavHtml = semanas.map(s =>
+      `<button class="ops-week-btn${s === semanaOp ? ' ativo' : ''}" onclick="mudarSemanaOp('${s}')">${semanaOpsLabel(s)}</button>`
+    ).join('');
+
+    const tabelaHtml = (atual.por_agente || []).map(ag => `
+      <tr>
+        <td class="ops-agente">${escHtml(ag.agente)}</td>
+        <td class="r">${ag.volume}</td>
+        <td class="r">${opsCsatPill(ag.csat)}</td>
+        <td class="r">${ag.tempo_resp_h !== null ? ag.tempo_resp_h + 'h' : '—'}</td>
+        <td class="r">${ag.tempo_enc_h  !== null ? ag.tempo_enc_h  + 'h' : '—'}</td>
+      </tr>`).join('');
+
+    el.innerHTML = `
+      <div class="section-head">Métricas Operacionais — ${semanaOpsLabel(semanaOp)}</div>
+      <div class="ops-week-nav">${weekNavHtml}</div>
+
+      <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(155px,1fr));margin-bottom:20px">
+        <div class="kpi">
+          <div class="kpi-label">Volume total</div>
+          <div class="ops-kpi-num">${atual.volume.toLocaleString('pt-BR')}</div>
+          <div class="kpi-sub flat">${opsVs(atual.volume, anterior.volume, false)} Média ${atual.media_diaria}/dia</div>
+        </div>
+        <div class="kpi destaque">
+          <div class="kpi-label">CSAT geral</div>
+          <div class="ops-kpi-num" style="color:var(--rosa)">${atual.csat_time !== null ? atual.csat_time + '%' : '—'}</div>
+          <div class="kpi-sub flat">${opsVs(atual.csat_time, anterior.csat_time, false)}</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">CSAT Claudia</div>
+          <div class="ops-kpi-num">${atual.csat_claudia !== null ? atual.csat_claudia + '%' : '—'}</div>
+          <div class="kpi-sub flat">IA — escala 1–5 → %</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Tempo 1ª resposta</div>
+          <div class="ops-kpi-num">${atual.tempo_resposta_h !== null ? atual.tempo_resposta_h + 'h' : '—'}</div>
+          <div class="kpi-sub flat">média do período</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Tempo encerramento</div>
+          <div class="ops-kpi-num">${atual.tempo_encerramento_h !== null ? atual.tempo_encerramento_h + 'h' : '—'}</div>
+          <div class="kpi-sub flat">média do período</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Retenção N1 Claudia</div>
+          <div class="ops-kpi-num">${atual.retencao_n1.toLocaleString('pt-BR')}</div>
+          <div class="kpi-sub flat">${opsVs(atual.retencao_n1, anterior.retencao_n1, false)} resolvidos pela IA</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Retenção semana ant.</div>
+          <div class="ops-kpi-num" style="color:var(--muted)">${anterior.retencao_n1.toLocaleString('pt-BR')}</div>
+          <div class="kpi-sub flat">${semanaOpsLabel(kpisOp.semana_anterior)}</div>
+        </div>
+      </div>
+
+      <div class="painel">
+        <div class="painel-title">Tempos e volume por agente — ${semanaOpsLabel(semanaOp)}</div>
+        ${tabelaHtml ? `
+        <table class="ops-table">
+          <thead><tr>
+            <th>Agente</th>
+            <th class="r">Tickets</th>
+            <th class="r">CSAT</th>
+            <th class="r">1ª Resposta</th>
+            <th class="r">Encerramento</th>
+          </tr></thead>
+          <tbody>${tabelaHtml}</tbody>
+        </table>` : '<p style="color:var(--muted);font-size:12px">Sem dados para esta semana.</p>'}
+      </div>`;
+  }
+
+  async function mudarSemanaOp(semana) {
+    semanaOp = semana;
+    renderKpisOp();          // re-render só para atualizar botão ativo enquanto carrega
+    document.getElementById('secao-kpis-op').querySelector('.painel-title') &&
+      (document.getElementById('secao-kpis-op').querySelector('.painel').innerHTML =
+        '<p style="color:var(--muted);font-size:12px;padding:8px 0">Carregando…</p>');
+    try {
+      const r = await fetch(`${API}/kpis-semanais?semana=${semana}`);
+      kpisOp = await r.json();
+      semanaOp = semana;
+      renderKpisOp();
+    } catch (e) {
+      document.getElementById('secao-kpis-op').insertAdjacentHTML('beforeend',
+        `<p style="color:#dc2626;font-size:12px">Erro: ${e.message}</p>`);
+    }
+  }
+
+  async function initKpisOp() {
+    try {
+      const semanas = gerarSemanasOps(1);
+      semanaOp = semanas[0];
+      const r = await fetch(`${API}/kpis-semanais?semana=${semanaOp}`);
+      kpisOp = await r.json();
+      semanaOp = kpisOp.semana;
+      renderKpisOp();
+    } catch (e) {
+      const el = document.getElementById('secao-kpis-op');
+      if (el) el.innerHTML = `<div class="erro">Erro ao carregar métricas operacionais: ${e.message}</div>`;
+    }
+  }
+  // ── fim métricas operacionais ────────────────────────────────────────────
   let periodoFim     = null;
   let periodoCache   = null;  // { por_agente, por_agente_positivos, tags, tags_positivos } para o período selecionado
   let periodoLoading = false;
@@ -726,6 +919,7 @@
   }
 
   async function init() {
+    initKpisOp(); // carrega métricas operacionais em paralelo (não bloqueia o CSAT)
     try {
       const [r, rIndev, rSum, rLast] = await Promise.all([
         fetch(`${API}/gestao`),
