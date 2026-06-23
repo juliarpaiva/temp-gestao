@@ -391,6 +391,14 @@
     render();
   }
 
+  function limparPeriodo() {
+    periodoInicio  = null;
+    periodoFim     = null;
+    periodoCache   = null;
+    periodoLoading = false;
+    render();
+  }
+
   async function verPeriodo() {
     const ini = document.getElementById('periodo-ini');
     const fim = document.getElementById('periodo-fim');
@@ -578,6 +586,7 @@
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">De <input type="date" id="periodo-ini" style="padding:6px 10px;border:1px solid var(--borda);border-radius:8px;font-size:12px;font-family:inherit;color:var(--preto);background:#fff" /></label>
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">Até <input type="date" id="periodo-fim" style="padding:6px 10px;border:1px solid var(--borda);border-radius:8px;font-size:12px;font-family:inherit;color:var(--preto);background:#fff" /></label>
         <button style="padding:7px 18px;border-radius:8px;border:none;background:var(--rosa);color:#fff;font-size:12px;font-weight:700;cursor:pointer" onclick="verPeriodo()">Ver período</button>
+        ${periodoInicio||periodoFim ? `<button style="padding:7px 14px;border-radius:8px;border:1px solid var(--borda);background:#fff;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer" onclick="limparPeriodo()">✕ Limpar</button>` : ''}
       </div>`;
     } else if (filterMode === 'dia' && !selectedDay) {
       modeNavHtml = `<p style="font-size:12px;color:var(--muted);margin-bottom:20px">Clique em um dia no calendário para ver os KPIs daquele dia.</p>`;
