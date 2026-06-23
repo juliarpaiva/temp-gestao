@@ -585,18 +585,17 @@
       </tr>`;
     }).join('');
 
+    const volOk   = atual.media_diaria >= 45;
+    const csatOk  = atual.csat_time  !== null && atual.csat_time  >= 75;
+    const csatCor = atual.csat_time  !== null ? (atual.csat_time  >= 75 ? '#16a34a' : atual.csat_time  >= 55 ? '#ca8a04' : '#dc2626') : 'var(--rosa)';
+    const respOk  = atual.tempo_resposta_h !== null && atual.tempo_resposta_h <= 1;
+    const respCor = atual.tempo_resposta_h !== null ? (atual.tempo_resposta_h <= 1 ? '#16a34a' : atual.tempo_resposta_h <= 2 ? '#ca8a04' : '#dc2626') : 'inherit';
+
     el.innerHTML = `
       <div class="section-head">Métricas Operacionais — ${opsPeriodoLabel()}</div>
       ${tabsHtml}
       <div class="ops-week-nav">${opsNavHtml()}</div>
 
-      ${(function(){
-        const volOk   = atual.media_diaria >= 45;
-        const csatOk  = atual.csat_time  !== null && atual.csat_time  >= 75;
-        const csatCor = atual.csat_time  !== null ? (atual.csat_time  >= 75 ? '#16a34a' : atual.csat_time  >= 55 ? '#ca8a04' : '#dc2626') : 'var(--rosa)';
-        const respOk  = atual.tempo_resposta_h !== null && atual.tempo_resposta_h <= 1;
-        const respCor = atual.tempo_resposta_h !== null ? (atual.tempo_resposta_h <= 1 ? '#16a34a' : atual.tempo_resposta_h <= 2 ? '#ca8a04' : '#dc2626') : 'inherit';
-        return `
       <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(155px,1fr));margin-bottom:20px">
         <div class="kpi" style="border-left:4px solid ${volOk?'#16a34a':'#dc2626'}">
           <div class="kpi-label">Volume total</div>
@@ -631,8 +630,7 @@
           <div class="kpi-sub flat">${opsVs(atual.retencao_n1, anterior.retencao_n1, false) || 'resolvidos pela IA'}</div>
           ${anterior.retencao_n1 ? `<div class="kpi-sub flat" style="margin-top:2px;font-weight:500">${anterior.retencao_n1.toLocaleString('pt-BR')} no período ant.</div>` : ''}
         </div>
-      </div>`;
-      })()
+      </div>
 
       <div class="painel">
         <div class="painel-title">Tempos e volume por agente — ${opsPeriodoLabel()}</div>
