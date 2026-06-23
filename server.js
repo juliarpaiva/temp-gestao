@@ -440,10 +440,13 @@ app.get('/indevidas-resumo', async (req, res) => {
 const CLOUDCHAT_BASE = 'https://cloudchat3.cloudhumans.com';
 const CLOUDCHAT_ACCOUNT = 73;
 
-async function fetchCloudChat(path, token) {
-  const resp = await fetch(`${CLOUDCHAT_BASE}${path}`, {
+async function fetchCloudChat(path, token, method = 'GET', body = null) {
+  const opts = {
+    method,
     headers: { 'api_access_token': token, 'Content-Type': 'application/json' },
-  });
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const resp = await fetch(`${CLOUDCHAT_BASE}${path}`, opts);
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(`CloudChat ${resp.status}: ${text.slice(0, 200)}`);
@@ -451,50 +454,130 @@ async function fetchCloudChat(path, token) {
   return resp.json();
 }
 
-// Descobre estrutura da API de CSAT do CloudChat e puxar indevidas de junho
+// Puxar todas as indevidas históricas de junho via CloudChat API e importar
+// Etapas: (1) CSATs de junho, (2) conversas com avaliao_de_csat_vlida=true, (3) cruzamento + import
 app.get('/admin/puxar-indevidas-cloudchat', async (req, res) => {
   if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY)
     return res.status(403).json({ error: 'Forbidden' });
   const token = process.env.CLOUDCHAT_TOKEN;
   if (!token) return res.status(500).json({ error: 'CLOUDCHAT_TOKEN não configurado' });
 
+  const dryRun = req.query.dry !== 'false'; // por padrão só simula; use ?dry=false para importar de verdade
   const since = Math.floor(new Date('2026-06-01T00:00:00Z').getTime() / 1000);
   const until = Math.floor(new Date('2026-06-30T23:59:59Z').getTime() / 1000);
 
   try {
-    let allCsats = [];
+    // ── Etapa 1: Todos os CSATs de junho ────────────────────────────────────
+    let csatsJunho = [];
     let page = 1;
     while (true) {
       const data = await fetchCloudChat(
-        `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/reports/csat?since=${since}&until=${until}&page=${page}`,
+        `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/csat_survey_responses?since=${since}&until=${until}&page=${page}`,
         token
       );
       const items = Array.isArray(data) ? data : (data.data || []);
       if (!items.length) break;
-      allCsats = allCsats.concat(items);
+      csatsJunho = csatsJunho.concat(items);
       if (items.length < 25) break;
       page++;
-      if (page > 20) break; // segurança: máx 500 itens
+      if (page > 40) break; // segurança: máx 1000 itens
     }
 
-    // Campos disponíveis (para descobrir onde está o flag "indevida")
-    const campos = allCsats.length > 0 ? Object.keys(allCsats[0]) : [];
+    // Mapeia conversation_id → dados do CSAT (data + agente)
+    const csatPorConversa = {};
+    for (const c of csatsJunho) {
+      if (!c.conversation_id) continue;
+      const date = new Date(c.created_at * 1000).toISOString().slice(0, 10);
+      csatPorConversa[c.conversation_id] = {
+        conversation_id: c.conversation_id,
+        date,
+        score: c.rating,
+        agente: c.assigned_agent?.name || null,
+      };
+    }
 
-    // Tenta detectar indevidas por campos conhecidos
-    const indevidas = allCsats.filter(c => {
-      const attrs = c.custom_attributes || c.conversation?.custom_attributes || {};
-      return attrs.csat_invalida === true
-        || attrs.avaliacao_invalida === true
-        || c.is_invalid === true
-        || c.invalid === true;
-    });
+    // ── Etapa 2: Conversas marcadas como indevida (avaliao_de_csat_vlida=true) ─
+    let conversasIndevidas = [];
+    let filterPage = 1;
+    while (true) {
+      const data = await fetchCloudChat(
+        `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=${filterPage}`,
+        token,
+        'POST',
+        {
+          payload: [
+            {
+              attribute_key: 'avaliao_de_csat_vlida',
+              filter_operator: 'equal_to',
+              values: [true],
+              query_operator: null,
+            },
+          ],
+        }
+      );
+      const items = data?.data?.payload || data?.payload || [];
+      if (!items.length) break;
+      conversasIndevidas = conversasIndevidas.concat(items);
+      const meta = data?.data?.meta || data?.meta || {};
+      if (conversasIndevidas.length >= (meta.all_count || conversasIndevidas.length)) break;
+      if (items.length < 25) break;
+      filterPage++;
+      if (filterPage > 80) break; // segurança
+    }
+
+    // Mapeia por display_id (conversation ID visível)
+    const indevidasIds = new Set(conversasIndevidas.map(c => c.id));
+
+    // ── Etapa 3: Cruzamento — CSATs de junho que estão marcados como indevida ─
+    const indevidasJunho = [];
+    for (const [convId, csat] of Object.entries(csatPorConversa)) {
+      if (indevidasIds.has(Number(convId))) {
+        indevidasJunho.push(csat);
+      }
+    }
+
+    if (dryRun) {
+      return res.json({
+        dry_run: true,
+        total_csats_junho: csatsJunho.length,
+        total_conversas_indevidas: conversasIndevidas.length,
+        indevidas_junho: indevidasJunho.length,
+        preview: indevidasJunho,
+        instrucao: 'Para importar de verdade, chame com ?dry=false',
+      });
+    }
+
+    // ── Etapa 4: Importa e reprocessa ──────────────────────────────────────
+    let importados = 0;
+    const datesParaReprocessar = new Set();
+    for (const t of indevidasJunho) {
+      await pool.query(
+        `INSERT INTO support_bi.csat_indevidas (ticket_id, date, motivo, observacao)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (ticket_id) DO UPDATE SET motivo=$3, observacao=$4, marcado_em=NOW()`,
+        [String(t.conversation_id), t.date, 'cloudchat_historico_junho', t.agente || null]
+      );
+      importados++;
+      datesParaReprocessar.add(t.date);
+    }
+
+    const resultados = [];
+    for (const date of [...datesParaReprocessar].sort()) {
+      try {
+        const r = await runDailyReport(date, true);
+        resultados.push({ date, status: 'ok', ...r });
+      } catch (e) {
+        resultados.push({ date, status: 'erro', error: e.message });
+      }
+    }
 
     res.json({
-      total_junho: allCsats.length,
-      campos_disponiveis: campos,
-      indevidas_detectadas: indevidas.length,
-      amostra: allCsats.slice(0, 3),
-      indevidas: indevidas,
+      dry_run: false,
+      total_csats_junho: csatsJunho.length,
+      total_conversas_indevidas: conversasIndevidas.length,
+      indevidas_junho: indevidasJunho.length,
+      importados,
+      datas_reprocessadas: resultados,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
