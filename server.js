@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -442,6 +442,8 @@ app.get('/indevidas-resumo', async (req, res) => {
 // Retorna todos os campos do CSAT de junho + todas as labels únicas
 // → Use para identificar onde está armazenado o flag "indevida" no Metabase
 app.get('/admin/indevidas-junho', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
   try {
     const token = await getMetabaseToken();
 
@@ -518,6 +520,8 @@ app.get('/admin/indevidas-junho', async (req, res) => {
 // Importa lista de indevidas históricas e reprocessa as datas afetadas
 // Body: { tickets: [{ticket_id, date, motivo?, observacao?}] }
 app.post('/admin/importar-indevidas', express.json(), async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
   const { tickets } = req.body || {};
   if (!Array.isArray(tickets) || tickets.length === 0) {
     return res.status(400).json({ error: 'tickets deve ser um array não-vazio com {ticket_id, date}' });
