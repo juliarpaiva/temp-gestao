@@ -290,6 +290,8 @@
   let selectedWeek   = null;
   let periodoInicio  = null;
   let periodoFim     = null;
+  let periodoCache   = null;  // { por_agente, por_agente_positivos, tags, tags_positivos } para o período selecionado
+  let periodoLoading = false;
 
   const DIAS_SEMANA  = ['Seg','Ter','Qua','Qui','Sex'];
   const MESES_FULL   = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
@@ -372,7 +374,8 @@
 
   function setFilterMode(mode) {
     filterMode = mode;
-    if (mode !== 'dia') { selectedDay = null; fecharReportPanel(); }
+    if (mode !== 'dia')     { selectedDay = null; fecharReportPanel(); }
+    if (mode !== 'periodo') { periodoCache = null; periodoLoading = false; }
     if (mode === 'semana' && !selectedWeek && dadosGestao) {
       const semanasKeys = Object.keys(dadosGestao.semanas).sort();
       selectedWeek = semanasKeys[semanasKeys.length - 1] || null;
@@ -388,16 +391,42 @@
     render();
   }
 
-  function verPeriodo() {
+  async function verPeriodo() {
     const ini = document.getElementById('periodo-ini');
     const fim = document.getElementById('periodo-fim');
     if (!ini || !fim || !ini.value || !fim.value) return;
-    periodoInicio = ini.value;
-    periodoFim    = fim.value;
-    filterMode    = 'periodo';
+    periodoInicio  = ini.value;
+    periodoFim     = fim.value;
+    filterMode     = 'periodo';
+    periodoCache   = null;
+    periodoLoading = true;
     render();
-    if (ini && periodoInicio) ini.value = periodoInicio;
-    if (fim && periodoFim)    fim.value = periodoFim;
+
+    // Busca dados de cada dia do período que ainda não esteja em cache
+    const dates = Object.keys(summaryMap).filter(d => d >= periodoInicio && d <= periodoFim);
+    await Promise.all(dates.map(async date => {
+      if (!dayDataCache[date]) {
+        try {
+          const r = await fetch(`${API}/data/${date}`);
+          if (r.ok) dayDataCache[date] = await r.json();
+        } catch(e) {}
+      }
+    }));
+
+    // Agrega por-agente e tags de todos os dias do período
+    const porAgente = {}, porAgentePos = {}, tags = {}, tagsPos = {};
+    dates.forEach(date => {
+      const d = dayDataCache[date];
+      if (!d) return;
+      Object.entries(d.por_agente || {}).forEach(([ag,cnt]) => { porAgente[ag] = (porAgente[ag]||0) + cnt; });
+      Object.entries(d.por_agente_positivos || {}).forEach(([ag,cnt]) => { porAgentePos[ag] = (porAgentePos[ag]||0) + cnt; });
+      (d.tickets || []).forEach(t => { (t.tags||[]).forEach(tag => { tags[tag] = (tags[tag]||0) + 1; }); });
+      (d.tickets_positivos || []).forEach(t => { (t.tags||[]).forEach(tag => { tagsPos[tag] = (tagsPos[tag]||0) + 1; }); });
+    });
+
+    periodoCache   = { por_agente: porAgente, por_agente_positivos: porAgentePos, tags, tags_positivos: tagsPos };
+    periodoLoading = false;
+    render();
   }
 
   async function init() {
@@ -479,12 +508,15 @@
       const totAv  = dates.reduce((s,d) => s + (summaryMap[d].total_avaliados || 0), 0);
       const totPos = dates.reduce((s,d) => s + (summaryMap[d].total_positivos  || 0), 0);
       activeDados = {
-        por_agente:{}, por_agente_positivos:{}, tags:{}, tags_positivos:{},
+        por_agente:           periodoCache ? periodoCache.por_agente           : {},
+        por_agente_positivos: periodoCache ? periodoCache.por_agente_positivos : {},
+        tags:                 periodoCache ? periodoCache.tags                 : {},
+        tags_positivos:       periodoCache ? periodoCache.tags_positivos       : {},
         total:totNeg, total_recebidos:0, total_avaliados:totAv, total_positivos:totPos, total_negativos:totNeg,
       };
       const fmt = d => `${Number(d.slice(8))}/${MESES_ABR[Number(d.slice(5,7))-1]}`;
       kpiLabel = `${fmt(periodoInicio)} a ${fmt(periodoFim)}`;
-      showRankings = false; showTags = false;
+      if (!periodoCache) { showRankings = false; showTags = false; }
     } else {
       // Default: mês
       activeDados = {
@@ -759,18 +791,18 @@
 
       <div class="painel" style="margin-bottom:32px" id="section-satisfacao">
         <div class="painel-title">Satisfação por agente — ${kpiLabel}</div>
-        ${showRankings ? satisfacaoHtml : '<p style="color:var(--muted);font-size:12px">Selecione um dia, semana ou mês para ver o ranking por agente.</p>'}
+        ${showRankings ? satisfacaoHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando dados do período…</p>' : '<p style="color:var(--muted);font-size:12px">Selecione um dia, semana ou mês para ver o ranking por agente.</p>'}
       </div>
 
       <div class="section-head pos" id="section-positivos">Monitoramento de positivos</div>
       <div class="dois-col">
         <div class="painel pos">
           <div class="painel-title">Positivos por agente</div>
-          ${showRankings ? posRankingHtml : '<p style="color:var(--muted);font-size:12px">Disponível por Dia, Semana ou Mês.</p>'}
+          ${showRankings ? posRankingHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando…</p>' : '<p style="color:var(--muted);font-size:12px">Disponível por Dia, Semana ou Mês.</p>'}
         </div>
         <div class="painel pos">
           <div class="painel-title">Top tags — positivos</div>
-          ${showTags ? tagsPositivosHtml : '<p style="color:var(--muted);font-size:12px">Tags disponíveis por Dia ou Mês.</p>'}
+          ${showTags ? tagsPositivosHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando…</p>' : '<p style="color:var(--muted);font-size:12px">Tags disponíveis por Dia ou Mês.</p>'}
         </div>
       </div>
 
@@ -778,11 +810,11 @@
       <div class="dois-col">
         <div class="painel">
           <div class="painel-title">Negativos por agente</div>
-          ${showRankings ? rankingHtml : '<p style="color:var(--muted);font-size:12px">Disponível por Dia, Semana ou Mês.</p>'}
+          ${showRankings ? rankingHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando…</p>' : '<p style="color:var(--muted);font-size:12px">Disponível por Dia, Semana ou Mês.</p>'}
         </div>
         <div class="painel">
           <div class="painel-title">Top tags — negativos</div>
-          ${showTags ? tagsHtml : '<p style="color:var(--muted);font-size:12px">Tags disponíveis por Dia ou Mês.</p>'}
+          ${showTags ? tagsHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando…</p>' : '<p style="color:var(--muted);font-size:12px">Tags disponíveis por Dia ou Mês.</p>'}
         </div>
       </div>
 
