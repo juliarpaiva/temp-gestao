@@ -615,9 +615,10 @@
     filterMode = mode;
     if (mode !== 'dia')     { selectedDay = null; fecharReportPanel(); }
     if (mode !== 'periodo') { periodoCache = null; periodoLoading = false; }
-    if (mode === 'semana' && !selectedWeek && dadosGestao) {
+    if (mode === 'semana' && dadosGestao) {
       const semanasKeys = Object.keys(dadosGestao.semanas).sort();
-      selectedWeek = semanasKeys[semanasKeys.length - 1] || null;
+      const doMes = semanasKeys.filter(k => k.startsWith(mesAtivo));
+      selectedWeek = (doMes.length ? doMes[doMes.length - 1] : semanasKeys[semanasKeys.length - 1]) || null;
     }
     render();
   }
