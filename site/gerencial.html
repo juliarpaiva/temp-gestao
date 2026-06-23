@@ -1191,8 +1191,8 @@
         por_agente:           dayData.por_agente           || {},
         por_agente_positivos: dayData.por_agente_positivos || {},
         por_agente_outros:    dayData.por_agente_outros    || {},
-        tags:                 computeTagsFromTickets(dayData.tickets),
-        tags_positivos:       computeTagsFromTickets(dayData.tickets_positivos),
+        tags:                 dayData.tags_resumo           || computeTagsFromTickets(dayData.tickets),
+        tags_positivos:       dayData.tags_resumo_positivos || computeTagsFromTickets(dayData.tickets_positivos),
         total:          dayData.total           || 0,
         total_recebidos:dayData.total_recebidos || 0,
         total_avaliados:dayData.total_avaliados || 0,
@@ -1213,7 +1213,8 @@
         por_agente:           sw.por_agente           || {},
         por_agente_positivos: sw.por_agente_positivos || {},
         por_agente_outros:    sw.por_agente_outros    || {},
-        tags:{}, tags_positivos:{},
+        tags:           sw.tags           || {},
+        tags_positivos: sw.tags_positivos || {},
         total:          sw.total           || 0,
         total_recebidos:sw.total_recebidos || 0,
         total_avaliados:sw.total_avaliados || 0,
@@ -1221,7 +1222,6 @@
         total_negativos:sw.total           || 0,
       };
       kpiLabel = `Semana ${semanaLabel(selectedWeek)}`;
-      showTags = false;
     } else if (filterMode === 'periodo' && periodoInicio && periodoFim) {
       const dates = Object.keys(summaryMap).filter(d => d >= periodoInicio && d <= periodoFim);
       const totNeg = dates.reduce((s,d) => s + (summaryMap[d].total           || 0), 0);
@@ -1544,7 +1544,7 @@
         </div>
         <div class="painel pos">
           <div class="painel-title">Top tags — positivos</div>
-          ${showTags ? tagsPositivosHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando…</p>' : '<p style="color:var(--muted);font-size:12px">Tags disponíveis por Dia ou Mês.</p>'}
+          ${showTags ? tagsPositivosHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando…</p>' : '<p style="color:var(--muted);font-size:12px">Tags disponíveis após carregar os dados.</p>'}
         </div>
       </div>
 
@@ -1556,7 +1556,7 @@
         </div>
         <div class="painel">
           <div class="painel-title">Top tags — negativos</div>
-          ${showTags ? tagsHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando…</p>' : '<p style="color:var(--muted);font-size:12px">Tags disponíveis por Dia ou Mês.</p>'}
+          ${showTags ? tagsHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando…</p>' : '<p style="color:var(--muted);font-size:12px">Tags disponíveis após carregar os dados.</p>'}
         </div>
       </div>
 

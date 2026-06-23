@@ -1076,15 +1076,17 @@ app.get('/gestao', async (req, res) => {
       const mon = new Date(d);
       mon.setUTCDate(d.getUTCDate() - (dow === 0 ? 6 : dow - 1));
       const semChave = mon.toISOString().slice(0, 10);
-      if (!semanas[semChave]) semanas[semChave] = { total: 0, total_recebidos: 0, total_avaliados: 0, total_positivos: 0, dias: 0, por_agente: {}, por_agente_positivos: {}, por_agente_outros: {}, pior_dia: null, pior_total: 0 };
+      if (!semanas[semChave]) semanas[semChave] = { total: 0, total_recebidos: 0, total_avaliados: 0, total_positivos: 0, dias: 0, por_agente: {}, por_agente_positivos: {}, por_agente_outros: {}, tags: {}, tags_positivos: {}, pior_dia: null, pior_total: 0 };
       semanas[semChave].total           += total;
       semanas[semChave].total_recebidos += total_recebidos;
       semanas[semChave].total_avaliados += total_avaliados;
       semanas[semChave].total_positivos += total_positivos;
       semanas[semChave].dias++;
-      for (const [a, c] of Object.entries(por_agente))          semanas[semChave].por_agente[a]          = (semanas[semChave].por_agente[a]          || 0) + c;
-      for (const [a, c] of Object.entries(por_agente_positivos)) semanas[semChave].por_agente_positivos[a] = (semanas[semChave].por_agente_positivos[a] || 0) + c;
-      for (const [a, c] of Object.entries(por_agente_outros))    semanas[semChave].por_agente_outros[a]    = (semanas[semChave].por_agente_outros[a]    || 0) + c;
+      for (const [a, c] of Object.entries(por_agente))              semanas[semChave].por_agente[a]          = (semanas[semChave].por_agente[a]          || 0) + c;
+      for (const [a, c] of Object.entries(por_agente_positivos))    semanas[semChave].por_agente_positivos[a] = (semanas[semChave].por_agente_positivos[a] || 0) + c;
+      for (const [a, c] of Object.entries(por_agente_outros))       semanas[semChave].por_agente_outros[a]    = (semanas[semChave].por_agente_outros[a]    || 0) + c;
+      for (const [t, c] of Object.entries(tags_resumo))             semanas[semChave].tags[t]                = (semanas[semChave].tags[t]                 || 0) + c;
+      for (const [t, c] of Object.entries(tags_resumo_positivos))   semanas[semChave].tags_positivos[t]      = (semanas[semChave].tags_positivos[t]       || 0) + c;
       if (total > semanas[semChave].pior_total) { semanas[semChave].pior_total = total; semanas[semChave].pior_dia = date; }
     }
     res.json({ meses, semanas });
