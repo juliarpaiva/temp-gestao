@@ -91,8 +91,7 @@
   <form method="POST" action="/register" id="form" novalidate>
     <div class="field">
       <label for="email">E-mail corporativo</label>
-      <input type="email" id="email" name="email" placeholder="voce@reserva.ink" autocomplete="email" required>
-      <p class="domain-hint">Apenas contas @reserva.ink</p>
+      <input type="email" id="email" name="email" placeholder="seuemail@reserva.ink" autocomplete="email" required>
     </div>
 
     <div class="field">
@@ -102,9 +101,9 @@
         <button type="button" class="eye-btn" onclick="toggleSenha('password',this)" tabindex="-1"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
       </div>
       <div class="reqs" id="reqs">
-        <div class="req" id="req-len"><span class="dot">·</span> Mínimo 8 caracteres</div>
-        <div class="req" id="req-num"><span class="dot">·</span> Ao menos 1 número</div>
-        <div class="req" id="req-esp"><span class="dot">·</span> Ao menos 1 caractere especial (!@#$...)</div>
+        <div class="req" id="req-len"><span class="dot">·</span> 8 caracteres ou mais</div>
+        <div class="req" id="req-num"><span class="dot">·</span> 1 número</div>
+        <div class="req" id="req-esp"><span class="dot">·</span> 1 caractere especial (!@#$...)</div>
       </div>
     </div>
 
