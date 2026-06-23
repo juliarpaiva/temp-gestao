@@ -1079,6 +1079,11 @@
             <div class="kpi-num" style="color:#64748b">${indevidasMes.length || (filterMode==='dia'&&selectedDay&&!dayData ? '...' : (indevidasMes.length === 0 ? '0' : '—'))}</div>
             <div class="kpi-sub flat">marcadas via CloudChat</div>
           </div>
+          <div class="kpi">
+            <div class="kpi-label">Negativas válidas</div>
+            <div class="kpi-num">${Math.max(0, totalNegAll - indevidasMes.length)}</div>
+            <div class="kpi-sub flat">descontando indevidas</div>
+          </div>
         </div>
       </div>
 
