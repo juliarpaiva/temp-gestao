@@ -1038,6 +1038,8 @@
         </div>
       </div>
 
+      ${indevidasMes.length > 0 ? `<p style="font-size:12px;color:#64748b;margin:-12px 0 20px;display:flex;align-items:center;gap:6px"><span style="font-size:14px">ℹ️</span> Indicadores calculados desconsiderando <strong>${indevidasMes.length}</strong> avaliação${indevidasMes.length!==1?'es':''} marcada${indevidasMes.length!==1?'s':''} como indevida${indevidasMes.length!==1?'s':''}</p>` : ''}
+
       <div class="kpi-secao">
         <div class="kpi-grupo-label">Todos os agentes</div>
         <div class="kpi-grid" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr))">
