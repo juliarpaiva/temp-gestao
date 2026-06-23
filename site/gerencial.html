@@ -195,7 +195,10 @@
     .modal-close { background: none; border: none; font-size: 20px; color: var(--muted); cursor: pointer; line-height: 1; padding: 0 2px; }
     .modal-close:hover { color: var(--preto); }
     .modal-body  { padding: 16px 24px 24px; }
-    .outros-ag-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .outros-ag-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; border-radius: 8px; padding: 6px 8px; transition: background .12s; }
+    .outros-ag-row.clicavel { cursor: pointer; }
+    .outros-ag-row.clicavel:hover { background: #f8fafc; }
+    .outros-ag-row.clicavel:hover .outros-ag-nome { color: var(--rosa); }
     .outros-ag-nome { font-size: 13px; font-weight: 600; min-width: 130px; }
     .outros-ag-bar-wrap { flex: 1; height: 7px; background: var(--bg); border-radius: 4px; overflow: hidden; }
     .outros-ag-bar { height: 100%; background: #94a3b8; border-radius: 4px; }
@@ -212,6 +215,11 @@
     .modal-tab-row { display: flex; gap: 4px; padding: 0 24px 12px; border-bottom: 1px solid var(--borda); margin-bottom: 4px; }
     .modal-tab { padding: 5px 14px; border-radius: 6px; border: 1px solid var(--borda); background: transparent; font-size: 11px; font-weight: 700; color: var(--muted); cursor: pointer; transition: all .15s; }
     .modal-tab.ativo { background: var(--preto); border-color: var(--preto); color: #fff; }
+    .btn-voltar-modal { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 6px; border: 1px solid var(--borda); background: transparent; font-size: 11px; font-weight: 700; color: var(--muted); cursor: pointer; transition: all .15s; margin-bottom: 4px; }
+    .btn-voltar-modal:hover { border-color: var(--preto); color: var(--preto); }
+    .modal-secao-head { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .7px; padding: 10px 0 8px; display: flex; align-items: center; gap: 6px; }
+    .modal-secao-head.pos { color: #16a34a; }
+    .modal-secao-head.neg { color: var(--rosa); border-top: 1px solid var(--borda); margin-top: 8px; padding-top: 14px; }
 
     /* FILTER TABS */
     .filter-tabs { display: flex; gap: 4px; margin-bottom: 20px; background: #f1f5f9; border-radius: 10px; padding: 4px; width: fit-content; }
@@ -264,14 +272,14 @@
       ${[1,2,3,4].map(()=>`<div style="background:var(--card);border:1px solid var(--borda);border-radius:var(--r);padding:18px 20px"><div class="sk" style="width:70px;height:10px;margin-bottom:10px"></div><div class="sk" style="width:50px;height:32px;margin-bottom:10px"></div><div class="sk" style="width:90px;height:10px"></div></div>`).join('')}
     </div>
   </div>
-  <!-- Modal: avaliações de outros canais -->
+  <!-- Modal: avaliações de outros agentes -->
   <div class="modal-overlay" id="modal-outros" onclick="if(event.target===this)fecharModalOutros()">
     <div class="modal">
       <div class="modal-head">
-        <span class="modal-title" id="modal-outros-titulo">Outros canais</span>
+        <span class="modal-title" id="modal-outros-titulo">Outros agentes</span>
         <button class="modal-close" onclick="fecharModalOutros()">✕</button>
       </div>
-      <div class="modal-tab-row" id="modal-outros-tabs"></div>
+      <div id="modal-outros-nav" style="padding:0 24px 8px"></div>
       <div class="modal-body" id="modal-outros-body"></div>
     </div>
   </div>
@@ -411,98 +419,114 @@
     document.getElementById('report-iframe').src = '';
   }
 
-  let outrosModalTab = 'agentes'; // 'agentes' | 'tickets'
+  let outrosModalPorAg   = {};
+  let outrosModalTickets = null; // tickets disponíveis (dia ou período)
+  let outrosModalTitulo  = '';
 
   function fecharModalOutros() {
     document.getElementById('modal-outros').classList.remove('aberto');
   }
 
-  function abrirModalOutros() {
-    // Coleta por_agente_outros do contexto ativo
+  function _coletarDadosOutros() {
     const { meses, semanas } = dadosGestao;
-    const mesDados   = meses[mesAtivo] || {};
-    const dayData    = selectedDay ? dayDataCache[selectedDay] : null;
-
-    let porAg = {};
-    let tickets = null; // só disponível em modo dia
-    let titulo  = 'Outros canais';
+    const mesDados = meses[mesAtivo] || {};
+    const dayData  = selectedDay ? dayDataCache[selectedDay] : null;
+    let porAg = {}, tickets = null, titulo = 'Outros agentes';
 
     if (filterMode === 'dia' && dayData) {
       porAg   = dayData.por_agente_outros || {};
-      tickets = dayData.tickets_outros    || null;
+      tickets = dayData.tickets_outros    || [];
       const [,dm,dd] = selectedDay.split('-');
-      titulo = `Outros canais — ${Number(dd)}/${Number(dm)}`;
+      titulo = `Outros agentes — ${Number(dd)}/${Number(dm)}`;
     } else if (filterMode === 'semana' && selectedWeek && semanas[selectedWeek]) {
       porAg  = semanas[selectedWeek].por_agente_outros || {};
-      titulo = `Outros canais — semana ${semanaLabel(selectedWeek)}`;
+      titulo = `Outros agentes — semana ${semanaLabel(selectedWeek)}`;
     } else if (filterMode === 'periodo' && periodoCache) {
-      // Agrega por_agente_outros dos dias em cache no período
       const dates = Object.keys(summaryMap).filter(d => d >= periodoInicio && d <= periodoFim);
+      tickets = [];
       dates.forEach(date => {
-        Object.entries((dayDataCache[date]?.por_agente_outros) || {}).forEach(([ag,cnt]) => {
-          porAg[ag] = (porAg[ag] || 0) + cnt;
-        });
+        Object.entries((dayDataCache[date]?.por_agente_outros) || {}).forEach(([ag,cnt]) => { porAg[ag] = (porAg[ag]||0) + cnt; });
+        (dayDataCache[date]?.tickets_outros || []).forEach(t => tickets.push(t));
       });
       const fmt = d => `${Number(d.slice(8))}/${MESES_ABR[Number(d.slice(5,7))-1]}`;
-      titulo = `Outros canais — ${fmt(periodoInicio)} a ${fmt(periodoFim)}`;
+      titulo = `Outros agentes — ${fmt(periodoInicio)} a ${fmt(periodoFim)}`;
     } else {
       porAg  = mesDados.por_agente_outros || {};
-      titulo = `Outros canais — ${mesLabel(mesAtivo)}`;
+      titulo = `Outros agentes — ${mesLabel(mesAtivo)}`;
     }
+    return { porAg, tickets, titulo };
+  }
 
+  function abrirModalOutros() {
+    const { porAg, tickets, titulo } = _coletarDadosOutros();
+    outrosModalPorAg   = porAg;
+    outrosModalTickets = tickets;
+    outrosModalTitulo  = titulo;
     document.getElementById('modal-outros-titulo').textContent = titulo;
-
-    // Tabs: só mostra aba Tickets se dados do dia disponíveis
-    const tabsEl = document.getElementById('modal-outros-tabs');
-    if (tickets !== null) {
-      tabsEl.innerHTML = `
-        <button class="modal-tab${outrosModalTab==='agentes'?' ativo':''}" onclick="trocarAbaOutros('agentes')">Por agente</button>
-        <button class="modal-tab${outrosModalTab==='tickets'?' ativo':''}" onclick="trocarAbaOutros('tickets')">Tickets (${tickets.length})</button>`;
-    } else {
-      tabsEl.innerHTML = '';
-      outrosModalTab = 'agentes';
-    }
-
-    renderModalOutrosBody(porAg, tickets);
+    document.getElementById('modal-outros-nav').innerHTML = '';
+    _renderListaAgentes();
     document.getElementById('modal-outros').classList.add('aberto');
   }
 
-  function trocarAbaOutros(aba) {
-    outrosModalTab = aba;
-    abrirModalOutros(); // re-abre com nova aba ativa
-  }
-
-  function renderModalOutrosBody(porAg, tickets) {
+  function _renderListaAgentes() {
     const bodyEl = document.getElementById('modal-outros-body');
-    if (outrosModalTab === 'tickets' && tickets) {
-      if (!tickets.length) { bodyEl.innerHTML = '<p style="color:var(--muted);font-size:12px">Nenhum ticket de outros canais neste dia.</p>'; return; }
-      const rows = tickets.map(t => {
-        const link = t.link || `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.id}`;
-        const notaCls = t.nota >= 4 ? 'outros-nota-pos' : 'outros-nota-neg';
-        const fb = (t.feedback || '').slice(0, 80);
-        return `<tr>
-          <td><a class="outros-link" href="${link}" target="_blank" rel="noopener">#${t.id}</a></td>
-          <td>${escHtml(t.agente)}</td>
-          <td class="${notaCls}">${t.nota}</td>
-          <td style="color:var(--muted);font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(fb)}</td>
-        </tr>`;
-      }).join('');
-      bodyEl.innerHTML = `<div style="max-height:400px;overflow-y:auto"><table class="outros-ticket-table">
-        <thead><tr><th>Ticket</th><th>Agente</th><th>Nota</th><th>Feedback</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table></div>`;
-    } else {
-      const sorted = Object.entries(porAg).sort((a,b) => b[1]-a[1]);
-      if (!sorted.length) { bodyEl.innerHTML = '<p style="color:var(--muted);font-size:12px">Nenhuma avaliação de outros canais neste período.</p>'; return; }
-      const max = sorted[0][1] || 1;
-      bodyEl.innerHTML = `<div style="max-height:400px;overflow-y:auto;padding-top:4px">${
-        sorted.map(([nome,cnt]) => `<div class="outros-ag-row">
-          <span class="outros-ag-nome">${escHtml(nome)}</span>
+    const sorted = Object.entries(outrosModalPorAg).sort((a,b) => b[1]-a[1]);
+    if (!sorted.length) {
+      bodyEl.innerHTML = '<p style="color:var(--muted);font-size:12px">Nenhuma avaliação de outros agentes neste período.<br><span style="font-size:11px">Dados disponíveis a partir de 19/06/2026.</span></p>';
+      return;
+    }
+    const max = sorted[0][1] || 1;
+    const temTickets = outrosModalTickets !== null;
+    bodyEl.innerHTML = `<div style="max-height:420px;overflow-y:auto;padding-top:4px">${
+      sorted.map(([nome, cnt]) => {
+        const cls = temTickets ? 'outros-ag-row clicavel' : 'outros-ag-row';
+        const click = temTickets ? `onclick="verTicketsAgente('${escHtml(nome).replace(/'/g,"\\'")}')"` : '';
+        const hint  = temTickets ? `<span style="font-size:10px;color:#cbd5e1;margin-left:4px">›</span>` : '';
+        return `<div class="${cls}" ${click}>
+          <span class="outros-ag-nome">${escHtml(nome)}${hint}</span>
           <div class="outros-ag-bar-wrap"><div class="outros-ag-bar" style="width:${Math.round(cnt/max*100)}%"></div></div>
           <span class="outros-ag-cnt">${cnt}</span>
-        </div>`).join('')
-      }</div>`;
+        </div>`;
+      }).join('')
+    }</div>${!temTickets ? '<p style="color:var(--muted);font-size:11px;margin-top:10px">Clique em um dia no calendário para ver os tickets individuais.</p>' : ''}`;
+  }
+
+  function verTicketsAgente(nome) {
+    if (!outrosModalTickets) return;
+    const todos  = outrosModalTickets.filter(t => t.agente === nome);
+    const pos    = todos.filter(t => t.nota >= 4);
+    const neg    = todos.filter(t => t.nota <= 3);
+    document.getElementById('modal-outros-titulo').textContent = nome;
+    document.getElementById('modal-outros-nav').innerHTML =
+      `<button class="btn-voltar-modal" onclick="voltarListaAgentes()">← Todos os agentes</button>`;
+
+    function rowHtml(t) {
+      const link = t.link || `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.id}`;
+      const fb   = (t.feedback || '').slice(0, 100);
+      return `<tr>
+        <td><a class="outros-link" href="${link}" target="_blank" rel="noopener">#${t.id}<svg width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-left:3px"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></td>
+        <td class="${t.nota>=4?'outros-nota-pos':'outros-nota-neg'}">${t.nota}</td>
+        <td style="color:var(--muted);font-size:11px">${escHtml(fb)}</td>
+      </tr>`;
     }
+    function tabelaHtml(lista, cls) {
+      if (!lista.length) return '<p style="color:var(--muted);font-size:12px;margin:4px 0 12px">Nenhuma.</p>';
+      return `<table class="outros-ticket-table"><thead><tr><th>Ticket</th><th>Nota</th><th>Feedback</th></tr></thead><tbody>${lista.map(rowHtml).join('')}</tbody></table>`;
+    }
+
+    document.getElementById('modal-outros-body').innerHTML = `
+      <div style="max-height:460px;overflow-y:auto">
+        <div class="modal-secao-head pos">✓ Positivas (${pos.length})</div>
+        ${tabelaHtml(pos, 'pos')}
+        <div class="modal-secao-head neg">✗ Negativas (${neg.length})</div>
+        ${tabelaHtml(neg, 'neg')}
+      </div>`;
+  }
+
+  function voltarListaAgentes() {
+    document.getElementById('modal-outros-titulo').textContent = outrosModalTitulo;
+    document.getElementById('modal-outros-nav').innerHTML = '';
+    _renderListaAgentes();
   }
 
   function setFilterMode(mode) {
@@ -926,7 +950,7 @@
           <div class="kpi clicavel" onclick="abrirModalOutros()" style="cursor:pointer">
             <div class="kpi-label">Total de avaliações recebidas</div>
             <div class="kpi-num">${totalRecebidos || '—'}</div>
-            <div class="kpi-sub flat">${totalAvaliados ? `${totalAvaliados} equipe · ${totalOutros} outros (IA, gestão)` : 'inclui IA e outras equipes'}</div>
+            <div class="kpi-sub flat">${totalAvaliados ? `${totalAvaliados} equipe · ${totalOutros} outros agentes` : 'inclui IA e outras equipes'}</div>
           </div>
         </div>
       </div>
