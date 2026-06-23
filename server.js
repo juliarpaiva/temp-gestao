@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -432,6 +432,70 @@ app.get('/indevidas-resumo', async (req, res) => {
       'SELECT ticket_id, date, motivo, observacao, marcado_em FROM support_bi.csat_indevidas ORDER BY marcado_em DESC'
     );
     res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+const CLOUDCHAT_BASE = 'https://cloudchat3.cloudhumans.com';
+const CLOUDCHAT_ACCOUNT = 73;
+
+async function fetchCloudChat(path, token) {
+  const resp = await fetch(`${CLOUDCHAT_BASE}${path}`, {
+    headers: { 'api_access_token': token, 'Content-Type': 'application/json' },
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`CloudChat ${resp.status}: ${text.slice(0, 200)}`);
+  }
+  return resp.json();
+}
+
+// Descobre estrutura da API de CSAT do CloudChat e puxar indevidas de junho
+app.get('/admin/puxar-indevidas-cloudchat', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  const token = process.env.CLOUDCHAT_TOKEN;
+  if (!token) return res.status(500).json({ error: 'CLOUDCHAT_TOKEN não configurado' });
+
+  const since = Math.floor(new Date('2026-06-01T00:00:00Z').getTime() / 1000);
+  const until = Math.floor(new Date('2026-06-30T23:59:59Z').getTime() / 1000);
+
+  try {
+    let allCsats = [];
+    let page = 1;
+    while (true) {
+      const data = await fetchCloudChat(
+        `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/reports/csat?since=${since}&until=${until}&page=${page}`,
+        token
+      );
+      const items = Array.isArray(data) ? data : (data.data || []);
+      if (!items.length) break;
+      allCsats = allCsats.concat(items);
+      if (items.length < 25) break;
+      page++;
+      if (page > 20) break; // segurança: máx 500 itens
+    }
+
+    // Campos disponíveis (para descobrir onde está o flag "indevida")
+    const campos = allCsats.length > 0 ? Object.keys(allCsats[0]) : [];
+
+    // Tenta detectar indevidas por campos conhecidos
+    const indevidas = allCsats.filter(c => {
+      const attrs = c.custom_attributes || c.conversation?.custom_attributes || {};
+      return attrs.csat_invalida === true
+        || attrs.avaliacao_invalida === true
+        || c.is_invalid === true
+        || c.invalid === true;
+    });
+
+    res.json({
+      total_junho: allCsats.length,
+      campos_disponiveis: campos,
+      indevidas_detectadas: indevidas.length,
+      amostra: allCsats.slice(0, 3),
+      indevidas: indevidas,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
