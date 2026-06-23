@@ -124,34 +124,6 @@
     .btn-desfazer-sm { padding: 3px 10px; border-radius: 6px; border: 1px solid #e2e8f0; background: transparent; font-size: 10px; font-weight: 600; color: #94a3b8; cursor: pointer; transition: all .15s; white-space: nowrap; }
     .btn-desfazer-sm:hover { border-color: #ef4444; color: #ef4444; }
 
-    /* NOTAS REUNIÃO */
-    .notas-card { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; }
-    .notas-topo { padding: 16px 24px; background: var(--preto); display: flex; align-items: center; justify-content: space-between; }
-    .notas-topo-title { font-size: 13px; font-weight: 800; color: #fff; }
-    .notas-topo-sub { font-size: 11px; color: #888; margin-top: 2px; }
-    .notas-saved-status { font-size: 11px; color: #4ade80; font-weight: 600; opacity: 0; transition: opacity .3s; }
-    .notas-saved-status.visivel { opacity: 1; }
-    .notas-body { padding: 22px 24px; }
-    .notas-secao { margin-bottom: 24px; }
-    .notas-secao:last-child { margin-bottom: 0; }
-    .notas-secao-titulo { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); margin-bottom: 12px; }
-    .notas-lista { list-style: none; display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
-    .notas-item { display: flex; align-items: center; gap: 8px; }
-    .notas-bullet { color: var(--rosa); font-size: 18px; line-height: 1; flex-shrink: 0; margin-top: -2px; }
-    .notas-input { flex: 1; border: none; border-bottom: 1px solid var(--borda); padding: 5px 0; font-size: 13px; font-family: inherit; color: var(--preto); background: transparent; outline: none; transition: border-color .15s; }
-    .notas-input:focus { border-color: var(--rosa); }
-    .notas-input::placeholder { color: #cbd5e1; }
-    .notas-del { background: none; border: none; color: #cbd5e1; cursor: pointer; font-size: 16px; padding: 0 2px; line-height: 1; transition: color .15s; flex-shrink: 0; }
-    .notas-del:hover { color: #dc2626; }
-    .notas-add-btn { background: none; border: 1px dashed #cbd5e1; color: var(--muted); font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 6px; cursor: pointer; transition: all .15s; }
-    .notas-add-btn:hover { border-color: var(--rosa); color: var(--rosa); }
-    .notas-rodape { padding: 14px 24px; border-top: 1px solid var(--borda); display: flex; align-items: center; justify-content: space-between; background: #fafbfc; }
-    .notas-rodape-hint { font-size: 11px; color: var(--muted); }
-    .btn-copy-notas { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; border-radius: 8px; border: 1px solid var(--borda); background: var(--card); color: var(--preto); font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; }
-    .btn-copy-notas:hover { background: var(--preto); color: #fff; border-color: var(--preto); }
-    .btn-copy-notas.copiado { background: #f0fdf4; border-color: #16a34a; color: #16a34a; }
-    .btn-sugerir { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 8px; border: 1.5px solid var(--rosa); background: #fff0f6; color: var(--rosa); font-size: 11px; font-weight: 700; cursor: pointer; transition: all .15s; }
-    .btn-sugerir:hover { background: var(--rosa); color: #fff; }
 
     /* CALENDÁRIO */
     .cal-wrap { margin-bottom: 24px; }
@@ -732,9 +704,6 @@
       mesAtivo = mesesKeys[0] || null;
       if (!mesAtivo) { document.getElementById('conteudo').innerHTML = '<div class="erro">Sem dados disponíveis ainda.</div>'; return; }
       render();
-      carregarNotas();
-      renderNotasLista('comportamentos');
-      renderNotasLista('fluxos');
     } catch(e) {
       document.getElementById('conteudo').innerHTML = `<div class="erro">Erro ao carregar: ${e.message}</div>`;
     }
@@ -1122,37 +1091,7 @@
         </div>
       </div>
 
-      <div class="section">
-        <div class="section-head">Notas para reunião de segunda</div>
-        <div class="notas-card">
-          <div class="notas-topo">
-            <div>
-              <div class="notas-topo-title">Preparação semanal</div>
-              <div class="notas-topo-sub">Semana ${semanaLabel(getMondayThisWeek())} · salvo no navegador</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:10px">
-              <button class="btn-sugerir" onclick="gerarSugestoes()" title="Preenche os bullets com base nos dados da semana">✦ Sugerir com dados</button>
-              <span class="notas-saved-status" id="notas-saved">salvo ✓</span>
-            </div>
-          </div>
-          <div class="notas-body">
-            <div class="notas-secao">
-              <div class="notas-secao-titulo">📌 Comportamentos a reforçar ou corrigir</div>
-              <ul class="notas-lista" id="lista-comportamentos"></ul>
-              <button class="notas-add-btn" onclick="addBullet('comportamentos')">+ Adicionar</button>
-            </div>
-            <div class="notas-secao" style="margin-top:22px">
-              <div class="notas-secao-titulo">💬 Feedback sobre fluxos, macros e ferramentas</div>
-              <ul class="notas-lista" id="lista-fluxos"></ul>
-              <button class="notas-add-btn" onclick="addBullet('fluxos')">+ Adicionar</button>
-            </div>
-          </div>
-          <div class="notas-rodape">
-            <span class="notas-rodape-hint">As notas ficam salvas até você limpar o navegador</span>
-            <button class="btn-copy-notas" id="btn-copy-notas" onclick="copiarParaReuniao()">Copiar para reunião</button>
-          </div>
-        </div>
-      </div>`;
+      `;
 
     // Restaura valores dos inputs de período após re-render
     if (filterMode === 'periodo') {
@@ -1186,7 +1125,6 @@
     selectedDay = null;
     fecharReportPanel();
     render();
-    carregarNotas();
   }
 
   function selecionarMes(chave) {
@@ -1196,156 +1134,6 @@
     filterMode  = 'mes';
     fecharReportPanel();
     render();
-    carregarNotas();
-    renderNotasLista('comportamentos');
-    renderNotasLista('fluxos');
-  }
-
-  /* ── NOTAS ──────────────────────────────────────────── */
-  function getMondayThisWeek() {
-    const today = new Date();
-    const dow = today.getDay();
-    const offset = dow === 0 ? 6 : dow - 1;
-    const mon = new Date(today);
-    mon.setDate(today.getDate() - offset);
-    return mon.toISOString().slice(0, 10);
-  }
-
-  const NOTAS_KEY = `csat-notas-${getMondayThisWeek()}`;
-  let notas = { comportamentos: [], fluxos: [] };
-
-  function carregarNotas() {
-    try { notas = JSON.parse(localStorage.getItem(NOTAS_KEY) || '{"comportamentos":[],"fluxos":[]}'); }
-    catch(e) { notas = { comportamentos: [], fluxos: [] }; }
-  }
-
-  function salvarNotas() {
-    localStorage.setItem(NOTAS_KEY, JSON.stringify(notas));
-    const el = document.getElementById('notas-saved');
-    if (el) { el.classList.add('visivel'); setTimeout(() => el.classList.remove('visivel'), 1500); }
-  }
-
-  function renderNotasLista(tipo) {
-    const el = document.getElementById('lista-' + tipo);
-    if (!el) return;
-    el.innerHTML = (notas[tipo] || []).map((txt, i) => `
-      <li class="notas-item">
-        <span class="notas-bullet">·</span>
-        <input class="notas-input" value="${txt.replace(/"/g,'&quot;').replace(/</g,'&lt;')}" placeholder="Escreva aqui..." oninput="updateBullet('${tipo}',${i},this.value)" />
-        <button class="notas-del" onclick="removeBullet('${tipo}',${i})" title="Remover">×</button>
-      </li>`).join('');
-  }
-
-  function addBullet(tipo) {
-    notas[tipo].push('');
-    salvarNotas();
-    renderNotasLista(tipo);
-    const lista = document.getElementById('lista-' + tipo);
-    if (lista) { const inputs = lista.querySelectorAll('.notas-input'); if (inputs.length) inputs[inputs.length-1].focus(); }
-  }
-
-  function removeBullet(tipo, index) {
-    notas[tipo].splice(index, 1);
-    salvarNotas();
-    renderNotasLista(tipo);
-  }
-
-  function updateBullet(tipo, index, value) {
-    notas[tipo][index] = value;
-    salvarNotas();
-  }
-
-  function gerarSugestoes() {
-    if (!dadosGestao) return;
-    const { semanas, meses } = dadosGestao;
-    const semanasKeys = Object.keys(semanas).sort();
-    const ultimas = semanasKeys.slice(-3);
-
-    /* tendência por agente nas últimas 2 semanas */
-    const comportamentos = [];
-
-    if (ultimas.length >= 2) {
-      const penultima = semanas[ultimas[ultimas.length - 2]]?.por_agente || {};
-      const ultima    = semanas[ultimas[ultimas.length - 1]]?.por_agente || {};
-      const agentes   = [...new Set([...Object.keys(penultima), ...Object.keys(ultima)])];
-
-      agentes.forEach(ag => {
-        const ant = penultima[ag] || 0;
-        const atu = ultima[ag]    || 0;
-        if (ant === 0 && atu === 0) return;
-        const nome = ag.split(' ')[0]; // primeiro nome
-
-        if (atu < ant && ant >= 5) {
-          comportamentos.push(`${nome} caiu de ${ant} para ${atu} negativos na última semana — entender o que mudou e reforçar`);
-        } else if (atu > ant && ant >= 3) {
-          comportamentos.push(`${nome} subiu de ${ant} para ${atu} — conversar o que está travando`);
-        } else if (atu >= 7) {
-          comportamentos.push(`${nome} segue com volume alto (${atu} negativos na semana) — acompanhar de perto`);
-        }
-      });
-    }
-
-    /* tags de comportamento (acareação, no_tag) */
-    const mesDados = meses[mesAtivo] || {};
-    const tags = mesDados.tags || {};
-
-    if ((tags['acareacao_nao_necessaria'] || 0) >= 3)
-      comportamentos.push(`Acareação não necessária aparece ${tags['acareacao_nao_necessaria']}x no mês — alinhar com o time quando deve e quando não deve abrir`);
-    if ((tags['no_tag'] || 0) >= 3)
-      comportamentos.push(`${tags['no_tag']} tickets sem tag no mês — reforçar que tagear é obrigatório em todo atendimento`);
-
-    /* fluxos: agrupa por categoria */
-    const fluxos = [];
-
-    const entregaTags = ['entrega_cep_incorreto','entrega_prazo','entrega_duvidas_problemas_2','entrega_duvidas_frete','pedido_parado_rastreio','rastreio_acao_remetente','problema_expedicao_pedido'];
-    const totalEntrega = entregaTags.reduce((s, t) => s + (tags[t] || 0), 0);
-    if (totalEntrega >= 5) {
-      const detalhes = entregaTags.filter(t => tags[t]).map(t => {
-        const label = t.replace('entrega_','').replace(/_/g,' ');
-        return `${label} (${tags[t]})`;
-      }).join(', ');
-      fluxos.push(`Entrega é o maior bloco de negativos: ${detalhes} — verificar se há macro clara para orientar o cliente antes de virar CSAT`);
-    }
-
-    const cadastroTags = ['cadastro_alteracao_dados','cadastro_alteracao_titularidade'];
-    const totalCadastro = cadastroTags.reduce((s, t) => s + (tags[t] || 0), 0);
-    if (totalCadastro >= 4)
-      fluxos.push(`Cadastro acumulou ${totalCadastro} negativos (alteração de dados + titularidade) — checar se a macro está resolvendo ou só respondendo`);
-
-    const trocaTags = ['troca_duvida_fluxo_trocas','troca_suporte_seller','troca_defeito_erro'];
-    const totalTroca = trocaTags.reduce((s, t) => s + (tags[t] || 0), 0);
-    if (totalTroca >= 4)
-      fluxos.push(`Troca somou ${totalTroca} negativos (fluxo, suporte seller, defeito) — fluxo de trocas está claro para as agentes?`);
-
-    const assinaturaTags = ['assinatura_erro_cobranca','assinatura_planos','assinatura_cancelamento','assinatura_dados_cadastro_negado_pendencia'];
-    const totalAssinatura = assinaturaTags.reduce((s, t) => s + (tags[t] || 0), 0);
-    if (totalAssinatura >= 3)
-      fluxos.push(`Assinatura com ${totalAssinatura} negativos — revisar macro e fluxo de tratamento`);
-
-    /* merge com notas existentes, evitando duplicar */
-    const jaExiste = (lista, texto) => lista.some(l => l.trim() === texto.trim());
-    comportamentos.forEach(b => { if (!jaExiste(notas.comportamentos, b)) notas.comportamentos.push(b); });
-    fluxos.forEach(b => { if (!jaExiste(notas.fluxos, b)) notas.fluxos.push(b); });
-
-    salvarNotas();
-    renderNotasLista('comportamentos');
-    renderNotasLista('fluxos');
-  }
-
-  function copiarParaReuniao() {
-    const comp   = (notas.comportamentos || []).filter(s => s.trim());
-    const fluxos = (notas.fluxos || []).filter(s => s.trim());
-    const linhas = [];
-    if (comp.length)   { linhas.push('Comportamentos a reforçar ou corrigir'); comp.forEach(s => linhas.push(s));   linhas.push(''); }
-    if (fluxos.length) { linhas.push('Feedback do time sobre fluxos, macros e ferramentas'); fluxos.forEach(s => linhas.push(s)); }
-    navigator.clipboard.writeText(linhas.join('\n')).then(() => {
-      const btn = document.getElementById('btn-copy-notas');
-      if (!btn) return;
-      const orig = btn.textContent;
-      btn.textContent = '✓ Copiado!';
-      btn.classList.add('copiado');
-      setTimeout(() => { btn.textContent = orig; btn.classList.remove('copiado'); }, 2000);
-    });
   }
 
   init();
