@@ -437,39 +437,48 @@ app.get('/indevidas-resumo', async (req, res) => {
   }
 });
 
-// Busca nativa no schema do Metabase DB2 por colunas relacionadas a "invalida/indevida"
+// Lista todas as tabelas do banco 2 no Metabase e busca por campos CSAT/invalid
 app.get('/admin/schema-invalida', async (req, res) => {
   if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY)
     return res.status(403).json({ error: 'Forbidden' });
   try {
     const token = await getMetabaseToken();
-    const data = await queryMetabase(token, {
-      database: METABASE_DATABASE_ID,
-      type: 'native',
-      native: {
-        query: `
-          SELECT table_schema, table_name, column_name, data_type
-          FROM information_schema.columns
-          WHERE (
-            column_name ILIKE '%invalid%'
-            OR column_name ILIKE '%indevid%'
-            OR column_name ILIKE '%csat_status%'
-            OR column_name ILIKE '%csat_valid%'
-            OR column_name ILIKE '%avaliacao%'
-            OR column_name ILIKE '%evaluation_valid%'
-          )
-          ORDER BY table_schema, table_name, column_name
-          LIMIT 200
-        `,
-      },
+
+    // Lista todas as tabelas e seus campos via Metabase API de metadados
+    const metaResp = await fetch(`${METABASE_URL}/api/database/${METABASE_DATABASE_ID}/metadata?include_hidden=true`, {
+      headers: { 'X-Metabase-Session': token },
     });
-    const cols = data.data.cols.map(c => c.name);
-    const rows = data.data.rows.map(row => {
-      const obj = {};
-      cols.forEach((c, i) => { obj[c] = row[i]; });
-      return obj;
+    if (!metaResp.ok) throw new Error(`Falha metadata (${metaResp.status})`);
+    const meta = await metaResp.json();
+
+    const tabelas = (meta.tables || []).map(t => ({
+      id: t.id,
+      schema: t.schema,
+      name: t.name,
+      display_name: t.display_name,
+      campos: (t.fields || []).map(f => f.name),
+    }));
+
+    // Tabelas com "csat", "rating", "evaluation", "satisfaction" no nome
+    const csatTabelas = tabelas.filter(t =>
+      /csat|rating|evaluation|satisfaction|avaliacao/i.test(t.name + ' ' + t.display_name)
+    );
+
+    // Campos com "invalid", "indevid", "validade" em QUALQUER tabela
+    const camposInvalidos = [];
+    for (const t of tabelas) {
+      for (const f of (t.campos || [])) {
+        if (/invalid|indevid|validade|csat_status/i.test(f)) {
+          camposInvalidos.push({ tabela: t.name, campo: f });
+        }
+      }
+    }
+
+    res.json({
+      total_tabelas: tabelas.length,
+      tabelas_csat: csatTabelas,
+      campos_invalidos_encontrados: camposInvalidos,
     });
-    res.json({ colunas_encontradas: rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
