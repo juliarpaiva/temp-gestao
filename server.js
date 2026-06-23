@@ -437,6 +437,126 @@ app.get('/indevidas-resumo', async (req, res) => {
   }
 });
 
+// ── Descoberta + importação de indevidas históricas ──────────────────────────
+
+// Retorna todos os campos do CSAT de junho + todas as labels únicas
+// → Use para identificar onde está armazenado o flag "indevida" no Metabase
+app.get('/admin/indevidas-junho', async (req, res) => {
+  try {
+    const token = await getMetabaseToken();
+
+    // Busca todos os CSATs de junho com TODOS os campos (sem filtro de fields)
+    const csatData = await queryMetabase(token, {
+      database: METABASE_DATABASE_ID,
+      type: 'query',
+      query: {
+        'source-table': METABASE_TABLE_ID,
+        filter: ['and',
+          ['>=', ['field', 174139, null], '2026-06-01'],
+          ['<=', ['field', 174139, null], '2026-06-30'],
+        ],
+        limit: 2000,
+      },
+    });
+
+    const cols = csatData.data.cols.map(c => ({ name: c.name, display_name: c.display_name }));
+    const rows = csatData.data.rows.map(row => {
+      const obj = {};
+      cols.forEach((col, i) => { obj[col.name] = row[i]; });
+      return obj;
+    });
+
+    // Pega IDs únicos para buscar labels
+    const ticketIds = [...new Set(rows.map(r => r.display_ticket_id).filter(Boolean))];
+
+    // Busca TODAS as colunas da tabela de labels para esses tickets
+    let allLabelRows = [];
+    let labelCols = [];
+    if (ticketIds.length > 0) {
+      const filter = ticketIds.length === 1
+        ? ['=', ['field', 174185, null], ticketIds[0]]
+        : ['or', ...ticketIds.slice(0, 500).map(id => ['=', ['field', 174185, null], id])];
+
+      const labData = await queryMetabase(token, {
+        database: METABASE_DATABASE_ID,
+        type: 'query',
+        query: {
+          'source-table': METABASE_LABELS_TABLE_ID,
+          filter,
+          limit: 5000,
+        },
+      });
+      labelCols = labData.data.cols.map(c => ({ name: c.name, display_name: c.display_name }));
+      allLabelRows = labData.data.rows.map(row => {
+        const obj = {};
+        labelCols.forEach((col, i) => { obj[col.name] = row[i]; });
+        return obj;
+      });
+    }
+
+    const uniqueLabels = [...new Set(allLabelRows.map(l => l.label_name).filter(Boolean))].sort();
+
+    res.json({
+      total_junho: rows.length,
+      ticket_ids_unicos: ticketIds.length,
+      // Todos os campos disponíveis na tabela CSAT (7375)
+      colunas_csat: cols,
+      // Todos os campos disponíveis na tabela de labels (7376)
+      colunas_labels: labelCols,
+      // Labels únicos de todos os tickets de junho
+      labels_unicos: uniqueLabels,
+      // Amostra de 5 tickets com todos os campos para inspecionar
+      amostra_csat: rows.slice(0, 5),
+      // Amostra de 10 labels para ver formato
+      amostra_labels: allLabelRows.slice(0, 10),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Importa lista de indevidas históricas e reprocessa as datas afetadas
+// Body: { tickets: [{ticket_id, date, motivo?, observacao?}] }
+app.post('/admin/importar-indevidas', express.json(), async (req, res) => {
+  const { tickets } = req.body || {};
+  if (!Array.isArray(tickets) || tickets.length === 0) {
+    return res.status(400).json({ error: 'tickets deve ser um array não-vazio com {ticket_id, date}' });
+  }
+
+  let importados = 0;
+  const erros = [];
+  const datesParaReprocessar = new Set();
+
+  for (const t of tickets) {
+    if (!t.ticket_id || !t.date) { erros.push({ ticket: t, msg: 'ticket_id ou date ausente' }); continue; }
+    try {
+      await pool.query(
+        `INSERT INTO support_bi.csat_indevidas (ticket_id, date, motivo, observacao)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (ticket_id) DO UPDATE SET motivo=$3, observacao=$4, marcado_em=NOW()`,
+        [String(t.ticket_id), t.date, t.motivo || 'importacao_historica', t.observacao || null]
+      );
+      importados++;
+      datesParaReprocessar.add(t.date);
+    } catch (e) {
+      erros.push({ ticket_id: t.ticket_id, msg: e.message });
+    }
+  }
+
+  // Reprocessa cada data afetada (com force=true)
+  const resultados = [];
+  for (const date of [...datesParaReprocessar].sort()) {
+    try {
+      const r = await runDailyReport(date, true);
+      resultados.push({ date, status: 'ok', ...r });
+    } catch (e) {
+      resultados.push({ date, status: 'erro', error: e.message });
+    }
+  }
+
+  res.json({ importados, erros, datas_reprocessadas: resultados });
+});
+
 app.get('/gestao', async (req, res) => {
   try {
     const result = await pool.query(
