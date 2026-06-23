@@ -565,6 +565,7 @@
     }
 
     const { atual, anterior } = kpisOp;
+    const metaVol = kpisOp.meta_volume_por_agente || 45;
     const tabsHtml = `
       <div class="filter-tabs" style="margin-bottom:14px">
         <button class="filter-tab${filterModeOp==='dia'    ?' ativo':''}" onclick="mudarFilterModeOp('dia')">Dia</button>
@@ -578,14 +579,14 @@
       return `
       <tr>
         <td class="ops-agente">${escHtml(ag.agente)}</td>
-        <td class="r" style="color:${ag.volume >= 45 ? '#16a34a' : ag.volume >= 35 ? '#ca8a04' : '#dc2626'};font-weight:700">${ag.volume}</td>
+        <td class="r" style="color:${ag.volume >= metaVol ? '#16a34a' : ag.volume >= metaVol * 0.8 ? '#ca8a04' : '#dc2626'};font-weight:700">${ag.volume}</td>
         <td class="r">${opsCsatPill(ag.csat)}</td>
         <td class="r" style="color:${trCor};font-weight:700">${ag.tempo_resp_h !== null ? ag.tempo_resp_h + 'h' : '—'}</td>
         <td class="r">${ag.tempo_enc_h  !== null ? ag.tempo_enc_h  + 'h' : '—'}</td>
       </tr>`;
     }).join('');
 
-    const agentesComMeta = (atual.por_agente || []).filter(ag => ag.volume >= 45).length;
+    const agentesComMeta = (atual.por_agente || []).filter(ag => ag.volume >= metaVol).length;
     const totalAgentesOp = (atual.por_agente || []).length;
     const volCor  = totalAgentesOp > 0 && agentesComMeta === totalAgentesOp ? '#16a34a' : agentesComMeta > 0 ? '#ca8a04' : '#dc2626';
     const csatOk  = atual.csat_time  !== null && atual.csat_time  >= 75;
@@ -602,7 +603,7 @@
         <div class="kpi" style="border-left:4px solid ${volCor}">
           <div class="kpi-label">Volume total</div>
           <div class="ops-kpi-num">${atual.volume.toLocaleString('pt-BR')}</div>
-          <div class="kpi-sub" style="color:${volCor};margin-top:6px">${agentesComMeta}/${totalAgentesOp} agentes ≥ 45/dia</div>
+          <div class="kpi-sub" style="color:${volCor};margin-top:6px">${agentesComMeta}/${totalAgentesOp} agentes ≥ meta (${metaVol})</div>
           <div class="kpi-sub flat" style="margin-top:3px">${opsVs(atual.volume, anterior.volume, false)} · média ${atual.media_diaria}/dia</div>
         </div>
         <div class="kpi" style="border-left:4px solid ${csatCor}">

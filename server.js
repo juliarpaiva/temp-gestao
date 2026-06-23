@@ -719,11 +719,14 @@ app.get('/kpis-semanais', async (req, res) => {
       csat:         r[4] !== null ? Number(r[4]) : null,
     }));
 
+    const diasUteis = countBusinessDays(d0, d1);
     const kpisResult = {
       modo: modoLabel,
       semana: d0,
       semana_fim: new Date(new Date(d1) - 86400000).toISOString().slice(0, 10),
       semana_anterior: pd0,
+      dias_uteis: diasUteis,
+      meta_volume_por_agente: 45 * diasUteis,
       atual: {
         volume:               volume      ?? 0,
         media_diaria:         mediaDiaria ?? 0,
@@ -1309,6 +1312,18 @@ async function getTicketLabels(token, ticketIds) {
     labelsByTicket[id].push(row.label_name);
   }
   return labelsByTicket;
+}
+
+function countBusinessDays(d0, d1) {
+  let count = 0;
+  const cur = new Date(d0 + 'T12:00:00Z');
+  const end = new Date(d1 + 'T12:00:00Z');
+  while (cur < end) {
+    const dow = cur.getUTCDay();
+    if (dow !== 0 && dow !== 6) count++;
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return count;
 }
 
 function previousBusinessDate() {
