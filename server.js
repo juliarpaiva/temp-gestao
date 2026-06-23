@@ -78,17 +78,39 @@ function getMailer() {
 }
 
 async function sendResetEmail(email, link, isNew) {
-  const mailer = getMailer();
-  const subject = isNew ? 'Crie sua senha — CSAT INK' : 'Redefinição de senha — CSAT INK';
+  const mailer  = getMailer();
+  const subject = isNew ? 'Crie sua senha — Painel CSAT INK' : 'Recuperação de acesso — Painel CSAT INK';
+  const titulo  = isNew ? 'Bem-vindo(a) ao Painel CSAT INK!' : 'Recuperação de acesso';
   const intro   = isNew
-    ? 'Sua conta no Painel CSAT INK foi criada. Clique no link para definir sua senha (válido por 1 hora):'
-    : 'Recebemos uma solicitação para redefinir a senha da sua conta no Painel CSAT INK (válido por 1 hora):';
-  const html = `<div style="font-family:sans-serif;max-width:480px">
-    <h2 style="color:#e91e8c">INK<span style="color:#0f0f0f">.</span></h2>
-    <p>${intro}</p>
-    <p><a href="${link}" style="background:#e91e8c;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-block;margin:12px 0">Acessar link</a></p>
-    <p style="color:#94a3b8;font-size:12px">Se você não solicitou, ignore este e-mail.</p>
-  </div>`;
+    ? 'Sua conta foi criada. Clique no botão abaixo para definir sua senha (válido por 48 horas).'
+    : 'Olá, por favor.<br>Clique no link abaixo para recuperar seu acesso ao painel de gestão.';
+  const label   = isNew ? 'Criar minha senha' : 'Recuperar meu acesso';
+  const html = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<body style="margin:0;padding:0;background:#f8f9fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fb;padding:40px 16px">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+        <!-- Header -->
+        <tr><td style="background:#0f0f0f;border-bottom:3px solid #e91e8c;padding:20px 32px">
+          <span style="font-size:22px;font-weight:900;letter-spacing:-1px;color:#fff">INK<span style="color:#e91e8c">.</span></span>
+        </td></tr>
+        <!-- Body -->
+        <tr><td style="padding:36px 32px 28px">
+          <h2 style="margin:0 0 16px;font-size:18px;font-weight:800;color:#0f0f0f">${titulo}</h2>
+          <p style="margin:0 0 28px;font-size:14px;color:#475569;line-height:1.6">${intro}</p>
+          <a href="${link}" style="display:inline-block;background:#e91e8c;color:#fff;text-decoration:none;font-size:14px;font-weight:700;padding:13px 28px;border-radius:8px;letter-spacing:.2px">${label}</a>
+        </td></tr>
+        <!-- Footer -->
+        <tr><td style="padding:20px 32px 28px;border-top:1px solid #f1f5f9">
+          <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.5">Se você não solicitou isso, ignore este e-mail. Este link expira em ${isNew ? '48 horas' : '1 hora'}.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
   if (mailer) {
     await mailer.sendMail({ from: `"CSAT INK" <${process.env.SMTP_USER}>`, to: email, subject, html });
     console.log('[email] enviado para', email);
