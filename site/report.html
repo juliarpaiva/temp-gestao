@@ -859,9 +859,8 @@
         const marcadoPor = meta.observacao || '—';
         const marcadoEm  = meta.marcado_em ? new Date(meta.marcado_em).toLocaleString('pt-BR') : '—';
 
-        const idHtml = t && t.link
-          ? `<a class="ticket-id-link" href="${t.link}" target="_blank" rel="noopener">#${tid}<svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a>`
-          : `<span class="ticket-id-link" style="cursor:default">#${tid}</span>`;
+        const ticketLink = (t && t.link) || `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${tid}`;
+        const idHtml = `<a class="ticket-id-link" href="${ticketLink}" target="_blank" rel="noopener">#${tid}<svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a>`;
 
         return `
           <div class="indev-row">
