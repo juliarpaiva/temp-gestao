@@ -1021,7 +1021,7 @@
             <button onclick="navCal(1)"  style="background:none;border:1px solid var(--borda);border-radius:6px;padding:2px 10px;cursor:pointer;font-size:15px;color:var(--text);opacity:${calCanNext?1:.25};pointer-events:${calCanNext?'auto':'none'}">›</button>
           </div>
         </div>
-        ${streak > 0 ? `<div class="streak-badge">🔥 ${streak} dia${streak!==1?'s':''} seguido${streak!==1?'s':''} acima de 75% de satisfação</div>` : ''}
+        ${streak > 0 && calMesRef === [...new Set(Object.keys(summaryMap).map(d=>d.slice(0,7)))].sort().at(-1) ? `<div class="streak-badge">🔥 ${streak} dia${streak!==1?'s':''} seguido${streak!==1?'s':''} acima de 75% de satisfação</div>` : ''}
         ${calHtml}
         <div class="legenda">
           <span>Satisfação:</span>
@@ -1176,8 +1176,13 @@
     const novo = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     const allMeses = [...new Set(Object.keys(summaryMap).map(d => d.slice(0,7)))].sort();
     if (!allMeses.includes(novo)) return;
-    calViewMes = novo;
+    mesAtivo   = novo;
+    calViewMes = null;
+    filterMode = 'mes';
+    selectedDay = null;
+    fecharReportPanel();
     render();
+    carregarNotas();
   }
 
   function selecionarMes(chave) {
