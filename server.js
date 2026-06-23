@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -432,6 +432,44 @@ app.get('/indevidas-resumo', async (req, res) => {
       'SELECT ticket_id, date, motivo, observacao, marcado_em FROM support_bi.csat_indevidas ORDER BY marcado_em DESC'
     );
     res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Busca nativa no schema do Metabase DB2 por colunas relacionadas a "invalida/indevida"
+app.get('/admin/schema-invalida', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const token = await getMetabaseToken();
+    const data = await queryMetabase(token, {
+      database: METABASE_DATABASE_ID,
+      type: 'native',
+      native: {
+        query: `
+          SELECT table_schema, table_name, column_name, data_type
+          FROM information_schema.columns
+          WHERE (
+            column_name ILIKE '%invalid%'
+            OR column_name ILIKE '%indevid%'
+            OR column_name ILIKE '%csat_status%'
+            OR column_name ILIKE '%csat_valid%'
+            OR column_name ILIKE '%avaliacao%'
+            OR column_name ILIKE '%evaluation_valid%'
+          )
+          ORDER BY table_schema, table_name, column_name
+          LIMIT 200
+        `,
+      },
+    });
+    const cols = data.data.cols.map(c => c.name);
+    const rows = data.data.rows.map(row => {
+      const obj = {};
+      cols.forEach((c, i) => { obj[c] = row[i]; });
+      return obj;
+    });
+    res.json({ colunas_encontradas: rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
