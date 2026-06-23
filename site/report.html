@@ -162,10 +162,14 @@
 
     /* Indevida */
     .badge-indevida { display: inline-block; padding: 2px 8px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .5px; }
-    .btn-indevida  { padding: 4px 10px; border-radius: 6px; border: 1px dashed #cbd5e1; background: transparent; font-size: 10px; font-weight: 600; color: #94a3b8; cursor: pointer; transition: all .15s; white-space: nowrap; }
-    .btn-indevida:hover  { border-color: var(--rosa); color: var(--rosa); border-style: solid; }
     .btn-desfazer  { padding: 4px 10px; border-radius: 6px; border: 1px solid #cbd5e1; background: transparent; font-size: 10px; font-weight: 600; color: #94a3b8; cursor: pointer; transition: all .15s; }
     .btn-desfazer:hover  { border-color: #ef4444; color: #ef4444; }
+
+    /* Seção indevidas */
+    .section-head.indev::before { background: #94a3b8; }
+    .indev-row { display: grid; grid-template-columns: 68px 1fr auto; align-items: start; gap: 20px; padding: 14px 20px; border-bottom: 1px solid #f1f5f9; background: #fafbfc; }
+    .indev-row:last-child { border-bottom: none; }
+    .indev-meta { font-size: 10px; color: var(--muted); margin-top: 4px; display: flex; flex-direction: column; gap: 2px; }
 
     /* ── TOOLTIP INTELIGENTE ────────────────────────────── */
     .ticket-tooltip {
@@ -242,35 +246,6 @@
   </div>
 </div>
 
-<!-- Modal indevida -->
-<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
-  <div class="modal">
-    <div class="modal-title">Marcar como Avaliação Indevida</div>
-    <div class="modal-sub" id="modal-sub">Ticket #—</div>
-    <div class="modal-field">
-      <label>Motivo</label>
-      <select id="modal-motivo">
-        <option value="">Selecione o motivo...</option>
-        <option>Entrega / logística</option>
-        <option>Transportadora</option>
-        <option>Produto com defeito</option>
-        <option>Troca ou devolução</option>
-        <option>Cancelamento</option>
-        <option>Expectativa do cliente</option>
-        <option>Erro no sistema</option>
-        <option>Outro</option>
-      </select>
-    </div>
-    <div class="modal-field">
-      <label>Observação <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional)</span></label>
-      <textarea id="modal-obs" placeholder="Detalhe o motivo..."></textarea>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
-      <button class="btn-confirm" id="btn-confirmar" onclick="confirmarIndevida()">Confirmar</button>
-    </div>
-  </div>
-</div>
 
 <header class="header">
   <div class="header-inner">
@@ -412,11 +387,10 @@
   function hideTooltip() { clearTimeout(ttTimer); ttEl.classList.remove('visivel'); }
 
   /* ── ESTADO GLOBAL ────────────────────────────────────── */
-  let currentDate   = '';
-  let activeAgent   = '';
-  let activeTag     = '';
-  let pendingTicket = null;
-  let reportData    = null;
+  let currentDate = '';
+  let activeAgent = '';
+  let activeTag   = '';
+  let reportData  = null;
   let reportIndevidaMap = {};
   const ticketDataMap = {};
 
@@ -458,29 +432,6 @@
       btn.classList.add('ativo'); activeTag = tag;
     }
     applyFilters();
-  }
-
-  /* ── MODAL INDEVIDA ───────────────────────────────────── */
-  function openModal(ticketId) {
-    pendingTicket = ticketId;
-    document.getElementById('modal-sub').textContent = 'Ticket #' + ticketId;
-    document.getElementById('modal-motivo').value = '';
-    document.getElementById('modal-obs').value = '';
-    document.getElementById('modal-overlay').classList.add('aberto');
-  }
-  function closeModal() { document.getElementById('modal-overlay').classList.remove('aberto'); pendingTicket = null; }
-
-  async function confirmarIndevida() {
-    if (!pendingTicket) return;
-    const motivo = document.getElementById('modal-motivo').value;
-    const obs    = document.getElementById('modal-obs').value;
-    const btn    = document.getElementById('btn-confirmar');
-    btn.disabled = true; btn.textContent = 'Salvando...';
-    try {
-      const r = await fetch(`${API}/indevida`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ticket_id:pendingTicket, date:currentDate, motivo, observacao:obs}) });
-      if (r.ok) { closeModal(); location.reload(); } else alert('Erro ao salvar.');
-    } catch(e) { alert('Erro: '+e.message); }
-    finally { btn.disabled = false; btn.textContent = 'Confirmar'; }
   }
 
   async function desfazerIndevida(ticketId) {
@@ -804,8 +755,8 @@
 
       const tagsChips = renderTagsCompact(t.tags);
       const indevidaCtrl = isIndevida
-        ? `<span class="badge-indevida">Indevida</span><button class="btn-desfazer" onclick="desfazerIndevida('${sid}')">Desfazer</button>`
-        : `<button class="btn-indevida" onclick="openModal('${sid}')">Marcar indevida</button>`;
+        ? `<span class="badge-indevida">Indevida</span>`
+        : '';
 
       return `
         <div class="agent-ticket-row${isIndevida?' indevida':''}" data-tags="${(t.tags||[]).join(',')}" data-tid="${sid}">
@@ -896,6 +847,50 @@
         </div>`;
     }).join('');
 
+    /* Seção indevidas */
+    const indevidaEntries = Object.entries(indevidaMap);
+    let indevidaSectionHtml = '';
+    if (indevidaEntries.length > 0) {
+      const allTicketsMap = {};
+      [...tickets, ...tickets_positivos].forEach(t => { allTicketsMap[String(t.id)] = t; });
+
+      const indevidaRows = indevidaEntries.map(([tid, meta]) => {
+        const t = allTicketsMap[tid];
+        const marcadoPor = meta.observacao || '—';
+        const marcadoEm  = meta.marcado_em ? new Date(meta.marcado_em).toLocaleString('pt-BR') : '—';
+
+        const idHtml = t && t.link
+          ? `<a class="ticket-id-link" href="${t.link}" target="_blank" rel="noopener">#${tid}<svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a>`
+          : `<span class="ticket-id-link" style="cursor:default">#${tid}</span>`;
+
+        return `
+          <div class="indev-row">
+            ${idHtml}
+            <div>
+              ${t ? `<div style="font-size:12px;font-weight:600;color:#475569">Nota ${t.nota} · ${escHtml(t.agente||'—')}</div>` : ''}
+              ${t && t.feedback ? `<div style="font-size:12px;color:var(--muted);margin-top:2px;line-height:1.4">${escHtml(t.feedback.slice(0,120))}${t.feedback.length>120?'…':''}</div>` : ''}
+              <div class="indev-meta">
+                <span>Marcado por: <strong>${escHtml(marcadoPor)}</strong></span>
+                <span>Em: ${marcadoEm}</span>
+              </div>
+            </div>
+            <button class="btn-desfazer" onclick="desfazerIndevida('${tid}')">Desfazer</button>
+          </div>`;
+      }).join('');
+
+      indevidaSectionHtml = `
+        <div class="section">
+          <div class="section-head indev">
+            Avaliações Indevidas
+            <span style="background:#e2e8f0;color:#64748b;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;margin-left:8px">${indevidaEntries.length}</span>
+          </div>
+          <div class="ticket-list">${indevidaRows}</div>
+          <div style="padding:10px 20px 14px;font-size:11px;color:var(--muted);border-top:1px solid #f1f5f9">
+            Marcadas automaticamente via CloudChat quando "Avaliação de CSAT é inválida?" é ativada. Use "Desfazer" para remover uma marcação incorreta.
+          </div>
+        </div>`;
+    }
+
     el.innerHTML = `
       <div class="date-hero">
         <div class="date-pill">Relatório do dia</div>
@@ -916,7 +911,9 @@
         ${tickets.length > 0
           ? `${filtrosHtml}<div class="ticket-list">${linhas}</div>`
           : '<div class="empty">Nenhum ticket registrado neste dia.</div>'}
-      </div>`;
+      </div>
+
+      ${indevidaSectionHtml}`;
 
     /* Ativa tooltips nos tickets */
     document.querySelectorAll('[data-tid]').forEach(row => {
