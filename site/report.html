@@ -36,6 +36,10 @@
     .main { max-width: 1140px; margin: 0 auto; padding: 36px 32px 80px; }
     .erro { padding: 40px; background: #fff3f3; border: 1px solid #ffd0d0; border-radius: var(--r); color: #c0392b; text-align: center; }
 
+    /* ── EMBED MODE (quando aberto via iframe no gerencial) ── */
+    html.embed .header { display: none; }
+    html.embed .main   { padding-top: 16px; padding-bottom: 24px; }
+
     /* ── SKELETON LOADING ───────────────────────────────── */
     @keyframes shimmer {
       0%   { background-position: -700px 0; }
@@ -233,6 +237,7 @@
     .footer-brand b { color: var(--rosa); }
     .empty { padding: 40px; text-align: center; color: var(--muted); font-size: 13px; }
   </style>
+  <script>if(location.search.includes('embed=true'))document.documentElement.classList.add('embed')</script>
 </head>
 <body>
 

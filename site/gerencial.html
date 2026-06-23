@@ -186,6 +186,24 @@
     .kpi.clicavel:hover { box-shadow: var(--sh-lg); transform: translateY(-2px); }
     .kpi.clicavel::after { content: "↓"; position: absolute; bottom: 10px; right: 14px; font-size: 11px; color: var(--muted); opacity: .5; }
 
+    /* FILTER TABS */
+    .filter-tabs { display: flex; gap: 4px; margin-bottom: 20px; background: #f1f5f9; border-radius: 10px; padding: 4px; width: fit-content; }
+    .filter-tab { padding: 7px 20px; border-radius: 7px; border: none; background: transparent; font-size: 12px; font-weight: 700; color: var(--muted); cursor: pointer; transition: all .15s; }
+    .filter-tab:hover { color: var(--preto); }
+    .filter-tab.ativo { background: #fff; color: var(--preto); box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+
+    /* REPORT INLINE PANEL */
+    .report-panel { display: none; margin: 0 0 32px; }
+    .report-panel.visivel { display: block; }
+    .report-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; background: var(--preto); border-radius: var(--r) var(--r) 0 0; }
+    .report-panel-title { font-size: 13px; font-weight: 700; color: #fff; }
+    .report-panel-actions { display: flex; align-items: center; gap: 10px; }
+    .report-panel-link { color: #aaa; font-size: 11px; font-weight: 600; text-decoration: none; border: 1px solid #333; border-radius: 5px; padding: 3px 10px; transition: all .15s; }
+    .report-panel-link:hover { background: var(--rosa); border-color: var(--rosa); color: #fff; }
+    .report-panel-close { background: none; border: none; color: #666; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; transition: color .15s; }
+    .report-panel-close:hover { color: #fff; }
+    .report-panel iframe { display: block; width: 100%; height: 680px; border: 1px solid var(--borda); border-top: none; border-radius: 0 0 var(--r) var(--r); background: var(--bg); }
+
     /* FOOTER */
     .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--borda); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
     .footer-brand { font-weight: 900; font-size: 14px; color: var(--preto); }
@@ -203,10 +221,6 @@
       <h1>Painel de Gestão — CSAT</h1>
       <p>Visão geral + monitoramento de positivos e negativos · Atualizado todo dia útil às 7h</p>
     </div>
-    <a class="btn-back" href="report.html?date=" id="btn-ver-dia" style="display:none">
-      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
-      Ver relatório
-    </a>
   </div>
 </header>
 
@@ -223,6 +237,17 @@
       ${[1,2,3,4].map(()=>`<div style="background:var(--card);border:1px solid var(--borda);border-radius:var(--r);padding:18px 20px"><div class="sk" style="width:70px;height:10px;margin-bottom:10px"></div><div class="sk" style="width:50px;height:32px;margin-bottom:10px"></div><div class="sk" style="width:90px;height:10px"></div></div>`).join('')}
     </div>
   </div>
+  <div id="report-panel" class="report-panel">
+    <div class="report-panel-header">
+      <span class="report-panel-title" id="report-panel-title">Relatório do dia</span>
+      <div class="report-panel-actions">
+        <a class="report-panel-link" id="report-panel-extlink" href="#" target="_blank" rel="noopener">Abrir em nova aba ↗</a>
+        <button class="report-panel-close" onclick="fecharReportPanel()" title="Fechar">✕</button>
+      </div>
+    </div>
+    <iframe id="report-iframe" src="" title="Relatório do dia"></iframe>
+  </div>
+
   <div class="footer">
     <span class="footer-brand">INK<b>.</b></span>
     <span>Dados dos últimos 90 dias</span>
@@ -261,9 +286,19 @@
   let dayDataCache   = {};   // date → full /data/:date response
   let mesAtivo       = null;
   let selectedDay    = null;
+  let filterMode     = 'mes';  // 'dia' | 'semana' | 'mes' | 'periodo'
+  let selectedWeek   = null;
+  let periodoInicio  = null;
+  let periodoFim     = null;
 
   const DIAS_SEMANA  = ['Seg','Ter','Qua','Qui','Sex'];
   const MESES_FULL   = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+  function computeTagsFromTickets(tickets) {
+    const tags = {};
+    (tickets || []).forEach(t => { (t.tags || []).forEach(tag => { tags[tag] = (tags[tag] || 0) + 1; }); });
+    return tags;
+  }
 
   function volClass(neg) { return neg >= 8 ? 'vol-alto' : neg >= 4 ? 'vol-medio' : 'vol-baixo'; }
 
@@ -300,12 +335,16 @@
   }
 
   async function selecionarDia(date) {
-    if (selectedDay === date) { selectedDay = null; render(); return; }
+    if (selectedDay === date) {
+      selectedDay = null;
+      fecharReportPanel();
+      render();
+      return;
+    }
     selectedDay = date;
-    // Muda o mês ativo se necessário
+    filterMode  = 'dia';
     const novoMes = date.slice(0, 7);
     if (novoMes !== mesAtivo) { mesAtivo = novoMes; }
-    // Carrega dados do dia se não estiver em cache
     if (!dayDataCache[date]) {
       try {
         const r = await fetch(`${API}/data/${date}`);
@@ -313,10 +352,52 @@
       } catch(e) {}
     }
     render();
-    // Atualiza botão "Ver relatório" no header
-    const btn = document.getElementById('btn-ver-dia');
-    btn.href = `report.html?date=${date}`;
-    btn.style.display = 'inline-flex';
+    abrirReportPanel(date);
+  }
+
+  function abrirReportPanel(date) {
+    const [da, dm, dd] = date.split('-');
+    const titulo = `${Number(dd)} de ${MESES_FULL[Number(dm)-1]} de ${da}`;
+    document.getElementById('report-panel-title').textContent = `Relatório — ${titulo}`;
+    document.getElementById('report-panel-extlink').href = `report.html?date=${date}`;
+    document.getElementById('report-iframe').src = `report.html?date=${date}&embed=true`;
+    document.getElementById('report-panel').classList.add('visivel');
+    setTimeout(() => { document.getElementById('report-panel').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
+  }
+
+  function fecharReportPanel() {
+    document.getElementById('report-panel').classList.remove('visivel');
+    document.getElementById('report-iframe').src = '';
+  }
+
+  function setFilterMode(mode) {
+    filterMode = mode;
+    if (mode !== 'dia') { selectedDay = null; fecharReportPanel(); }
+    if (mode === 'semana' && !selectedWeek && dadosGestao) {
+      const semanasKeys = Object.keys(dadosGestao.semanas).sort();
+      selectedWeek = semanasKeys[semanasKeys.length - 1] || null;
+    }
+    render();
+  }
+
+  function selecionarSemana(week) {
+    selectedWeek = week;
+    filterMode   = 'semana';
+    selectedDay  = null;
+    fecharReportPanel();
+    render();
+  }
+
+  function verPeriodo() {
+    const ini = document.getElementById('periodo-ini');
+    const fim = document.getElementById('periodo-fim');
+    if (!ini || !fim || !ini.value || !fim.value) return;
+    periodoInicio = ini.value;
+    periodoFim    = fim.value;
+    filterMode    = 'periodo';
+    render();
+    if (ini && periodoInicio) ini.value = periodoInicio;
+    if (fim && periodoFim)    fim.value = periodoFim;
   }
 
   async function init() {
@@ -346,24 +427,90 @@
   function render() {
     const { meses, semanas } = dadosGestao;
     const mesesKeys = Object.keys(meses).sort().reverse();
-    const mesDados  = meses[mesAtivo] || { total:0, dias:0, por_agente:{}, tags:{} };
+    const mesDados  = meses[mesAtivo] || { total:0, dias:0, por_agente:{}, tags:{}, tags_positivos:{} };
 
-    // Mês anterior para comparação
+    // Mês anterior para comparação (sempre baseado em mesDados)
     const [ma, mm] = mesAtivo.split('-').map(Number);
     const prevChave = mm === 1 ? `${ma-1}-12` : `${ma}-${String(mm-1).padStart(2,'0')}`;
     const mesAnterior = meses[prevChave];
 
-    // ── Nav de meses ──
-    const navHtml = mesesKeys.length > 1 ? `
-      <div class="mes-nav">
-        <span class="mes-nav-label">Mês</span>
-        ${mesesKeys.map(k => `<button class="mes-btn${k===mesAtivo?' ativo':''}" onclick="selecionarMes('${k}')">${mesLabel(k)}</button>`).join('')}
-      </div>` : '';
+    // ── Compute activeDados based on filterMode ──
+    let activeDados, kpiLabel;
+    let showRankings = true, showTags = true;
+    const dayData = selectedDay ? dayDataCache[selectedDay] : null;
+
+    if (filterMode === 'dia' && selectedDay && dayData) {
+      activeDados = {
+        por_agente:           dayData.por_agente           || {},
+        por_agente_positivos: dayData.por_agente_positivos || {},
+        tags:                 computeTagsFromTickets(dayData.tickets),
+        tags_positivos:       computeTagsFromTickets(dayData.tickets_positivos),
+        total:          dayData.total           || 0,
+        total_recebidos:dayData.total_recebidos || 0,
+        total_avaliados:dayData.total_avaliados || 0,
+        total_positivos:dayData.total_positivos || 0,
+        total_negativos:dayData.total           || 0,
+      };
+      const [,dm,dd] = selectedDay.split('-');
+      kpiLabel = `${Number(dd)} de ${MESES_FULL[Number(dm)-1]}`;
+    } else if (filterMode === 'dia' && selectedDay) {
+      // Carregando dados do dia
+      activeDados = { por_agente:{}, por_agente_positivos:{}, tags:{}, tags_positivos:{}, total:0, total_recebidos:0, total_avaliados:0, total_positivos:0, total_negativos:0 };
+      const [,dm,dd] = selectedDay.split('-');
+      kpiLabel = `${Number(dd)} de ${MESES_FULL[Number(dm)-1]}`;
+      showRankings = false; showTags = false;
+    } else if (filterMode === 'semana' && selectedWeek && semanas[selectedWeek]) {
+      const sw = semanas[selectedWeek];
+      activeDados = {
+        por_agente:           sw.por_agente           || {},
+        por_agente_positivos: sw.por_agente_positivos || {},
+        tags:{}, tags_positivos:{},
+        total:          sw.total           || 0,
+        total_recebidos:sw.total_recebidos || 0,
+        total_avaliados:sw.total_avaliados || 0,
+        total_positivos:sw.total_positivos || 0,
+        total_negativos:sw.total           || 0,
+      };
+      kpiLabel = `Semana ${semanaLabel(selectedWeek)}`;
+      showTags = false;
+    } else if (filterMode === 'periodo' && periodoInicio && periodoFim) {
+      const dates = Object.keys(summaryMap).filter(d => d >= periodoInicio && d <= periodoFim);
+      const totNeg = dates.reduce((s,d) => s + (summaryMap[d].total           || 0), 0);
+      const totAv  = dates.reduce((s,d) => s + (summaryMap[d].total_avaliados || 0), 0);
+      const totPos = dates.reduce((s,d) => s + (summaryMap[d].total_positivos  || 0), 0);
+      activeDados = {
+        por_agente:{}, por_agente_positivos:{}, tags:{}, tags_positivos:{},
+        total:totNeg, total_recebidos:0, total_avaliados:totAv, total_positivos:totPos, total_negativos:totNeg,
+      };
+      const fmt = d => `${Number(d.slice(8))}/${MESES_ABR[Number(d.slice(5,7))-1]}`;
+      kpiLabel = `${fmt(periodoInicio)} a ${fmt(periodoFim)}`;
+      showRankings = false; showTags = false;
+    } else {
+      // Default: mês
+      activeDados = {
+        por_agente:           mesDados.por_agente           || {},
+        por_agente_positivos: mesDados.por_agente_positivos || {},
+        tags:           mesDados.tags           || {},
+        tags_positivos: mesDados.tags_positivos || {},
+        total:          mesDados.total           || 0,
+        total_recebidos:mesDados.total_recebidos || 0,
+        total_avaliados:mesDados.total_avaliados || 0,
+        total_positivos:mesDados.total_positivos || 0,
+        total_negativos:mesDados.total_negativos || mesDados.total || 0,
+      };
+      kpiLabel = mesLabel(mesAtivo);
+    }
+
+    const totalRecebidos = activeDados.total_recebidos || 0;
+    const totalAvaliados = activeDados.total_avaliados || 0;
+    const totalPositivos = activeDados.total_positivos || 0;
+    const totalNegAll    = activeDados.total_negativos || activeDados.total || 0;
+    const pctSatisfacao  = totalAvaliados > 0 ? Math.round(totalPositivos / totalAvaliados * 100) : null;
+    const totalOutros    = Math.max(0, totalRecebidos - totalAvaliados);
 
     const media = mesDados.dias ? (mesDados.total / mesDados.dias).toFixed(1) : '0';
-
     let vsHtml = '<span class="kpi-sub flat">sem mês anterior</span>';
-    if (mesAnterior && mesAnterior.total > 0) {
+    if (filterMode === 'mes' && mesAnterior && mesAnterior.total > 0) {
       const diff = mesDados.total - mesAnterior.total;
       const pct  = Math.round(Math.abs(diff) / mesAnterior.total * 100);
       if (diff > 0)      vsHtml = `<span class="kpi-sub up">↑ +${pct}% vs. ${MESES_ABR[mm-2>=0?mm-2:11]}</span>`;
@@ -371,9 +518,42 @@
       else               vsHtml = `<span class="kpi-sub flat">→ igual ao mês anterior</span>`;
     }
 
-    // ── Ranking de satisfação por agente ──
-    const possPorAg = mesDados.por_agente_positivos || {};
-    const negsPorAg = mesDados.por_agente || {};
+    // ── Filter tabs ──
+    const filterTabsHtml = `
+      <div class="filter-tabs">
+        <button class="filter-tab${filterMode==='dia'?' ativo':''}" onclick="setFilterMode('dia')">Dia</button>
+        <button class="filter-tab${filterMode==='semana'?' ativo':''}" onclick="setFilterMode('semana')">Semana</button>
+        <button class="filter-tab${filterMode==='mes'?' ativo':''}" onclick="setFilterMode('mes')">Mês</button>
+        <button class="filter-tab${filterMode==='periodo'?' ativo':''}" onclick="setFilterMode('periodo')">Período</button>
+      </div>`;
+
+    // ── Mode-specific nav ──
+    let modeNavHtml = '';
+    if (filterMode === 'mes') {
+      modeNavHtml = mesesKeys.length > 1 ? `<div class="mes-nav">
+        <span class="mes-nav-label">Mês</span>
+        ${mesesKeys.map(k => `<button class="mes-btn${k===mesAtivo?' ativo':''}" onclick="selecionarMes('${k}')">${mesLabel(k)}</button>`).join('')}
+      </div>` : '';
+    } else if (filterMode === 'semana') {
+      const semanasAll = Object.keys(semanas).sort().reverse().slice(0, 16);
+      modeNavHtml = `<div class="mes-nav">
+        <span class="mes-nav-label">Semana</span>
+        ${semanasAll.map(k => `<button class="mes-btn${k===selectedWeek?' ativo':''}" onclick="selecionarSemana('${k}')">${semanaLabel(k)}</button>`).join('')}
+      </div>`;
+    } else if (filterMode === 'periodo') {
+      modeNavHtml = `<div class="mes-nav" style="flex-wrap:wrap;align-items:center">
+        <span class="mes-nav-label">Período</span>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">De <input type="date" id="periodo-ini" style="padding:6px 10px;border:1px solid var(--borda);border-radius:8px;font-size:12px;font-family:inherit;color:var(--preto);background:#fff" /></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">Até <input type="date" id="periodo-fim" style="padding:6px 10px;border:1px solid var(--borda);border-radius:8px;font-size:12px;font-family:inherit;color:var(--preto);background:#fff" /></label>
+        <button style="padding:7px 18px;border-radius:8px;border:none;background:var(--rosa);color:#fff;font-size:12px;font-weight:700;cursor:pointer" onclick="verPeriodo()">Ver período</button>
+      </div>`;
+    } else if (filterMode === 'dia' && !selectedDay) {
+      modeNavHtml = `<p style="font-size:12px;color:var(--muted);margin-bottom:20px">Clique em um dia no calendário para ver os KPIs daquele dia.</p>`;
+    }
+
+    // ── Rankings from activeDados ──
+    const possPorAg = activeDados.por_agente_positivos || {};
+    const negsPorAg = activeDados.por_agente || {};
     const todosAgentes = [...new Set([...Object.keys(possPorAg), ...Object.keys(negsPorAg)])];
     const satisfSorted = todosAgentes.map(ag => {
       const pos = possPorAg[ag] || 0;
@@ -392,8 +572,7 @@
       </div>`;
     }).join('') : '<p style="color:var(--muted);font-size:12px">Sem dados — reprocesse os dias do mês</p>';
 
-    // ── Ranking negativos por agente ──
-    const agentes = Object.entries(mesDados.por_agente).sort((a,b) => b[1]-a[1]);
+    const agentes = Object.entries(activeDados.por_agente || {}).sort((a,b) => b[1]-a[1]);
     const maxAg = agentes[0]?.[1] || 1;
     const rankingHtml = agentes.length ? agentes.map(([nome,cnt], i) => `
       <div class="agente-row">
@@ -403,8 +582,7 @@
         <span class="agente-num">${cnt}</span>
       </div>`).join('') : '<p style="color:var(--muted);font-size:12px">Sem dados</p>';
 
-    // ── Top tags ──
-    const topTags = Object.entries(mesDados.tags).sort((a,b) => b[1]-a[1]).slice(0,6);
+    const topTags = Object.entries(activeDados.tags || {}).sort((a,b) => b[1]-a[1]).slice(0,6);
     const maxTag  = topTags[0]?.[1] || 1;
     const tagsHtml = topTags.length ? topTags.map(([tag,cnt]) => {
       const cor = tagCor(tag);
@@ -416,8 +594,7 @@
       </div>`;
     }).join('') : '<p style="color:var(--muted);font-size:12px">Sem tags</p>';
 
-    // ── Positivos por agente ──
-    const posAgentes = Object.entries(mesDados.por_agente_positivos || {}).sort((a,b) => b[1]-a[1]);
+    const posAgentes = Object.entries(activeDados.por_agente_positivos || {}).sort((a,b) => b[1]-a[1]);
     const maxPosAg   = posAgentes[0]?.[1] || 1;
     const posRankingHtml = posAgentes.length ? posAgentes.map(([nome,cnt], i) => `
       <div class="agente-row">
@@ -427,8 +604,7 @@
         <span class="agente-num">${cnt}</span>
       </div>`).join('') : '<p style="color:var(--muted);font-size:12px">Sem dados</p>';
 
-    // ── Top tags positivos ──
-    const topTagsPos = Object.entries(mesDados.tags_positivos || {}).sort((a,b) => b[1]-a[1]).slice(0,6);
+    const topTagsPos = Object.entries(activeDados.tags_positivos || {}).sort((a,b) => b[1]-a[1]).slice(0,6);
     const maxTagPos  = topTagsPos[0]?.[1] || 1;
     const tagsPositivosHtml = topTagsPos.length ? topTagsPos.map(([tag,cnt]) => `
       <div class="tag-row">
@@ -487,34 +663,19 @@
     const [cAno, cMes] = mesAtivo.split('-').map(Number);
     const calHtml = renderCalendarioGestao(cAno, cMes);
 
-    // ── Dia selecionado: sobrescreve KPIs ──
-    let kpiSource = mesDados;
-    let kpiLabel  = mesLabel(mesAtivo);
-    const dayData = selectedDay ? dayDataCache[selectedDay] : null;
-    if (dayData) {
-      kpiSource = {
-        total:            dayData.total          || 0,
-        total_recebidos:  dayData.total_recebidos || 0,
-        total_avaliados:  dayData.total_avaliados || 0,
-        total_positivos:  dayData.total_positivos || 0,
-        total_negativos:  dayData.total           || 0,
-      };
-      const [da, dm, dd] = selectedDay.split('-');
-      kpiLabel = `${Number(dd)} de ${MESES_FULL[Number(dm)-1]}`;
-    }
-
-    const totalRecebidos = kpiSource.total_recebidos || 0;
-    const totalAvaliados = kpiSource.total_avaliados || 0;
-    const totalPositivos = kpiSource.total_positivos || 0;
-    const totalNegAll    = kpiSource.total_negativos || kpiSource.total || 0;
-    const taxaResposta   = totalRecebidos > 0 ? Math.round(totalAvaliados / totalRecebidos * 100) : null;
-    const pctSatisfacao  = totalAvaliados > 0 ? Math.round(totalPositivos / totalAvaliados * 100) : null;
-
-    // ── Indevidas do mês (ou dia) ──
-    const indevidasMes = selectedDay
-      ? dadosIndevidas.filter(i => i.date === selectedDay)
-      : dadosIndevidas.filter(i => i.date && i.date.startsWith(mesAtivo));
-    const totalOutros = Math.max(0, totalRecebidos - totalAvaliados);
+    // ── Indevidas filtradas pelo modo ──
+    const indevidasMes = (() => {
+      if (filterMode === 'dia' && selectedDay) return dadosIndevidas.filter(i => i.date === selectedDay);
+      if (filterMode === 'semana' && selectedWeek) {
+        const [sa,sm,sd] = selectedWeek.split('-').map(Number);
+        const fimSem = new Date(sa, sm-1, sd+4).toISOString().slice(0,10);
+        return dadosIndevidas.filter(i => i.date >= selectedWeek && i.date <= fimSem);
+      }
+      if (filterMode === 'periodo' && periodoInicio && periodoFim) {
+        return dadosIndevidas.filter(i => i.date >= periodoInicio && i.date <= periodoFim);
+      }
+      return dadosIndevidas.filter(i => i.date && i.date.startsWith(mesAtivo));
+    })();
 
     const indevidasListHtml = indevidasMes.length
       ? `<table class="indev-table">
@@ -540,20 +701,9 @@
             }).join('')}
           </tbody>
         </table>`
-      : '<p style="color:var(--muted);font-size:12px;padding:4px 0">Nenhuma avaliação marcada como indevida neste mês.</p>';
-
-    const diaBadge = selectedDay ? (() => {
-      const [da,dm,dd] = selectedDay.split('-');
-      return `<div class="dia-badge">
-        <span>${Number(dd)} de ${MESES_FULL[Number(dm)-1]} de ${da}</span>
-        <a class="dia-badge-link" href="report.html?date=${selectedDay}" target="_blank">Ver relatório completo</a>
-        <button class="dia-badge-clear" onclick="selecionarDia('${selectedDay}')" title="Voltar para visão do mês">✕</button>
-      </div>`;
-    })() : '';
+      : `<p style="color:var(--muted);font-size:12px;padding:4px 0">Nenhuma avaliação indevida ${filterMode==='dia'&&selectedDay?'neste dia':filterMode==='semana'&&selectedWeek?'nesta semana':filterMode==='periodo'&&periodoInicio?'neste período':'neste mês'}.</p>`;
 
     document.getElementById('conteudo').innerHTML = `
-      ${navHtml}
-
       <div class="cal-wrap">
         <div class="section-head">Calendário — ${mesLabel(mesAtivo)}</div>
         ${calHtml}
@@ -562,12 +712,13 @@
           <span class="legenda-item"><span class="legenda-dot" style="background:#fff;border:2px solid #e91e8c;box-sizing:border-box"></span> Alta (≥75%)</span>
           <span class="legenda-item"><span class="legenda-dot" style="background:#e91e8c"></span> Média (55–74%)</span>
           <span class="legenda-item"><span class="legenda-dot" style="background:#9d1366"></span> Baixa (&lt;55%)</span>
-          <span style="margin-left:8px;color:#94a3b8">· Clique num dia para ver os KPIs daquele dia</span>
+          <span style="margin-left:8px;color:#94a3b8">· Clique num dia para ver o relatório inline</span>
         </div>
       </div>
 
       <div class="section-head">Visão geral — ${kpiLabel}</div>
-      ${diaBadge}
+      ${filterTabsHtml}
+      ${modeNavHtml}
 
       <div class="kpi-secao">
         <div class="kpi-grupo-label">Equipe monitorada</div>
@@ -578,18 +729,18 @@
             <div class="kpi-sub flat">${totalPositivos}↑ · ${totalNegAll}↓</div>
           </div>
           <div class="kpi clicavel" style="border-left:4px solid #16a34a" onclick="document.getElementById('section-positivos').scrollIntoView({behavior:'smooth'})">
-            <div class="kpi-label">Positivos${selectedDay?'':' no mês'}</div>
+            <div class="kpi-label">Positivos</div>
             <div class="kpi-num" style="color:#16a34a">${totalPositivos || '—'}</div>
             <div class="kpi-sub flat">Mari, Fer, Paty, Lu, Rafa</div>
           </div>
           <div class="kpi clicavel" onclick="document.getElementById('section-negativos').scrollIntoView({behavior:'smooth'})">
-            <div class="kpi-label">Negativos${selectedDay?'':' no mês'}</div>
-            <div class="kpi-num">${totalNegAll || mesDados.total}</div>
-            ${selectedDay ? '' : vsHtml}
+            <div class="kpi-label">Negativos</div>
+            <div class="kpi-num">${totalNegAll}</div>
+            ${filterMode === 'mes' ? vsHtml : ''}
           </div>
           <div class="kpi clicavel" style="border-left:4px solid #94a3b8" onclick="document.getElementById('section-indevidas').scrollIntoView({behavior:'smooth'})">
-            <div class="kpi-label">Indevidas${selectedDay?'':' no mês'}</div>
-            <div class="kpi-num" style="color:#64748b">${indevidasMes.length || (selectedDay && !dayData ? '...' : '—')}</div>
+            <div class="kpi-label">Indevidas</div>
+            <div class="kpi-num" style="color:#64748b">${indevidasMes.length || (filterMode==='dia'&&selectedDay&&!dayData ? '...' : (indevidasMes.length === 0 ? '0' : '—'))}</div>
             <div class="kpi-sub flat">marcadas via CloudChat</div>
           </div>
         </div>
@@ -600,26 +751,26 @@
         <div class="kpi-grid" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr))">
           <div class="kpi">
             <div class="kpi-label">Total de avaliações recebidas</div>
-            <div class="kpi-num">${totalRecebidos || '—'}</div>
-            <div class="kpi-sub flat">${totalAvaliados} equipe · ${totalOutros} outros canais (IA, gestão)</div>
+            <div class="kpi-num">${totalRecebidos || (filterMode==='periodo'||filterMode==='semana'?'—':'—')}</div>
+            <div class="kpi-sub flat">${totalAvaliados ? `${totalAvaliados} equipe · ${totalOutros} outros (IA, gestão)` : 'inclui IA e outras equipes'}</div>
           </div>
         </div>
       </div>
 
       <div class="painel" style="margin-bottom:32px" id="section-satisfacao">
         <div class="painel-title">Satisfação por agente — ${kpiLabel}</div>
-        ${satisfacaoHtml}
+        ${showRankings ? satisfacaoHtml : '<p style="color:var(--muted);font-size:12px">Selecione um dia, semana ou mês para ver o ranking por agente.</p>'}
       </div>
 
       <div class="section-head pos" id="section-positivos">Monitoramento de positivos</div>
       <div class="dois-col">
         <div class="painel pos">
           <div class="painel-title">Positivos por agente</div>
-          ${posRankingHtml}
+          ${showRankings ? posRankingHtml : '<p style="color:var(--muted);font-size:12px">Disponível por Dia, Semana ou Mês.</p>'}
         </div>
         <div class="painel pos">
           <div class="painel-title">Top tags — positivos</div>
-          ${tagsPositivosHtml}
+          ${showTags ? tagsPositivosHtml : '<p style="color:var(--muted);font-size:12px">Tags disponíveis por Dia ou Mês.</p>'}
         </div>
       </div>
 
@@ -627,11 +778,11 @@
       <div class="dois-col">
         <div class="painel">
           <div class="painel-title">Negativos por agente</div>
-          ${rankingHtml}
+          ${showRankings ? rankingHtml : '<p style="color:var(--muted);font-size:12px">Disponível por Dia, Semana ou Mês.</p>'}
         </div>
         <div class="painel">
           <div class="painel-title">Top tags — negativos</div>
-          ${tagsHtml}
+          ${showTags ? tagsHtml : '<p style="color:var(--muted);font-size:12px">Tags disponíveis por Dia ou Mês.</p>'}
         </div>
       </div>
 
@@ -679,6 +830,14 @@
           </div>
         </div>
       </div>`;
+
+    // Restaura valores dos inputs de período após re-render
+    if (filterMode === 'periodo') {
+      const ini = document.getElementById('periodo-ini');
+      const fim = document.getElementById('periodo-fim');
+      if (ini && periodoInicio) ini.value = periodoInicio;
+      if (fim && periodoFim)    fim.value = periodoFim;
+    }
   }
 
   async function desfazerIndevida(ticketId, date) {
@@ -692,10 +851,10 @@
   }
 
   function selecionarMes(chave) {
-    mesAtivo = chave;
+    mesAtivo    = chave;
     selectedDay = null;
-    const btn = document.getElementById('btn-ver-dia');
-    if (btn) btn.style.display = 'none';
+    filterMode  = 'mes';
+    fecharReportPanel();
     render();
     carregarNotas();
     renderNotasLista('comportamentos');
