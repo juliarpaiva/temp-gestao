@@ -219,6 +219,21 @@ app.get('/agent-history/:name', async (req, res) => {
   }
 });
 
+app.get('/last-update', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT date, data->>'generated_at' AS generated_at
+       FROM support_bi.csat_reports
+       ORDER BY date DESC
+       LIMIT 1`
+    );
+    if (!result.rows.length) return res.json({ generated_at: null });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/data/:date', async (req, res) => {
   try {
     const result = await pool.query(

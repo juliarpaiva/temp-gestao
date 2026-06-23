@@ -302,7 +302,7 @@
 
   <div class="footer">
     <span class="footer-brand">INK<b>.</b></span>
-    <span>Dados dos últimos 90 dias</span>
+    <span id="footer-update">Carregando…</span>
   </div>
 </main>
 
@@ -671,16 +671,25 @@
 
   async function init() {
     try {
-      const [r, rIndev, rSum] = await Promise.all([
+      const [r, rIndev, rSum, rLast] = await Promise.all([
         fetch(`${API}/gestao`),
         fetch(`${API}/indevidas-resumo`),
         fetch(`${API}/summary`),
+        fetch(`${API}/last-update`),
       ]);
       if (!r.ok) throw new Error('Erro ao buscar dados');
       dadosGestao    = await r.json();
       dadosIndevidas = await rIndev.json().catch(() => []);
       const sumRows  = await rSum.json().catch(() => []);
       sumRows.forEach(s => { summaryMap[s.date] = s; });
+      const lastUpd = await rLast.json().catch(() => null);
+      if (lastUpd && lastUpd.generated_at) {
+        const d = new Date(lastUpd.generated_at);
+        const fmt = d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+        document.getElementById('footer-update').textContent = `Atualizado por último em: ${fmt}`;
+      } else {
+        document.getElementById('footer-update').textContent = '';
+      }
       const mesesKeys = Object.keys(dadosGestao.meses).sort().reverse();
       mesAtivo = mesesKeys[0] || null;
       if (!mesAtivo) { document.getElementById('conteudo').innerHTML = '<div class="erro">Sem dados disponíveis ainda.</div>'; return; }
@@ -1020,7 +1029,7 @@
       </div>
 
       <div class="kpi-secao">
-        <div class="kpi-grupo-label">Todos os canais</div>
+        <div class="kpi-grupo-label">Todos os agentes</div>
         <div class="kpi-grid" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr))">
           <div class="kpi clicavel" onclick="abrirModalOutros()" style="cursor:pointer">
             <div class="kpi-label">Total de avaliações recebidas</div>
