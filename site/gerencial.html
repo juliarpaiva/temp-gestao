@@ -911,7 +911,7 @@
         <span class="agente-pos" style="color:${cor};width:36px;font-size:12px">${d.pct}%</span>
         <span class="agente-nome">${medal}${d.nome.split(' ')[0]}</span>
         <div class="agente-bar-wrap"><div class="agente-bar" style="width:${d.pct}%;background:${barCor}"></div></div>
-        <span class="agente-num" style="font-size:11px;color:var(--muted);width:56px">+${d.pos} −${d.neg}</span>
+        <span class="agente-num" style="font-size:11px;color:var(--muted);width:56px">✓ ${d.pos} ✗ ${d.neg}</span>
       </div>`;
     }).join('') : '<p style="color:var(--muted);font-size:12px">Sem dados — reprocesse os dias do mês</p>';
 
@@ -1023,7 +1023,7 @@
           <div class="kpi destaque clicavel" onclick="document.getElementById('section-satisfacao').scrollIntoView({behavior:'smooth'})">
             <div class="kpi-label">% Satisfação</div>
             <div class="kpi-num">${pctSatisfacao !== null ? pctSatisfacao + '%' : '—'}</div>
-            <div class="kpi-sub flat">+${totalPositivos} · −${totalNegAll}</div>
+            <div class="kpi-sub flat">✓ ${totalPositivos} · ✗ ${totalNegAll}</div>
             ${satisfVsHtml}
           </div>
           <div class="kpi clicavel" style="border-left:4px solid #16a34a" onclick="document.getElementById('section-positivos').scrollIntoView({behavior:'smooth'})">
