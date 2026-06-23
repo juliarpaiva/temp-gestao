@@ -232,11 +232,43 @@
       <h1>Painel de Gestão — CSAT</h1>
       <p>Visão geral + monitoramento de positivos e negativos · Atualizado todo dia útil às 7h</p>
     </div>
-    <form method="POST" action="/logout" style="margin-left:auto">
-      <button type="submit" style="background:none;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.7);font-size:11px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;font-family:inherit">Sair</button>
-    </form>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <button onclick="abrirAlterarSenha()" style="background:none;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.7);font-size:11px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;font-family:inherit">Alterar senha</button>
+      <form method="POST" action="/logout">
+        <button type="submit" style="background:none;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.7);font-size:11px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;font-family:inherit">Sair</button>
+      </form>
+    </div>
   </div>
 </header>
+
+<!-- Modal alterar senha -->
+<div id="modal-senha" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:36px 32px;width:100%;max-width:360px;box-shadow:0 8px 40px rgba(0,0,0,.2);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h3 style="font-size:16px;font-weight:800;color:#0f0f0f">Alterar senha</h3>
+      <button onclick="fecharAlterarSenha()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;line-height:1">×</button>
+    </div>
+    <div id="msg-senha-modal" style="display:none;border-radius:8px;padding:10px 14px;font-size:12px;font-weight:600;margin-bottom:16px"></div>
+    <div style="margin-bottom:14px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Senha atual</label>
+      <input type="password" id="inp-atual" placeholder="••••••••" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:14px;outline:none;font-family:inherit" onfocus="this.style.borderColor='#e91e8c'" onblur="this.style.borderColor='#e2e8f0'">
+    </div>
+    <div style="margin-bottom:8px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Nova senha</label>
+      <input type="password" id="inp-nova" placeholder="••••••••" oninput="validarNovaSenha()" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:14px;outline:none;font-family:inherit" onfocus="this.style.borderColor='#e91e8c'" onblur="this.style.borderColor='#e2e8f0'">
+    </div>
+    <div id="reqs-modal" style="background:#f8f9fb;border-radius:8px;padding:8px 12px;margin-bottom:14px">
+      <div id="rm-len" style="font-size:12px;color:#94a3b8;padding:2px 0">· Mínimo 8 caracteres</div>
+      <div id="rm-num" style="font-size:12px;color:#94a3b8;padding:2px 0">· Ao menos 1 número</div>
+      <div id="rm-esp" style="font-size:12px;color:#94a3b8;padding:2px 0">· Ao menos 1 caractere especial</div>
+    </div>
+    <div style="margin-bottom:20px">
+      <label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Confirmar nova senha</label>
+      <input type="password" id="inp-confirm" placeholder="••••••••" oninput="validarNovaSenha()" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:14px;outline:none;font-family:inherit" onfocus="this.style.borderColor='#e91e8c'" onblur="this.style.borderColor='#e2e8f0'">
+    </div>
+    <button id="btn-salvar-senha" onclick="salvarSenha()" disabled style="width:100%;background:#e91e8c;color:#fff;border:none;border-radius:8px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:background .15s">Salvar</button>
+  </div>
+</div>
 
 <main class="main">
   <div id="conteudo">
@@ -1141,6 +1173,72 @@
   }
 
   init();
+
+  // ── Alterar senha ───────────────────────────────────────────────────────────
+  function abrirAlterarSenha() {
+    document.getElementById('modal-senha').style.display = 'flex';
+    document.getElementById('inp-atual').value = '';
+    document.getElementById('inp-nova').value = '';
+    document.getElementById('inp-confirm').value = '';
+    document.getElementById('msg-senha-modal').style.display = 'none';
+    document.getElementById('btn-salvar-senha').disabled = true;
+    validarNovaSenha();
+  }
+  function fecharAlterarSenha() {
+    document.getElementById('modal-senha').style.display = 'none';
+  }
+  document.getElementById('modal-senha').addEventListener('click', e => {
+    if (e.target === e.currentTarget) fecharAlterarSenha();
+  });
+  function setReqModal(id, ok, touched) {
+    const el = document.getElementById(id);
+    el.style.color = ok ? '#16a34a' : (touched ? '#ef4444' : '#94a3b8');
+    el.textContent = (ok ? '✓' : (touched ? '✗' : '·')) + el.textContent.slice(1);
+  }
+  function validarNovaSenha() {
+    const pw = document.getElementById('inp-nova').value;
+    const cf = document.getElementById('inp-confirm').value;
+    const touched = pw.length > 0;
+    const lenOk = pw.length >= 8, numOk = /\d/.test(pw), espOk = /[^a-zA-Z0-9]/.test(pw);
+    setReqModal('rm-len', lenOk, touched);
+    setReqModal('rm-num', numOk, touched);
+    setReqModal('rm-esp', espOk, touched);
+    const ok = lenOk && numOk && espOk && pw === cf && cf.length > 0;
+    document.getElementById('btn-salvar-senha').disabled = !ok;
+    document.getElementById('btn-salvar-senha').style.opacity = ok ? '1' : '0.5';
+  }
+  async function salvarSenha() {
+    const atual   = document.getElementById('inp-atual').value;
+    const nova    = document.getElementById('inp-nova').value;
+    const confirm = document.getElementById('inp-confirm').value;
+    const msgEl   = document.getElementById('msg-senha-modal');
+    const btnEl   = document.getElementById('btn-salvar-senha');
+    if (!atual) { showMsgSenha('Informe a senha atual.', false); return; }
+    btnEl.disabled = true; btnEl.textContent = 'Salvando...';
+    try {
+      const r = await fetch('/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword: atual, newPassword: nova, confirmPassword: confirm })
+      });
+      const data = await r.json();
+      if (data.ok) {
+        showMsgSenha('Senha alterada com sucesso!', true);
+        setTimeout(fecharAlterarSenha, 1500);
+      } else {
+        showMsgSenha(data.error || 'Erro ao alterar senha.', false);
+        btnEl.disabled = false; btnEl.textContent = 'Salvar';
+      }
+    } catch { showMsgSenha('Erro de conexão.', false); btnEl.disabled = false; btnEl.textContent = 'Salvar'; }
+  }
+  function showMsgSenha(txt, ok) {
+    const el = document.getElementById('msg-senha-modal');
+    el.textContent = txt;
+    el.style.background  = ok ? '#f0fdf4' : '#fef2f2';
+    el.style.border      = ok ? '1px solid #86efac' : '1px solid #fecaca';
+    el.style.color       = ok ? '#15803d' : '#b91c1c';
+    el.style.display     = 'block';
+  }
 </script>
 </body>
 </html>

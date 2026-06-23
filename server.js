@@ -97,6 +97,26 @@ async function sendResetEmail(email, link, isNew) {
   }
 }
 
+app.post('/change-password', express.json(), async (req, res) => {
+  const email = verifySession(getSessionToken(req));
+  if (!email) return res.status(401).json({ error: 'Não autorizado' });
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+  if (!currentPassword || !newPassword || newPassword !== confirmPassword)
+    return res.json({ error: 'Dados inválidos.' });
+  if (newPassword.length < 8 || !/\d/.test(newPassword) || /^[a-zA-Z0-9]*$/.test(newPassword))
+    return res.json({ error: 'A nova senha não atende aos requisitos.' });
+  try {
+    const r = await pool.query('SELECT password_hash FROM support_bi.csat_users WHERE email=$1', [email]);
+    if (!r.rows.length || !r.rows[0].password_hash)
+      return res.json({ error: 'Usuário não encontrado.' });
+    const ok = await checkPassword(currentPassword, r.rows[0].password_hash);
+    if (!ok) return res.json({ error: 'Senha atual incorreta.' });
+    const hash = await hashPassword(newPassword);
+    await pool.query('UPDATE support_bi.csat_users SET password_hash=$1 WHERE email=$2', [hash, email]);
+    res.json({ ok: true });
+  } catch(e) { res.json({ error: 'Erro interno.' }); }
+});
+
 app.get('/register', (req, res) => res.sendFile(__dirname + '/site/register.html'));
 
 app.post('/register', express.urlencoded({ extended: false }), async (req, res) => {
