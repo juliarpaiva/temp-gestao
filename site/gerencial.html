@@ -403,7 +403,7 @@
           vc = volClass(sm.total || 0);
           label = `${sm.total || 0} neg`;
         }
-        const tipTxt = av > 0 ? `✓ ${pos}  ✗ ${sm.total||0}  ·  ${pct||Math.round(pos/av*100)}%` : `✗ ${sm.total||0} negativos`;
+        const tipTxt = av > 0 ? `✓ ${pos}  ✗ ${sm.total||0}  ·  ${Math.round(pos/av*100)}%` : `✗ ${sm.total||0} negativos`;
         cells += `<div class="cal-cell"><div class="cal-day tem-dados ${vc}${isSel?' selecionado':''}" onclick="selecionarDia('${ds}')" onmouseenter="showCalTip(this,'${tipTxt}')" onmouseleave="hideCalTip()"><span class="cal-num">${dia}</span><span class="cal-csat">${label}</span></div></div>`;
       } else {
         cells += `<div class="cal-cell"><div class="cal-day"><span class="cal-num">${dia}</span></div></div>`;
