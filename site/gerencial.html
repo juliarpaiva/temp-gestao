@@ -1023,7 +1023,7 @@
           <div class="kpi destaque clicavel" onclick="document.getElementById('section-satisfacao').scrollIntoView({behavior:'smooth'})">
             <div class="kpi-label">% Satisfação</div>
             <div class="kpi-num">${pctSatisfacao !== null ? pctSatisfacao + '%' : '—'}</div>
-            <div class="kpi-sub flat">${totalPositivos}↑ · ${totalNegAll}↓</div>
+            <div class="kpi-sub flat">+${totalPositivos} · −${totalNegAll}</div>
             ${satisfVsHtml}
           </div>
           <div class="kpi clicavel" style="border-left:4px solid #16a34a" onclick="document.getElementById('section-positivos').scrollIntoView({behavior:'smooth'})">
