@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -998,6 +998,15 @@ app.get('/admin/diagnostico-junho', async (req, res) => {
       indevidas_junho_banco: parseInt(r1.rows[0].count),
       reports: r2.rows,
     });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/admin/clear-ops-cache', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.query.key !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const r = await pool.query(`DELETE FROM support_bi.kpis_op_cache`);
+    res.json({ ok: true, deleted: r.rowCount });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
