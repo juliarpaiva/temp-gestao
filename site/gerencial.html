@@ -290,7 +290,7 @@
     <span style="width:1px;height:16px;background:var(--borda);margin:0 4px;flex-shrink:0"></span>
     <a class="sec-nav-btn" id="nav-csat" href="#secao-csat-ancora">Painel CSAT</a>
     <span style="width:1px;height:16px;background:var(--borda);margin:0 4px;flex-shrink:0"></span>
-    <a class="sec-nav-btn" id="nav-ia" href="#secao-claudia">Painel IA</a>
+    <a class="sec-nav-btn" id="nav-ia" href="#secao-claudia">Painel Claudia</a>
   </div>
 </nav>
 <button class="btn-topo" id="btn-topo" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Voltar ao topo">↑</button>
@@ -388,7 +388,7 @@
   </div>
 
   <div id="secao-claudia" style="margin-bottom:36px;scroll-margin-top:64px">
-    <div class="section-head">Painel IA — Retenção N1</div>
+    <div class="section-head">Painel Claudia — Retenção N1</div>
     <div class="painel" style="padding:24px;color:var(--muted);font-size:13px">Carregando…</div>
   </div>
 
@@ -802,7 +802,7 @@
     const el = document.getElementById('secao-claudia');
     if (!el) return;
     if (!kpisOp) {
-      el.innerHTML = `<div class="section-head">Painel IA — Retenção N1</div><div class="painel" style="padding:24px;color:var(--muted);font-size:13px">Carregando…</div>`;
+      el.innerHTML = `<div class="section-head">Painel Claudia — Retenção N1</div><div class="painel" style="padding:24px;color:var(--muted);font-size:13px">Carregando…</div>`;
       return;
     }
     const atual    = kpisOp.atual;
@@ -835,7 +835,7 @@
     }).join('');
 
     el.innerHTML = `
-      <div class="section-head">Painel IA — Retenção N1 · ${opsPeriodoLabel()}</div>
+      <div class="section-head">Painel Claudia — Retenção N1 · ${opsPeriodoLabel()}</div>
       <div class="painel" style="padding:20px 24px">
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
           <div class="kpi">
