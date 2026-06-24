@@ -685,7 +685,7 @@ app.get('/kpis-semanais', async (req, res) => {
       tempoResposta, tempoEncerramento,
       volAnterior, retencaoAnterior, csatAnterior,
       porAgenteRows, snoozedRows,
-      emAberto, semAtribuicao
+      emAberto, semAtribuicao, pendentes
     ] = await Promise.all([
       sqlScalar(`SELECT COUNT(ticket_id) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
@@ -736,7 +736,8 @@ app.get('/kpis-semanais', async (req, res) => {
         ORDER BY total DESC
       `),
       sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'open' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
-      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'open' AND agent_on_resolution_name IS NULL AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`)
+      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'open' AND agent_on_resolution_name IS NULL AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
+      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'pending' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`)
     ]);
 
     const porAgente = porAgenteRows.map(r => ({
@@ -776,8 +777,9 @@ app.get('/kpis-semanais', async (req, res) => {
         tempo_encerramento_h: tempoEncerramento,
         por_agente:           porAgente,
         snoozed_por_agente:   snoozedPorAgente,
-        em_aberto:            emAberto    ?? 0,
+        em_aberto:            emAberto      ?? 0,
         sem_atribuicao:       semAtribuicao ?? 0,
+        pendentes:            pendentes     ?? 0,
       },
       anterior: {
         volume:      volAnterior       ?? 0,
