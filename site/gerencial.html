@@ -690,7 +690,7 @@
         if (!bg || (bg.open + bg.pending === 0)) return '';
         const total = bg.open + bg.pending;
         const partes = [bg.open > 0 ? `${bg.open} abertas` : '', bg.pending > 0 ? `${bg.pending} pendentes` : ''].filter(Boolean).join(' · ');
-        const flagSa = bg.sem_agente > 0 ? `<span style="color:#dc2626;font-weight:700;margin-left:12px">⚠ ${bg.sem_agente} sem atribuição</span>` : '';
+        const flagSa = '';
         return `<div onclick="abrirBacklog()" style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:12px;display:flex;align-items:center;gap:8px;cursor:pointer" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">
           <span style="font-size:15px">⚠</span>
           <span><strong>${total} tickets históricos ainda abertos</strong> — ${partes}${flagSa}<span style="color:var(--muted);margin-left:12px">criados em períodos anteriores</span></span>
@@ -1157,10 +1157,10 @@
       const link = `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.id}`;
       const dataCriacao = t.criado_em ? String(t.criado_em).slice(0,10).split('-').reverse().join('/') : '—';
       const stCor = t.status === 'pending' ? '#ca8a04' : '#64748b';
-      const isSemAgent = t.agente === '(sem atribuição)';
+      const agenteLabel = (!t.agente || t.agente === '(sem atribuição)') ? '—' : escHtml(t.agente);
       return `<tr>
         <td><a class="outros-link" href="${link}" target="_blank" rel="noopener">#${t.id}<svg width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-left:3px"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></td>
-        <td style="color:${isSemAgent?'#dc2626':'inherit'};font-weight:${isSemAgent?'700':'400'}">${isSemAgent?'⚠ ':''}${escHtml(t.agente)}</td>
+        <td style="color:var(--muted)">${agenteLabel}</td>
         <td style="color:${stCor};font-weight:600;font-size:11px;text-transform:capitalize">${t.status}</td>
         <td style="color:var(--muted);font-size:11px">${dataCriacao}</td>
       </tr>`;
