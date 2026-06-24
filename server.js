@@ -684,7 +684,7 @@ app.get('/kpis-semanais', async (req, res) => {
       volume, respondidos, mediaDiaria, csatTime, csatClaudia, retencaoN1,
       tempoResposta, tempoEncerramento,
       volAnterior, retencaoAnterior, csatAnterior,
-      porAgenteRows
+      porAgenteRows, snoozedRows
     ] = await Promise.all([
       sqlScalar(`SELECT COUNT(ticket_id) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE first_agent_first_reply_at_local >= '${d0}' AND first_agent_first_reply_at_local < '${d1}'`),
@@ -715,6 +715,22 @@ app.get('/kpis-semanais', async (req, res) => {
           )
         GROUP BY 1
         ORDER BY volume DESC
+      `),
+      sqlRows(`
+        SELECT
+          COALESCE(t.agent_on_resolution_name, '(sem agente)') AS agente,
+          COUNT(*) FILTER (WHERE cf.field_value_bool = true)   AS com_flag,
+          COUNT(*) FILTER (WHERE cf.field_value_bool IS NOT TRUE) AS sem_flag,
+          COUNT(*) AS total
+        FROM dw.fact_cloudchat_tickets t
+        LEFT JOIN dw.fact_cloudchat_ticket_custom_fields cf
+          ON cf.ticket_id = t.ticket_id
+          AND cf.field_name = 'aguardando_confirmao_de_resoluo_lojista'
+        WHERE t.ticket_status = 'snoozed'
+          AND t.agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa')
+          AND t.created_at_local >= '${d0}' AND t.created_at_local < '${d1}'
+        GROUP BY 1
+        ORDER BY total DESC
       `)
     ]);
 
@@ -724,6 +740,13 @@ app.get('/kpis-semanais', async (req, res) => {
       tempo_resp_h: r[2] !== null ? Number(r[2]) : null,
       tempo_enc_h:  r[3] !== null ? Number(r[3]) : null,
       csat:         r[4] !== null ? Number(r[4]) : null,
+    }));
+
+    const snoozedPorAgente = snoozedRows.map(r => ({
+      agente:   r[0],
+      com_flag: Number(r[1]) || 0,
+      sem_flag: Number(r[2]) || 0,
+      total:    Number(r[3]) || 0,
     }));
 
     const diasUteis = countBusinessDays(d0, d1);
@@ -745,6 +768,7 @@ app.get('/kpis-semanais', async (req, res) => {
         tempo_resposta_h:     tempoResposta,
         tempo_encerramento_h: tempoEncerramento,
         por_agente:           porAgente,
+        snoozed_por_agente:   snoozedPorAgente,
       },
       anterior: {
         volume:      volAnterior       ?? 0,

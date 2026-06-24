@@ -701,7 +701,34 @@
         <div style="text-align:right;margin-top:10px">
           <button onclick="exportarOpsCSV()" style="background:none;border:1px solid var(--borda);color:var(--muted);font-size:11px;font-weight:600;padding:4px 12px;border-radius:6px;cursor:pointer;font-family:inherit">↓ Exportar CSV</button>
         </div>` : '<p style="color:var(--muted);font-size:12px">Sem dados para esta semana.</p>'}
-      </div>`;
+      </div>
+
+      ${(() => {
+        const snRows = atual.snoozed_por_agente || [];
+        const snBody = snRows.map(r => `
+          <tr>
+            <td>${escHtml(r.agente)}</td>
+            <td class="r" style="color:#16a34a;font-weight:700">${r.com_flag}</td>
+            <td class="r" style="color:${r.sem_flag > 0 ? '#ca8a04' : 'var(--muted)'};font-weight:${r.sem_flag > 0 ? '700' : '400'}">${r.sem_flag}</td>
+            <td class="r">${r.total}</td>
+          </tr>`).join('');
+        return `<div class="painel" style="margin-top:16px">
+          <div class="painel-title">Tickets adiados (snoozed) por agente — ${opsPeriodoLabel()}</div>
+          ${snRows.length ? `
+          <table class="ops-table">
+            <thead><tr>
+              <th>Agente</th>
+              <th class="r" title="aguardando_confirmao_de_resoluo_lojista = true">Aguard. seller</th>
+              <th class="r">Sem flag</th>
+              <th class="r">Total</th>
+            </tr></thead>
+            <tbody>${snBody}</tbody>
+          </table>
+          <div style="font-size:11px;color:var(--muted);margin-top:8px">Aguard. seller = flag confirmação lojista ativada · Sem flag = adiado sem motivo registrado</div>`
+          : '<p style="color:var(--muted);font-size:12px">Nenhum ticket adiado no período.</p>'}
+        </div>`;
+      })()}
+      `;
   }
 
   function exportarOpsCSV() {
@@ -1499,6 +1526,33 @@
       return dadosIndevidas.filter(i => i.date && i.date.startsWith(mesAtivo));
     })();
 
+    // Indevidas agrupadas por agente (campo observacao = agent_display_name)
+    const _indevAg = {};
+    indevidasMes.forEach(i => {
+      const ag = i.observacao || '(sem agente)';
+      _indevAg[ag] = (_indevAg[ag] || 0) + 1;
+    });
+    const _indevAgRows = Object.entries(_indevAg).sort((a,b) => b[1]-a[1]);
+    const indevPorAgenteHtml = _indevAgRows.length
+      ? `<div class="painel" style="margin-top:12px">
+          <div class="painel-title">Indevidas por agente — ${kpiLabel}</div>
+          <table class="ops-table">
+            <thead><tr>
+              <th>Agente</th>
+              <th class="r">Qtd</th>
+              <th class="r">% do total</th>
+            </tr></thead>
+            <tbody>
+              ${_indevAgRows.map(([ag, qtd]) => {
+                const pct = Math.round(qtd / indevidasMes.length * 100);
+                const cor = qtd >= 5 ? '#dc2626' : qtd >= 3 ? '#ca8a04' : 'inherit';
+                return `<tr><td>${escHtml(ag)}</td><td class="r" style="font-weight:700;color:${cor}">${qtd}</td><td class="r" style="color:var(--muted)">${pct}%</td></tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`
+      : '';
+
     const indevidasListHtml = indevidasMes.length
       ? `<table class="indev-table">
           <thead><tr>
@@ -1639,6 +1693,7 @@
         <div class="painel" style="padding:0;overflow:hidden">
           ${indevidasListHtml}
         </div>
+        ${indevPorAgenteHtml}
       </div>
 
       `;
