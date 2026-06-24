@@ -1170,23 +1170,20 @@
         porAgente[ag].push(t);
       });
       const agentes = Object.entries(porAgente).sort((a,b) => b[1].length - a[1].length);
-      const html = agentes.map(([ag, tks]) => {
-        const rows = tks.map(t => {
-          const link = `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.id}`;
-          const dataCriacao = t.criado_em ? String(t.criado_em).slice(0,10).split('-').reverse().join('/') : '—';
-          const stCor = t.status === 'pending' ? '#ca8a04' : '#64748b';
-          return `<tr>
-            <td><a class="outros-link" href="${link}" target="_blank" rel="noopener">#${t.id}<svg width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-left:3px"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></td>
-            <td style="color:${stCor};font-weight:600;font-size:11px;text-transform:capitalize">${t.status}</td>
-            <td style="color:var(--muted);font-size:11px">${dataCriacao}</td>
-          </tr>`;
-        }).join('');
-        const isSemAgent = ag === '(sem atribuição)';
-        return `<div style="margin-bottom:16px">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:${isSemAgent?'#dc2626':'var(--muted)'};padding:8px 0 6px;border-bottom:1px solid var(--borda)">${isSemAgent?'⚠ ':''} ${escHtml(ag)} (${tks.length})</div>
-          <table class="outros-ticket-table"><thead><tr><th>Ticket</th><th>Status</th><th>Criado em</th></tr></thead><tbody>${rows}</tbody></table>
-        </div>`;
+      const allRows = agentes.flatMap(([ag, tks]) => tks.map(t => ({...t, agente: ag})));
+      const tRows = allRows.map(t => {
+        const link = `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.id}`;
+        const dataCriacao = t.criado_em ? String(t.criado_em).slice(0,10).split('-').reverse().join('/') : '—';
+        const stCor = t.status === 'pending' ? '#ca8a04' : '#64748b';
+        const isSemAgent = t.agente === '(sem atribuição)';
+        return `<tr>
+          <td><a class="outros-link" href="${link}" target="_blank" rel="noopener">#${t.id}<svg width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-left:3px"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></td>
+          <td style="color:${isSemAgent?'#dc2626':'inherit'};font-weight:${isSemAgent?'700':'400'}">${isSemAgent?'⚠ ':''}${escHtml(t.agente)}</td>
+          <td style="color:${stCor};font-weight:600;font-size:11px;text-transform:capitalize">${t.status}</td>
+          <td style="color:var(--muted);font-size:11px">${dataCriacao}</td>
+        </tr>`;
       }).join('');
+      const html = `<table class="outros-ticket-table"><thead><tr><th>Ticket</th><th>Agente</th><th>Status</th><th>Criado em</th></tr></thead><tbody>${tRows}</tbody></table>`;
       document.getElementById('modal-outros-body').innerHTML =
         `<div style="max-height:480px;overflow-y:auto">${html}</div>`;
     } catch(e) {
