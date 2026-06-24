@@ -1120,7 +1120,7 @@
     _renderListaAgentes();
   }
 
-  function irParaHoje() {
+  async function irParaHoje() {
     const today = new Date().toISOString().slice(0, 10);
     const dates  = Object.keys(summaryMap).sort().reverse();
     const target = dates.find(d => d <= today) || dates[0];
@@ -1129,6 +1129,12 @@
     filterMode   = 'dia';
     mesAtivo     = target.slice(0, 7);
     fecharReportPanel();
+    if (!dayDataCache[target]) {
+      try {
+        const r = await fetch(`${API}/data/${target}`);
+        if (r.ok) dayDataCache[target] = await r.json();
+      } catch(e) {}
+    }
     render();
   }
 
