@@ -1135,6 +1135,55 @@
     _renderListaAgentes();
   }
 
+  let _backlogTickets = null;
+  let backlogSortKey = 'criado_em';
+  let backlogSortDir = 1; // 1 = asc (mais antigo primeiro)
+
+  function renderBacklog() {
+    const tickets = [..._backlogTickets];
+    tickets.sort((a, b) => {
+      let va = a[backlogSortKey] ?? '', vb = b[backlogSortKey] ?? '';
+      if (backlogSortKey === 'id') { va = Number(va); vb = Number(vb); }
+      return backlogSortDir * (va < vb ? -1 : va > vb ? 1 : 0);
+    });
+    const arrow = (key) => {
+      if (backlogSortKey !== key) return '<span style="opacity:.3;margin-left:3px">⇅</span>';
+      return backlogSortDir === 1
+        ? '<span style="margin-left:3px">↑</span>'
+        : '<span style="margin-left:3px">↓</span>';
+    };
+    const thStyle = 'cursor:pointer;user-select:none;white-space:nowrap';
+    const tRows = tickets.map(t => {
+      const link = `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.id}`;
+      const dataCriacao = t.criado_em ? String(t.criado_em).slice(0,10).split('-').reverse().join('/') : '—';
+      const stCor = t.status === 'pending' ? '#ca8a04' : '#64748b';
+      const isSemAgent = t.agente === '(sem atribuição)';
+      return `<tr>
+        <td><a class="outros-link" href="${link}" target="_blank" rel="noopener">#${t.id}<svg width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-left:3px"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></td>
+        <td style="color:${isSemAgent?'#dc2626':'inherit'};font-weight:${isSemAgent?'700':'400'}">${isSemAgent?'⚠ ':''}${escHtml(t.agente)}</td>
+        <td style="color:${stCor};font-weight:600;font-size:11px;text-transform:capitalize">${t.status}</td>
+        <td style="color:var(--muted);font-size:11px">${dataCriacao}</td>
+      </tr>`;
+    }).join('');
+    const html = `<table class="outros-ticket-table">
+      <thead><tr>
+        <th style="${thStyle}" onclick="sortBacklog('id')">Ticket${arrow('id')}</th>
+        <th style="${thStyle}" onclick="sortBacklog('agente')">Agente${arrow('agente')}</th>
+        <th style="${thStyle}" onclick="sortBacklog('status')">Status${arrow('status')}</th>
+        <th style="${thStyle}" onclick="sortBacklog('criado_em')">Criado em${arrow('criado_em')}</th>
+      </tr></thead>
+      <tbody>${tRows}</tbody>
+    </table>`;
+    document.getElementById('modal-outros-body').innerHTML =
+      `<div style="max-height:480px;overflow-y:auto">${html}</div>`;
+  }
+
+  function sortBacklog(key) {
+    if (backlogSortKey === key) backlogSortDir *= -1;
+    else { backlogSortKey = key; backlogSortDir = key === 'criado_em' ? 1 : 1; }
+    renderBacklog();
+  }
+
   async function abrirBacklog() {
     document.getElementById('modal-outros-titulo').textContent = 'Tickets históricos em aberto';
     document.getElementById('modal-outros-nav').innerHTML = '';
@@ -1142,37 +1191,16 @@
       '<p style="color:var(--muted);font-size:12px;padding:8px 0">Carregando…</p>';
     document.getElementById('modal-outros').classList.add('aberto');
     try {
-      const r = await fetch(`${API}/backlog-tickets`);
-      const tickets = await r.json();
-      if (!tickets.length) {
+      if (!_backlogTickets) {
+        const r = await fetch(`${API}/backlog-tickets`);
+        _backlogTickets = await r.json();
+      }
+      if (!_backlogTickets.length) {
         document.getElementById('modal-outros-body').innerHTML =
           '<p style="color:var(--muted);font-size:12px">Nenhum ticket em aberto.</p>';
         return;
       }
-      // Agrupar por agente para facilitar leitura
-      const porAgente = {};
-      tickets.forEach(t => {
-        const ag = t.agente;
-        if (!porAgente[ag]) porAgente[ag] = [];
-        porAgente[ag].push(t);
-      });
-      const agentes = Object.entries(porAgente).sort((a,b) => b[1].length - a[1].length);
-      const allRows = agentes.flatMap(([ag, tks]) => tks.map(t => ({...t, agente: ag})));
-      const tRows = allRows.map(t => {
-        const link = `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.id}`;
-        const dataCriacao = t.criado_em ? String(t.criado_em).slice(0,10).split('-').reverse().join('/') : '—';
-        const stCor = t.status === 'pending' ? '#ca8a04' : '#64748b';
-        const isSemAgent = t.agente === '(sem atribuição)';
-        return `<tr>
-          <td><a class="outros-link" href="${link}" target="_blank" rel="noopener">#${t.id}<svg width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-left:3px"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></td>
-          <td style="color:${isSemAgent?'#dc2626':'inherit'};font-weight:${isSemAgent?'700':'400'}">${isSemAgent?'⚠ ':''}${escHtml(t.agente)}</td>
-          <td style="color:${stCor};font-weight:600;font-size:11px;text-transform:capitalize">${t.status}</td>
-          <td style="color:var(--muted);font-size:11px">${dataCriacao}</td>
-        </tr>`;
-      }).join('');
-      const html = `<table class="outros-ticket-table"><thead><tr><th>Ticket</th><th>Agente</th><th>Status</th><th>Criado em</th></tr></thead><tbody>${tRows}</tbody></table>`;
-      document.getElementById('modal-outros-body').innerHTML =
-        `<div style="max-height:480px;overflow-y:auto">${html}</div>`;
+      renderBacklog();
     } catch(e) {
       document.getElementById('modal-outros-body').innerHTML =
         `<p style="color:#dc2626;font-size:12px">Erro ao carregar: ${e.message}</p>`;
