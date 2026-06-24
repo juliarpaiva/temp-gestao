@@ -665,7 +665,7 @@
           return `<div class="kpi" style="${temAlerta ? 'border-left:4px solid #dc2626' : ''}">
             <div class="kpi-label">Em aberto</div>
             <div class="ops-kpi-num">${ab.toLocaleString('pt-BR')}</div>
-            <div class="kpi-sub flat" style="margin-top:6px">${ab} abertas${pd > 0 ? ` · ${pd} pendentes` : ''}</div>
+            <div class="kpi-sub flat" style="margin-top:6px">situação atual · ${ab} abertas${pd > 0 ? ` · ${pd} pendentes` : ''}</div>
             ${pd > 0 ? `<div class="kpi-sub" style="color:#ca8a04;font-weight:700;margin-top:3px">${pd} pendente${pd !== 1 ? 's' : ''} (cliente aguarda)</div>` : ''}
             ${temAlerta ? `<div class="kpi-sub" style="color:#dc2626;font-weight:700;margin-top:3px">⚠ ${sa} sem atribuição</div>` : ''}
           </div>`;
