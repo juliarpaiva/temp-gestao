@@ -1050,6 +1050,22 @@ app.get('/admin/diagnostico-junho', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/backlog-tickets', async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT
+        display_ticket_id AS id,
+        ticket_status     AS status,
+        COALESCE(agent_on_resolution_name, '(sem atribuição)') AS agente,
+        DATE(created_at_local) AS criado_em
+      FROM dw.fact_cloudchat_tickets
+      WHERE ticket_status IN ('open', 'pending')
+      ORDER BY created_at_local ASC
+    `);
+    res.json(r.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/admin/reprocess-all', async (req, res) => {
   if (!process.env.ADMIN_KEY || req.query.key !== process.env.ADMIN_KEY)
     return res.status(403).json({ error: 'Forbidden' });

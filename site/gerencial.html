@@ -704,9 +704,10 @@
         const total = bg.open + bg.pending;
         const partes = [bg.open > 0 ? `${bg.open} abertas` : '', bg.pending > 0 ? `${bg.pending} pendentes` : ''].filter(Boolean).join(' · ');
         const flagSa = bg.sem_agente > 0 ? `<span style="color:#dc2626;font-weight:700;margin-left:12px">⚠ ${bg.sem_agente} sem atribuição</span>` : '';
-        return `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:12px;display:flex;align-items:center;gap:8px">
+        return `<div onclick="abrirBacklog()" style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:12px;display:flex;align-items:center;gap:8px;cursor:pointer" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">
           <span style="font-size:15px">⚠</span>
           <span><strong>${total} tickets históricos ainda abertos</strong> — ${partes}${flagSa}<span style="color:var(--muted);margin-left:12px">criados em períodos anteriores</span></span>
+          <span style="margin-left:auto;color:#92400e;font-weight:600;white-space:nowrap">ver tickets →</span>
         </div>`;
       })()}
 
@@ -1145,6 +1146,53 @@
     if (outrosSortKey === key) outrosSortDir *= -1;
     else { outrosSortKey = key; outrosSortDir = key === 'nome' ? 1 : -1; }
     _renderListaAgentes();
+  }
+
+  async function abrirBacklog() {
+    document.getElementById('modal-outros-titulo').textContent = 'Tickets históricos em aberto';
+    document.getElementById('modal-outros-nav').innerHTML = '';
+    document.getElementById('modal-outros-body').innerHTML =
+      '<p style="color:var(--muted);font-size:12px;padding:8px 0">Carregando…</p>';
+    document.getElementById('modal-outros').classList.add('aberto');
+    try {
+      const r = await fetch(`${API}/backlog-tickets`);
+      const tickets = await r.json();
+      if (!tickets.length) {
+        document.getElementById('modal-outros-body').innerHTML =
+          '<p style="color:var(--muted);font-size:12px">Nenhum ticket em aberto.</p>';
+        return;
+      }
+      // Agrupar por agente para facilitar leitura
+      const porAgente = {};
+      tickets.forEach(t => {
+        const ag = t.agente;
+        if (!porAgente[ag]) porAgente[ag] = [];
+        porAgente[ag].push(t);
+      });
+      const agentes = Object.entries(porAgente).sort((a,b) => b[1].length - a[1].length);
+      const html = agentes.map(([ag, tks]) => {
+        const rows = tks.map(t => {
+          const link = `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.id}`;
+          const dataCriacao = t.criado_em ? String(t.criado_em).slice(0,10).split('-').reverse().join('/') : '—';
+          const stCor = t.status === 'pending' ? '#ca8a04' : '#64748b';
+          return `<tr>
+            <td><a class="outros-link" href="${link}" target="_blank" rel="noopener">#${t.id}<svg width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-left:3px"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></td>
+            <td style="color:${stCor};font-weight:600;font-size:11px;text-transform:capitalize">${t.status}</td>
+            <td style="color:var(--muted);font-size:11px">${dataCriacao}</td>
+          </tr>`;
+        }).join('');
+        const isSemAgent = ag === '(sem atribuição)';
+        return `<div style="margin-bottom:16px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:${isSemAgent?'#dc2626':'var(--muted)'};padding:8px 0 6px;border-bottom:1px solid var(--borda)">${isSemAgent?'⚠ ':''} ${escHtml(ag)} (${tks.length})</div>
+          <table class="outros-ticket-table"><thead><tr><th>Ticket</th><th>Status</th><th>Criado em</th></tr></thead><tbody>${rows}</tbody></table>
+        </div>`;
+      }).join('');
+      document.getElementById('modal-outros-body').innerHTML =
+        `<div style="max-height:480px;overflow-y:auto">${html}</div>`;
+    } catch(e) {
+      document.getElementById('modal-outros-body').innerHTML =
+        `<p style="color:#dc2626;font-size:12px">Erro ao carregar: ${e.message}</p>`;
+    }
   }
 
   function sortAdiados(key) {
