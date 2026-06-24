@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -1052,17 +1052,15 @@ app.get('/admin/diagnostico-junho', async (req, res) => {
 
 app.get('/backlog-tickets', async (req, res) => {
   try {
-    const r = await pool.query(`
-      SELECT
-        display_ticket_id AS id,
-        ticket_status     AS status,
-        COALESCE(agent_on_resolution_name, '(sem atribuição)') AS agente,
-        DATE(created_at_local) AS criado_em
+    const rows = await dwQuery(`
+      SELECT display_ticket_id, ticket_status,
+             COALESCE(agent_on_resolution_name, '(sem atribuição)') AS agente,
+             DATE(created_at_local) AS criado_em
       FROM dw.fact_cloudchat_tickets
       WHERE ticket_status IN ('open', 'pending')
       ORDER BY created_at_local ASC
     `);
-    res.json(r.rows);
+    res.json(rows.map(r => ({ id: r[0], status: r[1], agente: r[2], criado_em: r[3] })));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1448,6 +1446,17 @@ async function getMetabaseToken() {
   const data = await resp.json();
   if (!data.id) throw new Error('Token de sessão não encontrado');
   return data.id;
+}
+
+async function dwQuery(sql) {
+  const token = await getMetabaseToken();
+  const resp = await fetch(`${METABASE_URL}/api/dataset`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Metabase-Session': token },
+    body: JSON.stringify({ database: METABASE_DATABASE_ID, type: 'native', native: { query: sql } }),
+  });
+  const data = await resp.json();
+  return data.data?.rows || [];
 }
 
 async function getAllCsats(token, date, limit = 2000) {
