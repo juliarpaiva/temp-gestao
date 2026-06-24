@@ -1016,6 +1016,8 @@
   let outrosModalPorAg   = {};
   let outrosModalTickets = null; // tickets disponíveis (dia ou período)
   let outrosModalTitulo  = '';
+  let outrosSortKey = 'cnt';  // 'cnt' | 'nome'
+  let outrosSortDir = -1;     // -1 desc, 1 asc
 
   function fecharModalOutros() {
     document.getElementById('modal-outros').classList.remove('aberto');
@@ -1064,22 +1066,43 @@
 
   function _renderListaAgentes() {
     const bodyEl = document.getElementById('modal-outros-body');
-    const sorted = Object.entries(outrosModalPorAg).sort((a,b) => b[1]-a[1]);
-    if (!sorted.length) {
-      bodyEl.innerHTML = '<p style="color:var(--muted);font-size:12px">Nenhuma avaliação de outros agentes neste dia.</p>';
+    const entries = Object.entries(outrosModalPorAg);
+    if (!entries.length) {
+      bodyEl.innerHTML = '<p style="color:var(--muted);font-size:12px">Nenhuma avaliação de outros agentes neste período.</p>';
       return;
     }
-    const max = sorted[0][1] || 1;
-    bodyEl.innerHTML = `<div style="max-height:420px;overflow-y:auto;padding-top:4px">${
-      sorted.map(([nome, cnt]) => {
-        const nomeEsc = escHtml(nome).replace(/'/g, "\\'");
-        return `<div class="outros-ag-row clicavel" onclick="verTicketsAgente('${nomeEsc}')">
-          <span class="outros-ag-nome">${escHtml(nome)} <span style="font-size:10px;color:#cbd5e1">›</span></span>
-          <div class="outros-ag-bar-wrap"><div class="outros-ag-bar" style="width:${Math.round(cnt/max*100)}%"></div></div>
-          <span class="outros-ag-cnt">${cnt}</span>
-        </div>`;
-      }).join('')
-    }</div>`;
+    const sorted = [...entries].sort((a, b) =>
+      outrosSortKey === 'nome'
+        ? outrosSortDir * a[0].localeCompare(b[0], 'pt-BR')
+        : outrosSortDir * (a[1] - b[1])
+    );
+    const max = Math.max(...entries.map(([,v]) => v), 1);
+    function thBtn(key, label) {
+      const active = outrosSortKey === key;
+      const arr = active ? (outrosSortDir === -1 ? ' ▼' : ' ▲') : ' <span style="opacity:.35">⇅</span>';
+      return `<button onclick="sortOutros('${key}')" style="background:none;border:none;cursor:pointer;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:${active?'var(--preto)':'var(--muted)'};font-family:inherit;padding:0">${label}${arr}</button>`;
+    }
+    bodyEl.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0 10px;border-bottom:1px solid var(--borda);margin-bottom:6px">
+        ${thBtn('nome','Agente')}
+        ${thBtn('cnt','Qtd')}
+      </div>
+      <div style="max-height:390px;overflow-y:auto;padding-top:2px">
+        ${sorted.map(([nome, cnt]) => {
+          const nomeEsc = escHtml(nome).replace(/'/g, "\\'");
+          return `<div class="outros-ag-row clicavel" onclick="verTicketsAgente('${nomeEsc}')">
+            <span class="outros-ag-nome">${escHtml(nome)} <span style="font-size:10px;color:#cbd5e1">›</span></span>
+            <div class="outros-ag-bar-wrap"><div class="outros-ag-bar" style="width:${Math.round(cnt/max*100)}%"></div></div>
+            <span class="outros-ag-cnt" style="color:var(--rosa);font-weight:700;text-decoration:underline dotted;cursor:pointer">${cnt}</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  function sortOutros(key) {
+    if (outrosSortKey === key) outrosSortDir *= -1;
+    else { outrosSortKey = key; outrosSortDir = key === 'nome' ? 1 : -1; }
+    _renderListaAgentes();
   }
 
   async function verTicketsAgente(nome) {

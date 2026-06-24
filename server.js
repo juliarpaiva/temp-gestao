@@ -1251,14 +1251,14 @@ async function runDailyReport(dateOverride = null, force = false) {
   const outrosTickets = comNota.filter(t => !isAgentMonitorada(t.agent_on_resolution_name));
   const por_agente_outros = {};
   for (const t of outrosTickets) {
-    const nome = t.agent_on_resolution_name || 'Sem interação com agente';
+    const nome = t.agent_on_resolution_name || 'Resolvido pelo seller';
     por_agente_outros[nome] = (por_agente_outros[nome] || 0) + 1;
   }
   const tickets_outros = outrosTickets.map(t => ({
     id:       t.display_ticket_id,
     link:     t.ticket_link || `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.display_ticket_id}`,
     nota:     t.csat_score,
-    agente:   t.agent_on_resolution_name || 'Sem interação com agente',
+    agente:   t.agent_on_resolution_name || 'Resolvido pelo seller',
     feedback: (t.csat_feedback || '').slice(0, 200),
   }));
 
