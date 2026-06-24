@@ -685,18 +685,6 @@
         </div>
       </div>
 
-      ${(() => {
-        const bg = kpisOp.backlog;
-        if (!bg || (bg.open + bg.pending === 0)) return '';
-        const total = bg.open + bg.pending;
-        const partes = [bg.open > 0 ? `${bg.open} abertas` : '', bg.pending > 0 ? `${bg.pending} pendentes` : ''].filter(Boolean).join(' · ');
-        const flagSa = '';
-        return `<div onclick="abrirBacklog()" style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:12px;display:flex;align-items:center;gap:8px;cursor:pointer" onmouseover="this.style.background='#ffedd5'" onmouseout="this.style.background='#fff7ed'">
-          <span style="font-size:15px">⚠</span>
-          <span><strong>${total} tickets históricos ainda abertos</strong> — ${partes}${flagSa}<span style="color:var(--muted);margin-left:12px">criados em períodos anteriores</span></span>
-          <span style="margin-left:auto;color:#92400e;font-weight:600;white-space:nowrap">ver tickets →</span>
-        </div>`;
-      })()}
 
       ${(() => {
         const resolv  = atual.resolvidos_por_agente || [];
@@ -764,11 +752,18 @@
           <td class="r" style="font-size:11px">${x.resolvidos}</td>
           <td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
         </tr>`).join('')}` : '';
-        const emAbertoRow = emAb > 0 ? `<tr style="color:var(--muted);font-style:italic">
+        const bg = kpisOp.backlog;
+        const bgTotal = bg ? (bg.open + bg.pending) : 0;
+        const bgPartes = bg ? [bg.open > 0 ? `${bg.open} abertas` : '', bg.pending > 0 ? `${bg.pending} pendentes` : ''].filter(Boolean).join(' · ') : '';
+        const emAbertoRow = bgTotal > 0 ? `<tr onclick="abrirBacklog()" style="color:var(--muted);font-style:italic;cursor:pointer" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.removeProperty('background')">
+          <td>Em aberto / pendente <span style="font-size:10px;color:#92400e">(histórico, ver tickets →)</span></td>
+          <td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
+          <td class="r" style="font-weight:600;color:#92400e">${bgTotal}<div style="font-size:10px;font-weight:400;color:var(--muted)">${bgPartes}</div></td>
+        </tr>` : (emAb > 0 ? `<tr style="color:var(--muted);font-style:italic">
           <td>Em aberto / pendente</td>
           <td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
           <td class="r">${emAb}</td>
-        </tr>` : '';
+        </tr>` : '');
         return `<div class="painel">
           <div class="painel-title">Por agente — ${opsPeriodoLabel()}</div>
           <table class="ops-table">
