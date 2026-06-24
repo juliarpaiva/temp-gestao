@@ -698,14 +698,17 @@ app.get('/kpis-semanais', async (req, res) => {
       sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND created_at_local >= '${pd0}' AND created_at_local < '${d0}'`),
       sqlRows(`
         SELECT
-          COALESCE(agent_on_resolution_name, '(sem agente)') AS agente,
-          COUNT(*) AS volume,
-          ROUND(AVG(CASE WHEN first_agent_reply_time_min IS NOT NULL AND first_agent_first_reply_at_local IS NOT NULL AND first_agent_reply_time_min >= 0 THEN first_agent_reply_time_min END) / 60.0, 1) AS tempo_resp_h,
-          ROUND(AVG(CASE WHEN first_agent_resolution_time_min IS NOT NULL AND first_agent_resolution_time_min > 0 AND first_agent_resolution_time_min < 2880 AND resolved_at_local IS NOT NULL THEN first_agent_resolution_time_min END) / 60.0, 1) AS tempo_enc_h,
-          ROUND(((AVG(CASE WHEN csat_score IS NOT NULL THEN csat_score END) - 1) / 4.0 * 100)::numeric, 1) AS csat
-        FROM dw.fact_cloudchat_tickets
-        WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'
-          AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa')
+          COALESCE(t.agent_on_resolution_name, '(sem agente)') AS agente,
+          COUNT(CASE WHEN t.ticket_status = 'resolved' OR cf.field_value_bool = true THEN 1 END) AS volume,
+          ROUND(AVG(CASE WHEN (t.ticket_status = 'resolved' OR cf.field_value_bool = true) AND t.first_agent_reply_time_min IS NOT NULL AND t.first_agent_first_reply_at_local IS NOT NULL AND t.first_agent_reply_time_min >= 0 THEN t.first_agent_reply_time_min END) / 60.0, 1) AS tempo_resp_h,
+          ROUND(AVG(CASE WHEN t.first_agent_resolution_time_min IS NOT NULL AND t.first_agent_resolution_time_min > 0 AND t.first_agent_resolution_time_min < 2880 AND t.resolved_at_local IS NOT NULL THEN t.first_agent_resolution_time_min END) / 60.0, 1) AS tempo_enc_h,
+          ROUND(((AVG(CASE WHEN t.csat_score IS NOT NULL THEN t.csat_score END) - 1) / 4.0 * 100)::numeric, 1) AS csat
+        FROM dw.fact_cloudchat_tickets t
+        LEFT JOIN dw.fact_cloudchat_ticket_custom_fields cf
+          ON cf.ticket_id = t.ticket_id
+          AND cf.field_name = 'aguardando_confirmao_de_resoluo_lojista'
+        WHERE t.created_at_local >= '${d0}' AND t.created_at_local < '${d1}'
+          AND t.agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa')
         GROUP BY 1
         ORDER BY volume DESC
       `)
