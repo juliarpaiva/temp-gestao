@@ -687,7 +687,7 @@ app.get('/kpis-semanais', async (req, res) => {
       porAgenteRows, snoozedRows
     ] = await Promise.all([
       sqlScalar(`SELECT COUNT(ticket_id) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
-      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE first_agent_first_reply_at_local >= '${d0}' AND first_agent_first_reply_at_local < '${d1}'`),
+      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(COUNT(*) * 1.0 / NULLIF(COUNT(DISTINCT DATE(created_at_local)), 0), 1) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND agent_on_resolution_name ILIKE '%claudia%' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),

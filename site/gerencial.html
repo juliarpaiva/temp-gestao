@@ -652,11 +652,20 @@
           <div class="kpi-sub flat" style="margin-top:6px">tickets criados no período</div>
         </div>
         <div class="kpi" style="border-left:4px solid ${volCor}">
-          <div class="kpi-label">Respondidos</div>
+          <div class="kpi-label">Resolvidos</div>
           <div class="ops-kpi-num">${respondidos.toLocaleString('pt-BR')}</div>
           <div class="kpi-sub" style="color:${volCor};font-weight:700;margin-top:6px">${pctMeta}% da meta (${metaTotalVol})</div>
           <div class="kpi-sub" style="color:${volCor};margin-top:2px">${agentesComMeta}/${totalAgentesOp} agentes ≥ ${metaVol}</div>
         </div>
+        ${(() => {
+          const emAberto = Math.max(0, atual.volume - respondidos - (atual.retencao_n1 || 0));
+          const abCor = emAberto === 0 ? '#16a34a' : emAberto <= atual.volume * 0.1 ? '#ca8a04' : 'inherit';
+          return `<div class="kpi">
+            <div class="kpi-label">Em aberto</div>
+            <div class="ops-kpi-num" style="color:${abCor}">${emAberto.toLocaleString('pt-BR')}</div>
+            <div class="kpi-sub flat" style="margin-top:6px">não resolvidos nem retidos</div>
+          </div>`;
+        })()}
         <div class="kpi" style="border-left:4px solid ${csatCor}">
           <div class="kpi-label">CSAT geral</div>
           <div class="ops-kpi-num" style="color:${csatCor}">${atual.csat_time !== null ? atual.csat_time + '%' : '—'}</div>
@@ -739,7 +748,7 @@
             </tr></thead>
             <tbody>${snBody}</tbody>
           </table>
-          <div style="font-size:11px;color:var(--muted);margin-top:8px">Aguard. seller = flag confirmação lojista ativada · Clique no número para ver os tickets</div>`
+          <div style="font-size:11px;color:var(--muted);margin-top:8px">Aguard. seller = flag confirmação lojista ativada · Sem flag = adiado sem motivo registrado</div>`
           : '<p style="color:var(--muted);font-size:12px">Nenhum ticket adiado no período.</p>'}
         </div>`;
       })()}
