@@ -1320,6 +1320,13 @@
     document.getElementById('report-panel-outros').style.display = 'none';
   }
 
+  let _indevAgFilter = null; // agente selecionado no resumo de indevidas
+
+  function filtrarIndevAg(ag) {
+    _indevAgFilter = _indevAgFilter === ag ? null : ag;
+    renderCsat();
+  }
+
   let outrosModalPorAg   = {};
   let outrosModalTickets = null; // tickets disponíveis (dia ou período)
   let outrosModalTitulo  = '';
@@ -1963,12 +1970,16 @@
     const _indevAg = {};
     indevidasMes.forEach(i => { const ag = i.observacao || '(sem agente)'; _indevAg[ag] = (_indevAg[ag] || 0) + 1; });
     const _indevAgRows = Object.entries(_indevAg).sort((a,b) => b[1]-a[1]);
+    if (_indevAgFilter && !_indevAg[_indevAgFilter]) _indevAgFilter = null;
+    const indevVisiveis = _indevAgFilter ? indevidasMes.filter(i => (i.observacao||'(sem agente)') === _indevAgFilter) : indevidasMes;
+
     const resumoAgHtml = _indevAgRows.length
       ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--borda)">
           ${_indevAgRows.map(([ag, qtd]) => {
             const pct = Math.round(qtd / indevidasMes.length * 100);
             const cor = qtd >= 5 ? '#dc2626' : qtd >= 3 ? '#ca8a04' : '#16a34a';
-            return `<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:#f8fafc;border:1px solid var(--borda);color:${cor}">${escHtml(ag)} <span style="opacity:.7;font-weight:400">${qtd} · ${pct}%</span></span>`;
+            const ativo = _indevAgFilter === ag;
+            return `<span onclick="filtrarIndevAg('${ag.replace(/'/g,"\\'")}')" style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;cursor:pointer;transition:all .15s;background:${ativo?cor:'#f8fafc'};border:1px solid ${ativo?cor:'var(--borda)'};color:${ativo?'#fff':cor}">${escHtml(ag)} <span style="opacity:.7;font-weight:400">${qtd} · ${pct}%</span></span>`;
           }).join('')}
         </div>`
       : '';
@@ -1981,7 +1992,7 @@
               <th>Ticket</th><th>Data</th><th>Agente</th><th>Quando</th><th></th>
             </tr></thead>
             <tbody>
-              ${indevidasMes.map(i => {
+              ${indevVisiveis.map(i => {
                 const link = `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${i.ticket_id}`;
                 const data = i.date ? i.date.split('-').reverse().join('/') : '—';
                 const quando = i.marcado_em ? new Date(i.marcado_em).toLocaleString('pt-BR') : '—';
