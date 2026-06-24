@@ -698,6 +698,69 @@
         </div>`;
       })()}
 
+      ${(() => {
+        const resolv = atual.resolvidos_por_agente || [];
+        const snoozed = atual.snoozed_por_agente || [];
+        const outros = atual.outros_resolvidos || [];
+        const emAb = (atual.em_aberto || 0) + (atual.pendentes || 0);
+        const claudia = atual.retencao_n1 || 0;
+        const totalGeral = atual.volume || 0;
+        const agOrder = ['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa'];
+        const rows = agOrder.map(ag => {
+          const r = resolv.find(x => x.agente === ag) || { resolvidos: 0 };
+          const s = snoozed.find(x => x.agente === ag) || { total: 0 };
+          const tot = r.resolvidos + s.total;
+          return `<tr>
+            <td>${ag === 'Fernanda Cavalcante' ? 'Fernanda' : ag}</td>
+            <td class="r">${r.resolvidos}</td>
+            <td class="r">${s.total > 0 ? `<span style="color:#d97706">${s.total}</span>` : '0'}</td>
+            <td class="r" style="font-weight:600">${tot}</td>
+          </tr>`;
+        }).join('');
+        const outrosTotal = outros.reduce((s,x) => s + x.resolvidos, 0);
+        const outrosLabel = outros.length
+          ? outros.map(x => `${x.agente} (${x.resolvidos})`).join(', ')
+          : '';
+        return `<div class="painel" style="margin-bottom:16px">
+          <div class="painel-title">Distribuição dos tickets recebidos — ${opsPeriodoLabel()}</div>
+          <table class="ops-table">
+            <thead><tr>
+              <th>Agente / Categoria</th>
+              <th class="r">Resolvidos</th>
+              <th class="r">Adiados</th>
+              <th class="r">Total</th>
+            </tr></thead>
+            <tbody>
+              ${rows}
+              <tr style="color:var(--muted);font-style:italic">
+                <td>Retenção N1 (Claudia)</td>
+                <td class="r">${claudia}</td>
+                <td class="r">—</td>
+                <td class="r" style="font-weight:600">${claudia}</td>
+              </tr>
+              ${outrosTotal > 0 ? `<tr style="color:var(--muted);font-style:italic">
+                <td title="${escHtml(outrosLabel)}">Outras equipes ℹ</td>
+                <td class="r">${outrosTotal}</td>
+                <td class="r">—</td>
+                <td class="r" style="font-weight:600">${outrosTotal}</td>
+              </tr>` : ''}
+              <tr style="color:var(--muted);font-style:italic">
+                <td>Em aberto / pendente</td>
+                <td class="r">—</td>
+                <td class="r">—</td>
+                <td class="r" style="font-weight:600">${emAb}</td>
+              </tr>
+              <tr style="border-top:2px solid #e2e8f0;font-weight:700">
+                <td>Total recebidos</td>
+                <td class="r"></td>
+                <td class="r"></td>
+                <td class="r">${totalGeral}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>`;
+      })()}
+
       <div class="painel">
         <div class="painel-title">Tempos e volume por agente — ${opsPeriodoLabel()}</div>
         ${tabelaHtml ? `
