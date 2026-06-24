@@ -735,9 +735,9 @@ app.get('/kpis-semanais', async (req, res) => {
         GROUP BY 1
         ORDER BY total DESC
       `),
-      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'open'`),
-      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'open' AND agent_on_resolution_name IS NULL`),
-      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'pending'`)
+      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'open' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
+      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'open' AND agent_on_resolution_name IS NULL AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
+      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'pending' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`)
     ]);
 
     const porAgente = porAgenteRows.map(r => ({
@@ -787,6 +787,15 @@ app.get('/kpis-semanais', async (req, res) => {
         csat_time:   csatAnterior,
       },
     };
+    // Backlog global (sem filtro de data) — executa fora do cache de período
+    try {
+      const [bgOpen, bgPending, bgSemAgent] = await Promise.all([
+        sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'open'`),
+        sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'pending'`),
+        sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status IN ('open','pending') AND agent_on_resolution_name IS NULL`),
+      ]);
+      kpisResult.backlog = { open: bgOpen ?? 0, pending: bgPending ?? 0, sem_agente: bgSemAgent ?? 0 };
+    } catch(e) { kpisResult.backlog = null; }
     pool.query(
       `INSERT INTO support_bi.kpis_op_cache (period_key, data) VALUES ($1,$2)
        ON CONFLICT (period_key) DO UPDATE SET data=$2, fetched_at=NOW()`,

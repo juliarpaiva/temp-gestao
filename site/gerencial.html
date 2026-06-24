@@ -661,12 +661,12 @@
           const ab = atual.em_aberto  ?? 0;
           const pd = atual.pendentes  ?? 0;
           const sa = atual.sem_atribuicao ?? 0;
+          const total = ab + pd;
           const temAlerta = sa > 0;
           return `<div class="kpi" style="${temAlerta ? 'border-left:4px solid #dc2626' : ''}">
             <div class="kpi-label">Em aberto</div>
-            <div class="ops-kpi-num">${ab.toLocaleString('pt-BR')}</div>
-            <div class="kpi-sub flat" style="margin-top:6px">situação atual · ${ab} abertas${pd > 0 ? ` · ${pd} pendentes` : ''}</div>
-            ${pd > 0 ? `<div class="kpi-sub" style="color:#ca8a04;font-weight:700;margin-top:3px">${pd} pendente${pd !== 1 ? 's' : ''} (cliente aguarda)</div>` : ''}
+            <div class="ops-kpi-num">${total.toLocaleString('pt-BR')}</div>
+            <div class="kpi-sub flat" style="margin-top:6px">${ab} abertas${pd > 0 ? ` · ${pd} pendentes` : ''} no período</div>
             ${temAlerta ? `<div class="kpi-sub" style="color:#dc2626;font-weight:700;margin-top:3px">⚠ ${sa} sem atribuição</div>` : ''}
           </div>`;
         })()}
@@ -697,6 +697,18 @@
           ${anterior.retencao_n1 != null ? (() => { const d = atual.retencao_n1 - anterior.retencao_n1; const c = d > 0 ? '#16a34a' : d < 0 ? '#dc2626' : 'var(--muted)'; return `<div class="kpi-sub flat" style="color:${c};margin-top:6px">${d >= 0 ? '+' : ''}${d.toLocaleString('pt-BR')} vs per. ant.</div><div class="kpi-sub flat" style="margin-top:2px">${anterior.retencao_n1.toLocaleString('pt-BR')} no período ant.</div>`; })() : '<div class="kpi-sub flat" style="margin-top:6px">resolvidos pela IA</div>'}
         </div>
       </div>
+
+      ${(() => {
+        const bg = kpisOp.backlog;
+        if (!bg || (bg.open + bg.pending === 0)) return '';
+        const total = bg.open + bg.pending;
+        const partes = [bg.open > 0 ? `${bg.open} abertas` : '', bg.pending > 0 ? `${bg.pending} pendentes` : ''].filter(Boolean).join(' · ');
+        const flagSa = bg.sem_agente > 0 ? `<span style="color:#dc2626;font-weight:700;margin-left:12px">⚠ ${bg.sem_agente} sem atribuição</span>` : '';
+        return `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 16px;margin-bottom:16px;font-size:12px;display:flex;align-items:center;gap:8px">
+          <span style="font-size:15px">⚠</span>
+          <span><strong>${total} tickets históricos ainda abertos</strong> — ${partes}${flagSa}<span style="color:var(--muted);margin-left:12px">criados em períodos anteriores</span></span>
+        </div>`;
+      })()}
 
       <div class="painel">
         <div class="painel-title">Tempos e volume por agente — ${opsPeriodoLabel()}</div>
