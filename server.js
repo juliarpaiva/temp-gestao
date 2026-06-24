@@ -721,7 +721,9 @@ app.get('/kpis-semanais', async (req, res) => {
           COALESCE(t.agent_on_resolution_name, '(sem agente)') AS agente,
           COUNT(*) FILTER (WHERE cf.field_value_bool = true)   AS com_flag,
           COUNT(*) FILTER (WHERE cf.field_value_bool IS NOT TRUE) AS sem_flag,
-          COUNT(*) AS total
+          COUNT(*) AS total,
+          ARRAY_AGG(t.display_ticket_id ORDER BY t.created_at_local DESC) FILTER (WHERE cf.field_value_bool = true) AS ids_com_flag,
+          ARRAY_AGG(t.display_ticket_id ORDER BY t.created_at_local DESC) FILTER (WHERE cf.field_value_bool IS NOT TRUE) AS ids_sem_flag
         FROM dw.fact_cloudchat_tickets t
         LEFT JOIN dw.fact_cloudchat_ticket_custom_fields cf
           ON cf.ticket_id = t.ticket_id
@@ -743,10 +745,12 @@ app.get('/kpis-semanais', async (req, res) => {
     }));
 
     const snoozedPorAgente = snoozedRows.map(r => ({
-      agente:   r[0],
-      com_flag: Number(r[1]) || 0,
-      sem_flag: Number(r[2]) || 0,
-      total:    Number(r[3]) || 0,
+      agente:       r[0],
+      com_flag:     Number(r[1]) || 0,
+      sem_flag:     Number(r[2]) || 0,
+      total:        Number(r[3]) || 0,
+      ids_com_flag: Array.isArray(r[4]) ? r[4].map(String) : [],
+      ids_sem_flag: Array.isArray(r[5]) ? r[5].map(String) : [],
     }));
 
     const diasUteis = countBusinessDays(d0, d1);

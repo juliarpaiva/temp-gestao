@@ -704,27 +704,42 @@
       </div>
 
       ${(() => {
-        const snRows = atual.snoozed_por_agente || [];
-        const snBody = snRows.map(r => `
+        const snAll = atual.snoozed_por_agente || [];
+        const snSorted = [...snAll].sort((a,b) =>
+          adiadosSortKey === 'agente'
+            ? adiadosSortDir * a.agente.localeCompare(b.agente, 'pt-BR')
+            : adiadosSortDir * (a[adiadosSortKey] - b[adiadosSortKey])
+        );
+        function snTh(key, label, align) {
+          const active = adiadosSortKey === key;
+          const arr = active ? (adiadosSortDir === -1 ? ' ▼' : ' ▲') : ' <span style="opacity:.35">⇅</span>';
+          return `<th class="${align||''}" onclick="sortAdiados('${key}')" style="cursor:pointer;user-select:none;color:${active?'var(--preto)':'var(--muted)'}">${label}${arr}</th>`;
+        }
+        function snCnt(ids, label, cor) {
+          if (!ids || !ids.length) return `<span style="color:var(--muted)">0</span>`;
+          const encoded = encodeURIComponent(JSON.stringify(ids));
+          return `<button onclick="abrirAdiadosTickets(decodeURIComponent('${encoded}'),'${escHtml(label)}')" style="background:none;border:none;padding:0;cursor:pointer;font:inherit;font-weight:700;color:${cor};text-decoration:none">${ids.length}</button>`;
+        }
+        const snBody = snSorted.map(r => `
           <tr>
             <td>${escHtml(r.agente)}</td>
-            <td class="r" style="color:#16a34a;font-weight:700">${r.com_flag}</td>
-            <td class="r" style="color:${r.sem_flag > 0 ? '#ca8a04' : 'var(--muted)'};font-weight:${r.sem_flag > 0 ? '700' : '400'}">${r.sem_flag}</td>
-            <td class="r">${r.total}</td>
+            <td class="r">${snCnt(r.ids_com_flag, escHtml(r.agente)+' — Aguard. seller', '#16a34a')}</td>
+            <td class="r">${snCnt(r.ids_sem_flag, escHtml(r.agente)+' — Sem flag', r.sem_flag > 0 ? '#ca8a04' : 'var(--muted)')}</td>
+            <td class="r" style="font-weight:600">${r.total}</td>
           </tr>`).join('');
         return `<div class="painel" style="margin-top:16px">
           <div class="painel-title">Tickets adiados (snoozed) por agente — ${opsPeriodoLabel()}</div>
-          ${snRows.length ? `
+          ${snAll.length ? `
           <table class="ops-table">
             <thead><tr>
-              <th>Agente</th>
-              <th class="r" title="aguardando_confirmao_de_resoluo_lojista = true">Aguard. seller</th>
-              <th class="r">Sem flag</th>
-              <th class="r">Total</th>
+              ${snTh('agente','Agente','')}
+              ${snTh('com_flag','Aguard. seller','r')}
+              ${snTh('sem_flag','Sem flag','r')}
+              ${snTh('total','Total','r')}
             </tr></thead>
             <tbody>${snBody}</tbody>
           </table>
-          <div style="font-size:11px;color:var(--muted);margin-top:8px">Aguard. seller = flag confirmação lojista ativada · Sem flag = adiado sem motivo registrado</div>`
+          <div style="font-size:11px;color:var(--muted);margin-top:8px">Aguard. seller = flag confirmação lojista ativada · Clique no número para ver os tickets</div>`
           : '<p style="color:var(--muted);font-size:12px">Nenhum ticket adiado no período.</p>'}
         </div>`;
       })()}
@@ -1016,8 +1031,10 @@
   let outrosModalPorAg   = {};
   let outrosModalTickets = null; // tickets disponíveis (dia ou período)
   let outrosModalTitulo  = '';
-  let outrosSortKey = 'cnt';  // 'cnt' | 'nome'
-  let outrosSortDir = -1;     // -1 desc, 1 asc
+  let outrosSortKey = 'cnt';     // 'cnt' | 'nome'
+  let outrosSortDir = -1;        // -1 desc, 1 asc
+  let adiadosSortKey = 'total';  // 'agente' | 'com_flag' | 'sem_flag' | 'total'
+  let adiadosSortDir = -1;
 
   function fecharModalOutros() {
     document.getElementById('modal-outros').classList.remove('aberto');
@@ -1093,7 +1110,7 @@
           return `<div class="outros-ag-row clicavel" onclick="verTicketsAgente('${nomeEsc}')">
             <span class="outros-ag-nome">${escHtml(nome)} <span style="font-size:10px;color:#cbd5e1">›</span></span>
             <div class="outros-ag-bar-wrap"><div class="outros-ag-bar" style="width:${Math.round(cnt/max*100)}%"></div></div>
-            <span class="outros-ag-cnt" style="color:var(--rosa);font-weight:700;text-decoration:underline dotted;cursor:pointer">${cnt}</span>
+            <span class="outros-ag-cnt" style="color:var(--rosa);font-weight:700">${cnt}</span>
           </div>`;
         }).join('')}
       </div>`;
@@ -1103,6 +1120,33 @@
     if (outrosSortKey === key) outrosSortDir *= -1;
     else { outrosSortKey = key; outrosSortDir = key === 'nome' ? 1 : -1; }
     _renderListaAgentes();
+  }
+
+  function sortAdiados(key) {
+    if (adiadosSortKey === key) adiadosSortDir *= -1;
+    else { adiadosSortKey = key; adiadosSortDir = key === 'agente' ? 1 : -1; }
+    renderKpisOp();
+  }
+
+  function abrirAdiadosTickets(idsJson, label) {
+    let ids;
+    try { ids = JSON.parse(idsJson); } catch(e) { return; }
+    if (!ids || !ids.length) return;
+    const linhas = ids.map(id => {
+      const link = `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${id}`;
+      return `<div style="padding:8px 0;border-bottom:1px solid var(--borda)">
+        <a href="${link}" target="_blank" rel="noopener" style="color:var(--rosa);font-weight:600;font-size:13px;text-decoration:none">
+          #${id}
+          <svg width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-left:3px"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
+        </a>
+      </div>`;
+    }).join('');
+    document.getElementById('modal-outros-titulo').textContent = label;
+    document.getElementById('modal-outros-nav').innerHTML =
+      `<button class="btn-voltar-modal" onclick="fecharModalOutros()">✕ Fechar</button>`;
+    document.getElementById('modal-outros-body').innerHTML =
+      `<div style="max-height:460px;overflow-y:auto">${linhas}</div>`;
+    document.getElementById('modal-outros').classList.add('aberto');
   }
 
   async function verTicketsAgente(nome) {
