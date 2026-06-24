@@ -83,13 +83,13 @@ git push heroku master
 ## Reprocessar data histórica
 
 ```
-https://csat-sup-ink-88337a29d096.herokuapp.com/run?date=YYYY-MM-DD&force=true
+https://gestao-sup-ink-709a6d9e0c6b.herokuapp.com/run?date=YYYY-MM-DD&force=true
 ```
 
 ## Limpar cache de métricas operacionais
 
 ```
-https://csat-sup-ink-88337a29d096.herokuapp.com/admin/clear-ops-cache?key=ink-admin-2026
+https://gestao-sup-ink-709a6d9e0c6b.herokuapp.com/admin/clear-ops-cache?key=ink-admin-2026
 ```
 
 ## Banco de dados

@@ -44,7 +44,7 @@ são excluídas dos dados por agente (mas contam nos totais globais).
   git push heroku master
 
 ## Reprocessar data histórica
-  Acesse: https://csat-negativo-78f436cca6a0.herokuapp.com/run?date=YYYY-MM-DD&force=true
+  Acesse: https://gestao-sup-ink-709a6d9e0c6b.herokuapp.com/run?date=YYYY-MM-DD&force=true
 
 ## Estrutura dos arquivos
   CLAUDE.md
