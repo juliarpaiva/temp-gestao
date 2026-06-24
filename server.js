@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -1027,6 +1027,26 @@ app.get('/admin/diagnostico-junho', async (req, res) => {
       indevidas_junho_banco: parseInt(r1.rows[0].count),
       reports: r2.rows,
     });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/admin/reprocess-all', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.query.key !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const r = await pool.query('SELECT date FROM support_bi.csat_reports ORDER BY date');
+    const dates = r.rows.map(row => row.date instanceof Date ? row.date.toISOString().slice(0,10) : String(row.date).slice(0,10));
+    res.json({ started: true, total: dates.length, dates });
+    // Reprocessa em background, sem await no response
+    (async () => {
+      let ok = 0, err = 0;
+      for (const date of dates) {
+        try { await runDailyReport(date, true); ok++; console.log(`[reprocess-all] ${ok}/${dates.length} ${date} ok`); }
+        catch (e) { err++; console.error(`[reprocess-all] ${date} ERRO: ${e.message}`); }
+        await new Promise(r => setTimeout(r, 300));
+      }
+      console.log(`[reprocess-all] concluido: ${ok} ok, ${err} erros`);
+    })();
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
