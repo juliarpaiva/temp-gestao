@@ -430,6 +430,7 @@
   let opsPeriodoF  = null;
   let opsSortCol   = null;
   let opsSortDir   = 1;
+  let _opsAgentes  = [];
 
   const MESES_OP = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 
@@ -606,9 +607,9 @@
         <button class="filter-tab${filterModeOp==='periodo'?' ativo':''}" onclick="mudarFilterModeOp('periodo')">Período</button>
       </div>`;
 
-    const _agentes = [...(atual.por_agente || [])];
+    _opsAgentes = [...(atual.por_agente || [])];
     if (opsSortCol) {
-      _agentes.sort((a, b) => {
+      _opsAgentes.sort((a, b) => {
         const av = a[opsSortCol], bv = b[opsSortCol];
         if (av === null || av === undefined) return 1;
         if (bv === null || bv === undefined) return -1;
@@ -616,7 +617,7 @@
         return (av - bv) * opsSortDir;
       });
     }
-    const tabelaHtml = _agentes.map(ag => {
+    const tabelaHtml = _opsAgentes.map(ag => {
       const trCor = ag.tempo_resp_h !== null ? (ag.tempo_resp_h <= 1 ? '#16a34a' : ag.tempo_resp_h <= 2 ? '#ca8a04' : '#dc2626') : 'inherit';
       return `
       <tr>
@@ -703,7 +704,7 @@
     const periodo = opsPeriodoLabel();
     const linhas = [
       ['Agente','Tickets','CSAT %','1ª Resposta','Encerramento'],
-      ...kpisOp.atual.por_agente.map(ag => [
+      ..._opsAgentes.map(ag => [
         ag.agente,
         ag.volume,
         ag.csat !== null ? ag.csat + '%' : '—',
@@ -1349,8 +1350,8 @@
         const pctAnt  = avAnt > 0 ? Math.round((prevSem.total_positivos || 0) / avAnt * 100) : null;
         if (pctSatisfacao !== null && pctAnt !== null) {
           const diff = pctSatisfacao - pctAnt;
-          if (diff > 0)      satisfVsHtml = `<span class="kpi-sub down" style="margin-top:4px">↑ +${diff}pp vs. sem. anterior</span>`;
-          else if (diff < 0) satisfVsHtml = `<span class="kpi-sub up"   style="margin-top:4px">↓ ${diff}pp vs. sem. anterior</span>`;
+          if (diff > 0)      satisfVsHtml = `<span class="kpi-sub down" style="margin-top:4px">↑ +${diff}% vs. sem. anterior</span>`;
+          else if (diff < 0) satisfVsHtml = `<span class="kpi-sub up"   style="margin-top:4px">↓ ${diff}% vs. sem. anterior</span>`;
           else               satisfVsHtml = `<span class="kpi-sub flat"  style="margin-top:4px">→ igual à sem. anterior</span>`;
         }
       }
@@ -1359,8 +1360,8 @@
       const pctAnt = avAnt > 0 ? Math.round((mesAnterior.total_positivos || 0) / avAnt * 100) : null;
       if (pctSatisfacao !== null && pctAnt !== null) {
         const diff = pctSatisfacao - pctAnt;
-        if (diff > 0)      satisfVsHtml = `<span class="kpi-sub down" style="margin-top:4px">↑ +${diff}pp vs. ${MESES_ABR[mm-2>=0?mm-2:11]}</span>`;
-        else if (diff < 0) satisfVsHtml = `<span class="kpi-sub up"   style="margin-top:4px">↓ ${diff}pp vs. ${MESES_ABR[mm-2>=0?mm-2:11]}</span>`;
+        if (diff > 0)      satisfVsHtml = `<span class="kpi-sub down" style="margin-top:4px">↑ +${diff}% vs. ${MESES_ABR[mm-2>=0?mm-2:11]}</span>`;
+        else if (diff < 0) satisfVsHtml = `<span class="kpi-sub up"   style="margin-top:4px">↓ ${diff}% vs. ${MESES_ABR[mm-2>=0?mm-2:11]}</span>`;
         else               satisfVsHtml = `<span class="kpi-sub flat"  style="margin-top:4px">→ igual a ${MESES_ABR[mm-2>=0?mm-2:11]}</span>`;
       }
     }
