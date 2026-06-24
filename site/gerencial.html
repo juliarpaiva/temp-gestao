@@ -1033,7 +1033,7 @@
     const bodyEl = document.getElementById('modal-outros-body');
     const sorted = Object.entries(outrosModalPorAg).sort((a,b) => b[1]-a[1]);
     if (!sorted.length) {
-      bodyEl.innerHTML = '<p style="color:var(--muted);font-size:12px">Nenhuma avaliação de outros agentes neste período.<br><span style="font-size:11px">Dados disponíveis a partir de 19/06/2026.</span></p>';
+      bodyEl.innerHTML = '<p style="color:var(--muted);font-size:12px">Nenhuma avaliação de outros agentes neste dia.</p>';
       return;
     }
     const max = sorted[0][1] || 1;
