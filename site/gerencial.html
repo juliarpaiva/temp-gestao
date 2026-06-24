@@ -795,17 +795,32 @@
         </div>`;
       })()}
       `;
-    renderClaudia();
   }
 
   function renderClaudia() {
     const el = document.getElementById('secao-claudia');
     if (!el) return;
-    if (!kpisOp) {
-      el.innerHTML = `<div class="section-head">Painel Claudia — Retenção N1</div><div class="painel" style="padding:24px;color:var(--muted);font-size:13px">Carregando…</div>`;
+
+    const tabsHtml = `
+      <div class="filter-tabs" style="margin-bottom:14px">
+        <button class="filter-tab${claudiaFilterMode==='dia'    ?' ativo':''}" onclick="mudarFilterModeClaudia('dia')">Dia</button>
+        <button class="filter-tab${claudiaFilterMode==='semana' ?' ativo':''}" onclick="mudarFilterModeClaudia('semana')">Semana</button>
+        <button class="filter-tab${claudiaFilterMode==='mes'    ?' ativo':''}" onclick="mudarFilterModeClaudia('mes')">Mês</button>
+        <button class="filter-tab${claudiaFilterMode==='periodo'?' ativo':''}" onclick="mudarFilterModeClaudia('periodo')">Período</button>
+      </div>
+      <div class="ops-week-nav">${claudiaNavHtml()}</div>`;
+
+    if (!claudiaData) {
+      el.innerHTML = `
+        <div class="section-head">Painel Claudia — Retenção N1</div>
+        <div class="painel" style="padding:20px 24px">
+          ${tabsHtml}
+          <p style="color:var(--muted);font-size:12px;padding:8px 0">${claudiaFilterMode==='periodo'&&(!claudiaPeriodoI||!claudiaPeriodoF)?'Selecione o intervalo e clique em Aplicar.':'Carregando…'}</p>
+        </div>`;
       return;
     }
-    const atual    = kpisOp.atual;
+
+    const atual    = claudiaData.atual;
     const tickets  = atual.claudia_tickets || [];
     const total    = atual.retencao_n1  || 0;
     const volume   = atual.volume       || 0;
@@ -835,9 +850,10 @@
     }).join('');
 
     el.innerHTML = `
-      <div class="section-head">Painel Claudia — Retenção N1 · ${opsPeriodoLabel()}</div>
+      <div class="section-head">Painel Claudia — Retenção N1 · ${claudiaPeriodoLabel()}</div>
       <div class="painel" style="padding:20px 24px">
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+        ${tabsHtml}
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0 20px">
           <div class="kpi">
             <div class="kpi-label">Atendidos</div>
             <div class="ops-kpi-num">${total.toLocaleString('pt-BR')}</div>
@@ -998,6 +1014,152 @@
       if (el) el.innerHTML = `<div class="erro">Erro ao carregar métricas operacionais: ${e.message}</div>`;
     }
   }
+  // ── Painel Claudia (independente) ────────────────────────────────────────
+  let claudiaData       = null;
+  let claudiaFilterMode = 'semana';
+  let claudiaSemana     = null;
+  let claudiaDiaAtivo   = null;
+  let claudiaMesAtivo   = null;
+  let claudiaPeriodoI   = null;
+  let claudiaPeriodoF   = null;
+
+  async function _fetchClaudia(qs) {
+    const r = await fetch(`${API}/kpis-semanais?${qs}`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  }
+
+  function claudiaPeriodoLabel() {
+    if (!claudiaData) return '';
+    const { semana, semana_fim, modo } = claudiaData;
+    if (modo === 'dia') return diaBtnLabel(semana);
+    if (modo === 'mes') {
+      const [y, m] = semana.split('-').map(Number);
+      return `${MESES_OP[m - 1]} ${y}`;
+    }
+    if (modo === 'semana') return semanaOpsLabel(semana);
+    return `${semana.split('-').reverse().slice(0,2).join('/')} – ${(semana_fim||semana).split('-').reverse().slice(0,2).join('/')}`;
+  }
+
+  function claudiaNavHtml() {
+    if (claudiaFilterMode === 'semana') {
+      const semanas = gerarSemanasOps(8);
+      return semanas.map(s =>
+        `<button class="ops-week-btn${s === claudiaSemana ? ' ativo' : ''}" onclick="mudarSemanaClaudia('${s}')">${semanaOpsLabel(s)}</button>`
+      ).join('');
+    }
+    if (claudiaFilterMode === 'dia') {
+      const dias = gerarDiasOps(14);
+      return dias.map(d =>
+        `<button class="ops-week-btn${d === claudiaDiaAtivo ? ' ativo' : ''}" onclick="loadClaudiaDia('${d}')">${diaBtnLabel(d)}</button>`
+      ).join('');
+    }
+    if (claudiaFilterMode === 'mes') {
+      const meses = gerarMesesOps(6);
+      return meses.map(m =>
+        `<button class="ops-week-btn${m === claudiaMesAtivo ? ' ativo' : ''}" onclick="loadClaudiaMes('${m}')">${mesLabel2(m)}</button>`
+      ).join('');
+    }
+    if (claudiaFilterMode === 'periodo') {
+      return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <input type="date" id="claudia-periodo-inicio" value="${claudiaPeriodoI||''}" style="border:1px solid var(--borda);border-radius:8px;padding:5px 10px;font-size:12px;font-family:inherit;outline:none">
+        <span style="font-size:12px;color:var(--muted)">até</span>
+        <input type="date" id="claudia-periodo-fim" value="${claudiaPeriodoF||''}" style="border:1px solid var(--borda);border-radius:8px;padding:5px 10px;font-size:12px;font-family:inherit;outline:none">
+        <button onclick="aplicarPeriodoClaudia()" style="background:var(--preto);color:#fff;border:none;border-radius:8px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Aplicar</button>
+      </div>`;
+    }
+    return '';
+  }
+
+  async function mudarSemanaClaudia(semana) {
+    claudiaSemana = semana;
+    renderClaudia();
+    try {
+      claudiaData   = await _fetchClaudia(`semana=${semana}`);
+      claudiaSemana = claudiaData.semana;
+      renderClaudia();
+    } catch(e) { _claudiaErro(e); }
+  }
+
+  async function loadClaudiaDia(dia) {
+    claudiaDiaAtivo = dia;
+    claudiaData = null;
+    renderClaudia();
+    try {
+      claudiaData = await _fetchClaudia(`dia=${dia}`);
+      renderClaudia();
+    } catch(e) { _claudiaErro(e); }
+  }
+
+  async function loadClaudiaMes(mes) {
+    claudiaMesAtivo = mes;
+    claudiaData = null;
+    renderClaudia();
+    try {
+      claudiaData = await _fetchClaudia(`mes=${mes}`);
+      renderClaudia();
+    } catch(e) { _claudiaErro(e); }
+  }
+
+  async function aplicarPeriodoClaudia() {
+    const ini = document.getElementById('claudia-periodo-inicio');
+    const fim = document.getElementById('claudia-periodo-fim');
+    if (ini) claudiaPeriodoI = ini.value;
+    if (fim) claudiaPeriodoF = fim.value;
+    if (!claudiaPeriodoI || !claudiaPeriodoF) return;
+    claudiaData = null;
+    renderClaudia();
+    try {
+      claudiaData = await _fetchClaudia(`inicio=${claudiaPeriodoI}&fim=${claudiaPeriodoF}`);
+      renderClaudia();
+    } catch(e) { _claudiaErro(e); }
+  }
+
+  async function mudarFilterModeClaudia(modo) {
+    claudiaFilterMode = modo;
+    if (modo === 'semana') {
+      if (!claudiaSemana) claudiaSemana = gerarSemanasOps(1)[0];
+      claudiaData = null; renderClaudia();
+      try {
+        claudiaData   = await _fetchClaudia(`semana=${claudiaSemana}`);
+        claudiaSemana = claudiaData.semana;
+        renderClaudia();
+      } catch(e) { _claudiaErro(e); }
+    } else if (modo === 'dia') {
+      if (!claudiaDiaAtivo) claudiaDiaAtivo = gerarDiasOps(14)[0];
+      claudiaData = null; renderClaudia();
+      try {
+        claudiaData = await _fetchClaudia(`dia=${claudiaDiaAtivo}`);
+        renderClaudia();
+      } catch(e) { _claudiaErro(e); }
+    } else if (modo === 'mes') {
+      if (!claudiaMesAtivo) claudiaMesAtivo = gerarMesesOps(1)[0];
+      claudiaData = null; renderClaudia();
+      try {
+        claudiaData = await _fetchClaudia(`mes=${claudiaMesAtivo}`);
+        renderClaudia();
+      } catch(e) { _claudiaErro(e); }
+    } else if (modo === 'periodo') {
+      claudiaData = null; renderClaudia();
+    }
+  }
+
+  function _claudiaErro(e) {
+    const el = document.getElementById('secao-claudia');
+    if (el) el.insertAdjacentHTML('beforeend',
+      `<p style="color:#dc2626;font-size:12px;margin-top:8px">Erro: ${e.message}</p>`);
+  }
+
+  async function initClaudia() {
+    try {
+      claudiaSemana = gerarSemanasOps(1)[0];
+      claudiaData   = await _fetchClaudia(`semana=${claudiaSemana}`);
+      claudiaSemana = claudiaData.semana;
+      renderClaudia();
+    } catch(e) { _claudiaErro(e); }
+  }
+  // ── fim painel claudia ────────────────────────────────────────────────────
+
   // ── fim métricas operacionais ────────────────────────────────────────────
   let periodoFim     = null;
   let periodoCache   = null;  // { por_agente, por_agente_positivos, tags, tags_positivos } para o período selecionado
@@ -1511,7 +1673,8 @@
   }
 
   async function init() {
-    initKpisOp(); // carrega métricas operacionais em paralelo (não bloqueia o CSAT)
+    initKpisOp();    // carrega métricas operacionais em paralelo (não bloqueia o CSAT)
+    initClaudia();   // carrega painel Claudia em paralelo
     try {
       const [r, rIndev, rSum, rLast] = await Promise.all([
         fetch(`${API}/gestao`),
@@ -1796,56 +1959,44 @@
       return dadosIndevidas.filter(i => i.date && i.date.startsWith(mesAtivo));
     })();
 
-    // Indevidas agrupadas por agente (campo observacao = agent_display_name)
+    // Resumo por agente (campo observacao = agente avaliado)
     const _indevAg = {};
-    indevidasMes.forEach(i => {
-      const ag = i.observacao || '(sem agente)';
-      _indevAg[ag] = (_indevAg[ag] || 0) + 1;
-    });
+    indevidasMes.forEach(i => { const ag = i.observacao || '(sem agente)'; _indevAg[ag] = (_indevAg[ag] || 0) + 1; });
     const _indevAgRows = Object.entries(_indevAg).sort((a,b) => b[1]-a[1]);
-    const indevPorAgenteHtml = _indevAgRows.length
-      ? `<div class="painel" style="margin-top:12px">
-          <div class="painel-title">Indevidas por agente — ${kpiLabel}</div>
-          <table class="ops-table">
-            <thead><tr>
-              <th>Agente</th>
-              <th class="r">Qtd</th>
-              <th class="r">% do total</th>
-            </tr></thead>
-            <tbody>
-              ${_indevAgRows.map(([ag, qtd]) => {
-                const pct = Math.round(qtd / indevidasMes.length * 100);
-                const cor = qtd >= 5 ? '#dc2626' : qtd >= 3 ? '#ca8a04' : 'inherit';
-                return `<tr><td>${escHtml(ag)}</td><td class="r" style="font-weight:700;color:${cor}">${qtd}</td><td class="r" style="color:var(--muted)">${pct}%</td></tr>`;
-              }).join('')}
-            </tbody>
-          </table>
+    const resumoAgHtml = _indevAgRows.length
+      ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--borda)">
+          ${_indevAgRows.map(([ag, qtd]) => {
+            const pct = Math.round(qtd / indevidasMes.length * 100);
+            const cor = qtd >= 5 ? '#dc2626' : qtd >= 3 ? '#ca8a04' : '#16a34a';
+            return `<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;background:#f8fafc;border:1px solid var(--borda);color:${cor}">${escHtml(ag)} <span style="opacity:.7;font-weight:400">${qtd} · ${pct}%</span></span>`;
+          }).join('')}
         </div>`
       : '';
 
     const indevTotal = indevidasMes.length;
     const indevidasListHtml = indevTotal
       ? `<div style="max-height:252px;overflow-y:auto">
-        <table class="indev-table">
-          <thead><tr>
-            <th>Ticket</th><th>Data</th><th>Marcado por</th><th>Quando</th><th></th>
-          </tr></thead>
-          <tbody>
-            ${indevidasMes.map(i => {
-              const link = `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${i.ticket_id}`;
-              const data = i.date ? i.date.split('-').reverse().join('/') : '—';
-              const quando = i.marcado_em ? new Date(i.marcado_em).toLocaleString('pt-BR') : '—';
-              return `<tr>
-                <td><a class="indev-link" href="${link}" target="_blank" rel="noopener">#${i.ticket_id}<svg width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></td>
-                <td>${data}</td>
-                <td>${escHtml(i.observacao || '—')}</td>
-                <td style="color:var(--muted)">${quando}</td>
-                <td><button class="btn-desfazer-sm" onclick="desfazerIndevida('${i.ticket_id}','${i.date}')">Desfazer</button></td>
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-        </div>`
+          <table class="indev-table">
+            <thead><tr>
+              <th>Ticket</th><th>Data</th><th>Agente</th><th>Quando</th><th></th>
+            </tr></thead>
+            <tbody>
+              ${indevidasMes.map(i => {
+                const link = `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${i.ticket_id}`;
+                const data = i.date ? i.date.split('-').reverse().join('/') : '—';
+                const quando = i.marcado_em ? new Date(i.marcado_em).toLocaleString('pt-BR') : '—';
+                return `<tr>
+                  <td><a class="indev-link" href="${link}" target="_blank" rel="noopener">#${i.ticket_id}<svg width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></td>
+                  <td>${data}</td>
+                  <td>${escHtml(i.observacao || '—')}</td>
+                  <td style="color:var(--muted)">${quando}</td>
+                  <td><button class="btn-desfazer-sm" onclick="desfazerIndevida('${i.ticket_id}','${i.date}')">Desfazer</button></td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        ${resumoAgHtml}`
       : `<p style="color:var(--muted);font-size:12px;padding:12px 16px">Nenhuma avaliação indevida ${filterMode==='dia'&&selectedDay?'neste dia':filterMode==='semana'&&selectedWeek?'nesta semana':filterMode==='periodo'&&periodoInicio?'neste período':'neste mês'}.</p>`;
 
     document.getElementById('conteudo').innerHTML = `
@@ -1962,7 +2113,6 @@
         <div class="painel" style="padding:0;overflow:hidden">
           ${indevidasListHtml}
         </div>
-        ${indevPorAgenteHtml}
       </div>
 
       `;
