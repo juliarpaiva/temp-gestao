@@ -681,12 +681,13 @@ app.get('/kpis-semanais', async (req, res) => {
     }
 
     const [
-      volume, mediaDiaria, csatTime, csatClaudia, retencaoN1,
+      volume, respondidos, mediaDiaria, csatTime, csatClaudia, retencaoN1,
       tempoResposta, tempoEncerramento,
       volAnterior, retencaoAnterior, csatAnterior,
       porAgenteRows
     ] = await Promise.all([
       sqlScalar(`SELECT COUNT(ticket_id) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
+      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE first_agent_first_reply_at_local >= '${d0}' AND first_agent_first_reply_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(COUNT(*) * 1.0 / NULLIF(COUNT(DISTINCT DATE(created_at_local)), 0), 1) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND agent_on_resolution_name ILIKE '%claudia%' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
@@ -736,6 +737,7 @@ app.get('/kpis-semanais', async (req, res) => {
       meta_volume_por_agente: 45 * diasUteis,
       atual: {
         volume:               volume      ?? 0,
+        respondidos:          respondidos ?? 0,
         media_diaria:         mediaDiaria ?? 0,
         csat_time:            csatTime,
         csat_claudia:         csatClaudia,

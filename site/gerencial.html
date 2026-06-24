@@ -632,7 +632,8 @@
     const agentesComMeta = (atual.por_agente || []).filter(ag => ag.volume >= metaVol).length;
     const totalAgentesOp = (atual.por_agente || []).length;
     const metaTotalVol   = metaVol * totalAgentesOp;
-    const pctMeta        = metaTotalVol > 0 ? Math.round(atual.volume / metaTotalVol * 100) : 0;
+    const respondidos    = atual.respondidos ?? 0;
+    const pctMeta        = metaTotalVol > 0 ? Math.round(respondidos / metaTotalVol * 100) : 0;
     const volCor  = totalAgentesOp > 0 && agentesComMeta === totalAgentesOp ? '#16a34a' : agentesComMeta > 0 ? '#ca8a04' : '#dc2626';
     const csatOk  = atual.csat_time  !== null && atual.csat_time  >= 75;
     const csatCor = atual.csat_time  !== null ? (atual.csat_time  >= 75 ? '#16a34a' : atual.csat_time  >= 55 ? '#ca8a04' : '#dc2626') : 'var(--rosa)';
@@ -645,9 +646,14 @@
       <div class="ops-week-nav">${opsNavHtml()}</div>
 
       <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(155px,1fr));margin-bottom:20px">
-        <div class="kpi" style="border-left:4px solid ${volCor}">
-          <div class="kpi-label">Volume total</div>
+        <div class="kpi">
+          <div class="kpi-label">Recebidos</div>
           <div class="ops-kpi-num">${atual.volume.toLocaleString('pt-BR')}</div>
+          <div class="kpi-sub flat" style="margin-top:6px">tickets criados no período</div>
+        </div>
+        <div class="kpi" style="border-left:4px solid ${volCor}">
+          <div class="kpi-label">Respondidos</div>
+          <div class="ops-kpi-num">${respondidos.toLocaleString('pt-BR')}</div>
           <div class="kpi-sub" style="color:${volCor};font-weight:700;margin-top:6px">${pctMeta}% da meta (${metaTotalVol})</div>
           <div class="kpi-sub" style="color:${volCor};margin-top:2px">${agentesComMeta}/${totalAgentesOp} agentes ≥ ${metaVol}</div>
         </div>
@@ -675,8 +681,7 @@
         <div class="kpi">
           <div class="kpi-label">Retenção N1 Claudia</div>
           <div class="ops-kpi-num">${atual.retencao_n1.toLocaleString('pt-BR')}</div>
-          <div class="kpi-sub flat">${opsVs(atual.retencao_n1, anterior.retencao_n1, false) || 'resolvidos pela IA'}</div>
-          ${anterior.retencao_n1 ? `<div class="kpi-sub flat" style="margin-top:2px;font-weight:500">${anterior.retencao_n1.toLocaleString('pt-BR')} no período ant.</div>` : ''}
+          ${anterior.retencao_n1 != null ? (() => { const d = atual.retencao_n1 - anterior.retencao_n1; const c = d > 0 ? '#16a34a' : d < 0 ? '#dc2626' : 'var(--muted)'; return `<div class="kpi-sub flat" style="color:${c};margin-top:6px">${d >= 0 ? '+' : ''}${d.toLocaleString('pt-BR')} vs per. ant.</div><div class="kpi-sub flat" style="margin-top:2px">${anterior.retencao_n1.toLocaleString('pt-BR')} no período ant.</div>`; })() : '<div class="kpi-sub flat" style="margin-top:6px">resolvidos pela IA</div>'}
         </div>
       </div>
 
