@@ -729,13 +729,17 @@
         const agRows = unified.map(u => {
           const nome = u.agente === 'Fernanda Cavalcante' ? 'Fernanda' : u.agente;
           const trCor = u.tempo_resp_h !== null ? (u.tempo_resp_h <= 1 ? '#16a34a' : u.tempo_resp_h <= 2 ? '#ca8a04' : '#dc2626') : 'inherit';
+          const allIds = [...(u.ids_com||[]), ...(u.ids_sem||[])];
+          const adTotal = u.adiados_total > 0
+            ? snCnt(allIds, nome+' — Todos adiados', '#d97706')
+            : '—';
           const adSub = u.adiados_total > 0
             ? `<div style="font-size:10px;color:var(--muted);margin-top:2px;white-space:nowrap">${snCnt(u.ids_com, nome+' — Aguard. seller','#16a34a')} seller · ${snCnt(u.ids_sem, nome+' — Sem flag', u.adiados_sem > 0 ? '#ca8a04' : 'var(--muted)')} sem flag</div>`
             : '';
           return `<tr>
             <td class="ops-agente">${nome}</td>
             <td class="r" style="font-weight:600">${u.encerrados || '—'}</td>
-            <td class="r"><div style="font-weight:700;color:${u.adiados_total>0?'#d97706':'var(--muted)'}">${u.adiados_total||'—'}</div>${adSub}</td>
+            <td class="r"><div style="font-weight:700">${adTotal}</div>${adSub}</td>
             <td class="r">${opsCsatPill(u.csat)}</td>
             <td class="r" style="color:${trCor};font-weight:700">${fmtHora(u.tempo_resp_h)}</td>
             <td class="r">${fmtHora(u.tempo_enc_h)}</td>
@@ -777,7 +781,7 @@
             </tr></thead>
             <tbody>${agRows}${claudiaRow}${outrosHeader}${emAbertoRow}</tbody>
           </table>
-          <div style="font-size:11px;color:var(--muted);margin-top:8px">Clique nos números em Adiados para ver os tickets · seller = aguardando confirmação do lojista</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:8px">Adiados: clique nos números para ver os tickets · <strong style="font-weight:600">seller</strong> = ticket adiado aguardando confirmação do lojista · <strong style="font-weight:600">sem flag</strong> = adiado sem motivo registrado</div>
           <div style="text-align:right;margin-top:10px">
             <button onclick="exportarOpsCSV()" style="background:none;border:1px solid var(--borda);color:var(--muted);font-size:11px;font-weight:600;padding:4px 12px;border-radius:6px;cursor:pointer;font-family:inherit">↓ Exportar CSV</button>
           </div>
