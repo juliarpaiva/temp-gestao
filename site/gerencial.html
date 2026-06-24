@@ -1080,7 +1080,6 @@
   let outrosModalPorAg   = {};
   let outrosModalTickets = null; // tickets disponíveis (dia ou período)
   let outrosModalTitulo  = '';
-  let _indevPage = 0;
   let outrosSortKey = 'cnt';     // 'cnt' | 'nome'
   let outrosSortDir = -1;        // -1 desc, 1 asc
   let adiadosSortKey = 'total';  // 'agente' | 'com_flag' | 'sem_flag' | 'total'
@@ -1244,10 +1243,6 @@
     }
   }
 
-  function navIndevidas(dir) {
-    _indevPage = Math.max(0, _indevPage + dir);
-    renderCsat();
-  }
 
   function sortAdiados(key) {
     if (adiadosSortKey === key) adiadosSortDir *= -1;
@@ -1367,7 +1362,6 @@
 
   function setFilterMode(mode) {
     filterMode = mode;
-    _indevPage = 0;
     if (mode !== 'dia')     { selectedDay = null; fecharReportPanel(); }
     if (mode !== 'periodo') { periodoCache = null; periodoLoading = false; }
     if (mode === 'semana' && dadosGestao) {
@@ -1748,25 +1742,15 @@
         </div>`
       : '';
 
-    const PAGE_SIZE = 6;
     const indevTotal = indevidasMes.length;
-    const indevMaxPage = Math.max(0, Math.ceil(indevTotal / PAGE_SIZE) - 1);
-    if (_indevPage > indevMaxPage) _indevPage = indevMaxPage;
-    const indevSlice = indevidasMes.slice(_indevPage * PAGE_SIZE, (_indevPage + 1) * PAGE_SIZE);
     const indevidasListHtml = indevTotal
-      ? `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px 8px;border-bottom:1px solid var(--borda)">
-          <span style="font-size:11px;color:var(--muted)">${_indevPage * PAGE_SIZE + 1}–${Math.min((_indevPage + 1) * PAGE_SIZE, indevTotal)} de ${indevTotal}</span>
-          <div style="display:flex;gap:4px">
-            <button onclick="navIndevidas(-1)" style="background:none;border:1px solid var(--borda);border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;color:var(--text);opacity:${_indevPage > 0 ? 1 : .25};pointer-events:${_indevPage > 0 ? 'auto' : 'none'}">↑</button>
-            <button onclick="navIndevidas(1)"  style="background:none;border:1px solid var(--borda);border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:14px;line-height:1;color:var(--text);opacity:${_indevPage < indevMaxPage ? 1 : .25};pointer-events:${_indevPage < indevMaxPage ? 'auto' : 'none'}">↓</button>
-          </div>
-        </div>
+      ? `<div style="max-height:252px;overflow-y:auto">
         <table class="indev-table">
           <thead><tr>
             <th>Ticket</th><th>Data</th><th>Marcado por</th><th>Quando</th><th></th>
           </tr></thead>
           <tbody>
-            ${indevSlice.map(i => {
+            ${indevidasMes.map(i => {
               const link = `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${i.ticket_id}`;
               const data = i.date ? i.date.split('-').reverse().join('/') : '—';
               const quando = i.marcado_em ? new Date(i.marcado_em).toLocaleString('pt-BR') : '—';
@@ -1779,7 +1763,8 @@
               </tr>`;
             }).join('')}
           </tbody>
-        </table>`
+        </table>
+        </div>`
       : `<p style="color:var(--muted);font-size:12px;padding:12px 16px">Nenhuma avaliação indevida ${filterMode==='dia'&&selectedDay?'neste dia':filterMode==='semana'&&selectedWeek?'nesta semana':filterMode==='periodo'&&periodoInicio?'neste período':'neste mês'}.</p>`;
 
     document.getElementById('conteudo').innerHTML = `
