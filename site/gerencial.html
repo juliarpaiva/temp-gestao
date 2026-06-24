@@ -1129,7 +1129,6 @@
     selectedDay  = target;
     filterMode   = 'dia';
     mesAtivo     = target.slice(0, 7);
-    fecharReportPanel();
     if (!dayDataCache[target]) {
       try {
         const r = await fetch(`${API}/data/${target}`);
@@ -1137,6 +1136,7 @@
       } catch(e) {}
     }
     render();
+    abrirReportPanel(target);
   }
 
   function setFilterMode(mode) {
