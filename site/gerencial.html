@@ -1158,9 +1158,13 @@
 
   async function initClaudia() {
     try {
-      claudiaSemana = gerarSemanasOps(1)[0];
-      claudiaData   = await _fetchClaudia(`semana=${claudiaSemana}`);
-      claudiaSemana = claudiaData.semana;
+      claudiaFilterMode = 'dia';
+      const _d = new Date();
+      const _dow = _d.getUTCDay();
+      const _back = _dow === 1 ? 3 : (_dow === 0 ? 2 : 1); // seg→sex, dom→sex, resto→ontem
+      _d.setUTCDate(_d.getUTCDate() - _back);
+      claudiaDiaAtivo = _d.toISOString().slice(0, 10);
+      claudiaData     = await _fetchClaudia(`dia=${claudiaDiaAtivo}`);
       renderClaudia();
     } catch(e) { _claudiaErro(e); }
   }
