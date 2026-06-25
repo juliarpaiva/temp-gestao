@@ -1711,6 +1711,16 @@
       const mesesKeys = Object.keys(dadosGestao.meses).sort().reverse();
       mesAtivo = mesesKeys[0] || null;
       if (!mesAtivo) { document.getElementById('conteudo').innerHTML = '<div class="erro">Sem dados disponíveis ainda.</div>'; return; }
+      // Default: última coleta
+      const _today  = new Date().toISOString().slice(0, 10);
+      const _dates  = Object.keys(summaryMap).sort().reverse();
+      const _target = _dates.find(d => d <= _today) || _dates[0];
+      if (_target) {
+        selectedDay = _target;
+        filterMode  = 'dia';
+        mesAtivo    = _target.slice(0, 7);
+        try { const _r = await fetch(`${API}/data/${_target}`); if (_r.ok) dayDataCache[_target] = await _r.json(); } catch(e) {}
+      }
       render();
     } catch(e) {
       document.getElementById('conteudo').innerHTML = `<div class="erro">Erro ao carregar: ${e.message}</div>`;
