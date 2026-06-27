@@ -708,15 +708,17 @@
           const p = porAg.find(x => x.agente === ag)   || {};
           const enc = r.resolvidos || 0;
           const adi = s.total || 0;
+          const pend = (kpisOp.backlog?.pending_por_agente || {})[ag] || 0;
           return { agente: ag,
             encerrados: enc,
+            pendentes: pend,
             adiados_total: adi, adiados_com: s.com_flag || 0, adiados_sem: s.sem_flag || 0,
             ids_com: s.ids_com_flag || [], ids_sem: s.ids_sem_flag || [],
             total: enc + adi,
             csat: p.csat ?? null, tempo_resp_h: p.tempo_resp_h ?? null, tempo_enc_h: p.tempo_enc_h ?? null,
           };
         });
-        const validKeys = ['agente','encerrados','adiados_total','total','csat','tempo_resp_h','tempo_enc_h'];
+        const validKeys = ['agente','encerrados','pendentes','adiados_total','total','csat','tempo_resp_h','tempo_enc_h'];
         if (opsSortCol && validKeys.includes(opsSortCol)) {
           unified.sort((a, b) => {
             const av = a[opsSortCol], bv = b[opsSortCol];
@@ -750,6 +752,7 @@
             <td class="ops-agente">${nome}</td>
             <td class="r" style="font-weight:700;color:var(--rosa);cursor:pointer;text-decoration:none" onclick="abrirTicketsAgentePeriodo('${u.agente}')" title="Ver tickets">${u.total || '—'}</td>
             <td class="r" style="font-weight:600">${u.encerrados || '—'}</td>
+            <td class="r" ${u.pendentes > 0 ? `style="font-weight:700;color:#92400e;cursor:pointer" onclick="abrirPendentesAgente('${u.agente}')" title="Ver tickets pendentes"` : `style="font-weight:600"`}>${u.pendentes || '—'}</td>
             <td class="r"><div style="font-weight:700">${adTotal}</div>${adSub}</td>
             <td class="r">${opsCsatPill(u.csat)}</td>
             <td class="r" style="color:${trCor};font-weight:700">${fmtHora(u.tempo_resp_h)}</td>
@@ -758,27 +761,21 @@
         }).join('');
         const claudiaRow = claudia ? `<tr style="color:var(--muted);font-style:italic;border-top:2px solid #e2e8f0">
           <td>Retenção N1 (Claudia)</td>
-          <td class="r">${claudia}</td><td class="r">${claudia}</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
+          <td class="r">${claudia}</td><td class="r">${claudia}</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
         </tr>` : '';
         const outrosHeader = outros.length ? `<tr style="color:var(--muted);font-style:italic">
-          <td>Outras equipes</td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td>
+          <td>Outras equipes</td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td>
         </tr>${outros.map(x => `<tr style="color:var(--muted)">
           <td style="padding-left:20px;font-size:11px">${escHtml(x.agente)}</td>
           <td class="r" style="font-size:11px">${x.resolvidos}</td>
           <td class="r" style="font-size:11px">${x.resolvidos}</td>
-          <td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
+          <td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
         </tr>`).join('')}` : '';
         const bg = kpisOp.backlog;
-        const pendVal = bg ? bg.pending : (atual.pendentes || 0);
         const abertoVal = bg ? bg.open : (atual.em_aberto || 0);
-        const pendentesRow = pendVal > 0 ? `<tr onclick="abrirBacklog()" style="cursor:pointer" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.removeProperty('background')">
-          <td>Pendentes <span style="font-size:10px;color:var(--muted)">(ver tickets →)</span></td>
-          <td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
-          <td class="r" style="font-weight:600;color:#92400e">${pendVal}</td>
-        </tr>` : '';
-        const emAbertoRow = abertoVal > 0 ? `<tr onclick="abrirBacklog()" style="color:var(--muted);font-style:italic;cursor:pointer" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.removeProperty('background')">
+        const emAbertoRow = abertoVal > 0 ? `<tr onclick="abrirBacklogOpen()" style="color:var(--muted);font-style:italic;cursor:pointer" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.removeProperty('background')">
           <td>Em aberto <span style="font-size:10px;color:#92400e">(histórico →)</span></td>
-          <td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
+          <td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
           <td class="r" style="font-weight:600;color:#92400e">${abertoVal}</td>
         </tr>` : '';
         return `<div class="painel">
@@ -788,12 +785,13 @@
               ${th('agente','Agente','')}
               ${th('total','Total','r')}
               ${th('encerrados','Encerrados','r')}
+              ${th('pendentes','Pendentes','r')}
               ${th('adiados_total','Adiados','r')}
               ${th('csat','CSAT','r')}
               ${th('tempo_resp_h','1ª Resposta','r')}
               ${th('tempo_enc_h','Encerramento','r')}
             </tr></thead>
-            <tbody>${agRows}${claudiaRow}${outrosHeader}${pendentesRow}${emAbertoRow}</tbody>
+            <tbody>${agRows}${claudiaRow}${outrosHeader}${emAbertoRow}</tbody>
           </table>
           <div style="font-size:11px;color:var(--muted);margin-top:8px">Adiados: clique nos números para ver os tickets · <strong style="font-weight:600">seller</strong> = ticket adiado aguardando confirmação do lojista · <strong style="font-weight:600">sem flag</strong> = adiado sem motivo registrado</div>
           <div style="text-align:right;margin-top:10px">
@@ -1498,6 +1496,74 @@
         return;
       }
       renderBacklog();
+    } catch(e) {
+      document.getElementById('modal-outros-body').innerHTML =
+        `<p style="color:#dc2626;font-size:12px">Erro ao carregar: ${e.message}</p>`;
+    }
+  }
+
+  function _renderBacklogFiltrado(tickets) {
+    const thStyle = 'cursor:pointer;user-select:none;white-space:nowrap';
+    const tRows = tickets.map(t => {
+      const link = `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.id}`;
+      const dataCriacao = t.criado_em ? String(t.criado_em).slice(0,10).split('-').reverse().join('/') : '—';
+      const stCor = t.status === 'pending' ? '#ca8a04' : '#64748b';
+      const agenteLabel = (!t.agente || t.agente === '(sem atribuição)') ? '—' : escHtml(t.agente);
+      return `<tr>
+        <td><a class="outros-link" href="${link}" target="_blank" rel="noopener">#${t.id}<svg width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-left:3px"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></td>
+        <td style="color:var(--preto);font-size:11px">${agenteLabel}</td>
+        <td style="color:${stCor};font-weight:600;font-size:11px;text-transform:capitalize">${t.status}</td>
+        <td style="color:var(--muted);font-size:11px">${dataCriacao}</td>
+      </tr>`;
+    }).join('');
+    return `<div style="max-height:480px;overflow-y:auto"><table class="outros-ticket-table">
+      <thead><tr>
+        <th style="${thStyle}">Ticket</th>
+        <th style="${thStyle}">Agente</th>
+        <th style="${thStyle}">Status</th>
+        <th style="${thStyle}">Criado em</th>
+      </tr></thead>
+      <tbody>${tRows}</tbody>
+    </table></div>`;
+  }
+
+  async function abrirBacklogOpen() {
+    document.getElementById('modal-outros-titulo').textContent = 'Tickets em aberto (histórico)';
+    document.getElementById('modal-outros-nav').innerHTML = '';
+    document.getElementById('modal-outros-body').innerHTML =
+      '<p style="color:var(--muted);font-size:12px;padding:8px 0">Carregando…</p>';
+    document.getElementById('modal-outros').classList.add('aberto');
+    try {
+      if (!_backlogTickets) {
+        const r = await fetch(`${API}/backlog-tickets`);
+        _backlogTickets = await r.json();
+      }
+      const lista = _backlogTickets.filter(t => t.status === 'open');
+      document.getElementById('modal-outros-body').innerHTML = lista.length
+        ? _renderBacklogFiltrado(lista)
+        : '<p style="color:var(--muted);font-size:12px">Nenhum ticket em aberto.</p>';
+    } catch(e) {
+      document.getElementById('modal-outros-body').innerHTML =
+        `<p style="color:#dc2626;font-size:12px">Erro ao carregar: ${e.message}</p>`;
+    }
+  }
+
+  async function abrirPendentesAgente(agente) {
+    const nome = agente === 'Fernanda Cavalcante' ? 'Fernanda' : agente;
+    document.getElementById('modal-outros-titulo').textContent = `${nome} — tickets pendentes`;
+    document.getElementById('modal-outros-nav').innerHTML = '';
+    document.getElementById('modal-outros-body').innerHTML =
+      '<p style="color:var(--muted);font-size:12px;padding:8px 0">Carregando…</p>';
+    document.getElementById('modal-outros').classList.add('aberto');
+    try {
+      if (!_backlogTickets) {
+        const r = await fetch(`${API}/backlog-tickets`);
+        _backlogTickets = await r.json();
+      }
+      const lista = _backlogTickets.filter(t => t.status === 'pending' && t.agente === agente);
+      document.getElementById('modal-outros-body').innerHTML = lista.length
+        ? _renderBacklogFiltrado(lista)
+        : '<p style="color:var(--muted);font-size:12px">Nenhum ticket pendente.</p>';
     } catch(e) {
       document.getElementById('modal-outros-body').innerHTML =
         `<p style="color:#dc2626;font-size:12px">Erro ao carregar: ${e.message}</p>`;

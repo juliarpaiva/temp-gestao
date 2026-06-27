@@ -814,12 +814,15 @@ app.get('/kpis-semanais', async (req, res) => {
     };
     // Backlog global (sem filtro de data) — executa fora do cache de período
     try {
-      const [bgOpen, bgPending, bgSemAgent] = await Promise.all([
+      const [bgOpen, bgPending, bgSemAgent, bgPendingRows] = await Promise.all([
         sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'open' AND (agent_on_resolution_name IS NULL OR agent_on_resolution_name NOT ILIKE '%projetos%')`),
         sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'pending' AND (agent_on_resolution_name IS NULL OR agent_on_resolution_name NOT ILIKE '%projetos%')`),
         sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status IN ('open','pending') AND agent_on_resolution_name IS NULL`),
+        sqlRows(`SELECT agent_on_resolution_name, COUNT(*)::int FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'pending' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') GROUP BY 1`),
       ]);
-      kpisResult.backlog = { open: bgOpen ?? 0, pending: bgPending ?? 0, sem_agente: bgSemAgent ?? 0 };
+      const pendingPorAgente = {};
+      for (const r of bgPendingRows) pendingPorAgente[r[0]] = Number(r[1]) || 0;
+      kpisResult.backlog = { open: bgOpen ?? 0, pending: bgPending ?? 0, sem_agente: bgSemAgent ?? 0, pending_por_agente: pendingPorAgente };
     } catch(e) { kpisResult.backlog = null; }
     pool.query(
       `INSERT INTO support_bi.kpis_op_cache (period_key, data) VALUES ($1,$2)
