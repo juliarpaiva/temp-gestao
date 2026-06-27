@@ -341,6 +341,9 @@ app.post('/webhook/csat-invalida', express.json(), express.urlencoded({ extended
     [ticketId, date, 'cloudchat_webhook', payload.agent_display_name || null]
   );
 
+  // Limpa cache de ops para forçar recálculo com a nova indevida
+  pool.query(`DELETE FROM support_bi.kpis_op_cache`).catch(() => {});
+
   // Re-processa o dia automaticamente — exclui indevidas dos totais
   runDailyReport(date, true)
     .then(r => console.log('[webhook] reprocessamento concluido:', r))
@@ -571,6 +574,9 @@ app.get('/admin/puxar-indevidas-cloudchat', async (req, res) => {
       }
     }
 
+    // Limpa cache de ops para forçar recálculo com as novas indevidas
+    await pool.query(`DELETE FROM support_bi.kpis_op_cache`).catch(() => {});
+
     res.json({
       dry_run: false,
       total_csats_junho: csatsJunho.length,
@@ -657,6 +663,17 @@ app.get('/kpis-semanais', async (req, res) => {
       if (cached.rows.length) return res.json(cached.rows[0].data);
     } catch (_) {}
 
+    // Busca IDs de indevidas do período para excluir do CSAT
+    let indevidasIds = [];
+    try {
+      const indevRows = await pool.query(
+        `SELECT DISTINCT ticket_id FROM support_bi.csat_indevidas WHERE date >= $1 AND date < $2`,
+        [d0, d1]
+      );
+      indevidasIds = indevRows.rows.map(r => parseInt(r.ticket_id, 10)).filter(n => !isNaN(n));
+    } catch (_e) {}
+    const indevidasNotIn = indevidasIds.length ? `AND t.ticket_id NOT IN (${indevidasIds.join(',')})` : '';
+
     const token = await getMetabaseToken();
 
     async function sqlScalar(sql) {
@@ -692,21 +709,21 @@ app.get('/kpis-semanais', async (req, res) => {
       sqlScalar(`SELECT COUNT(ticket_id) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(COUNT(*) * 1.0 / NULLIF(COUNT(DISTINCT DATE(created_at_local)), 0), 1) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
-      sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
+      sqlScalar(`SELECT ROUND(100.0 * COUNT(CASE WHEN csat_score >= 4 THEN 1 END) / NULLIF(COUNT(*), 0), 1) FROM dw.fact_cloudchat_tickets t WHERE csat_score IS NOT NULL AND t.created_at_local >= '${d0}' AND t.created_at_local < '${d1}' ${indevidasNotIn}`),
       sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND agent_on_resolution_name ILIKE '%claudia%' AND agent_on_resolution_name NOT ILIKE '%projetos%' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name ILIKE '%claudia%' AND agent_on_resolution_name NOT ILIKE '%projetos%' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(AVG(first_agent_reply_time_min) / 60.0, 1) FROM dw.fact_cloudchat_tickets WHERE first_agent_first_reply_at_local IS NOT NULL AND first_agent_reply_time_min IS NOT NULL AND first_agent_reply_time_min >= 0 AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(AVG(first_agent_resolution_time_min) / 60.0, 1) FROM dw.fact_cloudchat_tickets WHERE resolved_at_local IS NOT NULL AND first_agent_resolution_time_min IS NOT NULL AND first_agent_resolution_time_min > 0 AND first_agent_resolution_time_min < 2880 AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT COUNT(ticket_id) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${pd0}' AND created_at_local < '${d0}'`),
       sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name ILIKE '%claudia%' AND agent_on_resolution_name NOT ILIKE '%projetos%' AND created_at_local >= '${pd0}' AND created_at_local < '${d0}'`),
-      sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND created_at_local >= '${pd0}' AND created_at_local < '${d0}'`),
+      sqlScalar(`SELECT ROUND(100.0 * COUNT(CASE WHEN csat_score >= 4 THEN 1 END) / NULLIF(COUNT(*), 0), 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND created_at_local >= '${pd0}' AND created_at_local < '${d0}'`),
       sqlRows(`
         SELECT
           COALESCE(t.agent_on_resolution_name, '(sem agente)') AS agente,
           COUNT(*) AS volume,
           ROUND(AVG(CASE WHEN t.first_agent_reply_time_min IS NOT NULL AND t.first_agent_first_reply_at_local IS NOT NULL AND t.first_agent_reply_time_min >= 0 THEN t.first_agent_reply_time_min END) / 60.0, 1) AS tempo_resp_h,
           ROUND(AVG(CASE WHEN t.first_agent_resolution_time_min IS NOT NULL AND t.first_agent_resolution_time_min > 0 AND t.first_agent_resolution_time_min < 2880 AND t.resolved_at_local IS NOT NULL THEN t.first_agent_resolution_time_min END) / 60.0, 1) AS tempo_enc_h,
-          ROUND(((AVG(CASE WHEN t.csat_score IS NOT NULL THEN t.csat_score END) - 1) / 4.0 * 100)::numeric, 1) AS csat
+          ROUND(100.0 * COUNT(CASE WHEN t.csat_score >= 4 ${indevidasNotIn} THEN 1 END) / NULLIF(COUNT(CASE WHEN t.csat_score IS NOT NULL ${indevidasNotIn} THEN 1 END), 0), 1) AS csat
         FROM dw.fact_cloudchat_tickets t
         LEFT JOIN dw.fact_cloudchat_ticket_custom_fields cf
           ON cf.ticket_id = t.ticket_id
