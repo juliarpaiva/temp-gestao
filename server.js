@@ -709,7 +709,7 @@ app.get('/kpis-semanais', async (req, res) => {
       sqlScalar(`SELECT COUNT(ticket_id) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(COUNT(*) * 1.0 / NULLIF(COUNT(DISTINCT DATE(created_at_local)), 0), 1) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
-      sqlScalar(`SELECT ROUND(100.0 * COUNT(CASE WHEN csat_score >= 4 THEN 1 END) / NULLIF(COUNT(*), 0), 1) FROM dw.fact_cloudchat_tickets t WHERE csat_score IS NOT NULL AND t.created_at_local >= '${d0}' AND t.created_at_local < '${d1}' ${indevidasNotIn}`),
+      sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets t WHERE csat_score IS NOT NULL AND t.created_at_local >= '${d0}' AND t.created_at_local < '${d1}' ${indevidasNotIn}`),
       sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND agent_on_resolution_name ILIKE '%claudia%' AND agent_on_resolution_name NOT ILIKE '%projetos%' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name ILIKE '%claudia%' AND agent_on_resolution_name NOT ILIKE '%projetos%' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(AVG(first_agent_reply_time_min) / 60.0, 1) FROM dw.fact_cloudchat_tickets WHERE first_agent_first_reply_at_local IS NOT NULL AND first_agent_reply_time_min IS NOT NULL AND first_agent_reply_time_min >= 0 AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
@@ -723,7 +723,7 @@ app.get('/kpis-semanais', async (req, res) => {
           COUNT(*) AS volume,
           ROUND(AVG(CASE WHEN t.first_agent_reply_time_min IS NOT NULL AND t.first_agent_first_reply_at_local IS NOT NULL AND t.first_agent_reply_time_min >= 0 THEN t.first_agent_reply_time_min END) / 60.0, 1) AS tempo_resp_h,
           ROUND(AVG(CASE WHEN t.first_agent_resolution_time_min IS NOT NULL AND t.first_agent_resolution_time_min > 0 AND t.first_agent_resolution_time_min < 2880 AND t.resolved_at_local IS NOT NULL THEN t.first_agent_resolution_time_min END) / 60.0, 1) AS tempo_enc_h,
-          ROUND(100.0 * COUNT(CASE WHEN t.csat_score >= 4 ${indevidasNotIn} THEN 1 END) / NULLIF(COUNT(CASE WHEN t.csat_score IS NOT NULL ${indevidasNotIn} THEN 1 END), 0), 1) AS csat
+          ROUND(((AVG(CASE WHEN t.csat_score IS NOT NULL ${indevidasNotIn} THEN t.csat_score END) - 1) / 4.0 * 100)::numeric, 1) AS csat
         FROM dw.fact_cloudchat_tickets t
         LEFT JOIN dw.fact_cloudchat_ticket_custom_fields cf
           ON cf.ticket_id = t.ticket_id
