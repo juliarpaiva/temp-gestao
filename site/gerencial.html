@@ -748,7 +748,7 @@
             : '';
           return `<tr>
             <td class="ops-agente">${nome}</td>
-            <td class="r" style="font-weight:700;color:var(--rosa);cursor:pointer;text-decoration:underline dotted" onclick="abrirTicketsAgentePeriodo('${u.agente}')" title="Ver tickets">${u.total || '—'}</td>
+            <td class="r" style="font-weight:700;color:var(--rosa);cursor:pointer;text-decoration:none" onclick="abrirTicketsAgentePeriodo('${u.agente}')" title="Ver tickets">${u.total || '—'}</td>
             <td class="r" style="font-weight:600">${u.encerrados || '—'}</td>
             <td class="r"><div style="font-weight:700">${adTotal}</div>${adSub}</td>
             <td class="r">${opsCsatPill(u.csat)}</td>
@@ -2048,7 +2048,7 @@
         <span class="agente-pos" style="color:${cor};width:36px;font-size:12px">${d.pct}%</span>
         <span class="agente-nome">${medal}${d.nome.split(' ')[0]}</span>
         <div class="agente-bar-wrap"><div class="agente-bar" style="width:${d.pct}%;background:${barCor}"></div></div>
-        <span class="agente-num" style="font-size:11px;width:56px"><span style="color:#16a34a;cursor:pointer" onclick="abrirCsatTicketsAgente('${d.nome.replace(/'/g,"\\'")}','pos')">✓ ${d.pos}</span> <span style="color:var(--rosa);cursor:pointer" onclick="abrirCsatTicketsAgente('${d.nome.replace(/'/g,"\\'")}','neg')">✗ ${d.neg}</span></span>
+        <span class="agente-num" style="font-size:11px;width:56px"><span style="color:#16a34a;cursor:pointer" title="Ver positivos" onclick="abrirCsatTicketsAgente('${d.nome.replace(/'/g,"\\'")}','pos')">✓ ${d.pos}</span> <span style="color:var(--rosa);cursor:pointer" title="Ver negativos" onclick="abrirCsatTicketsAgente('${d.nome.replace(/'/g,"\\'")}','neg')">✗ ${d.neg}</span></span>
       </div>`;
     }).join('') : '<p style="color:var(--muted);font-size:12px">Sem dados — reprocesse os dias do mês</p>';
 
@@ -2059,7 +2059,7 @@
         <span class="agente-pos">${i+1}</span>
         <span class="agente-nome">${nome.split(' ')[0]}</span>
         <div class="agente-bar-wrap"><div class="agente-bar" style="width:${Math.round(cnt/maxAg*100)}%"></div></div>
-        <span class="agente-num" style="cursor:pointer;text-decoration:underline dotted" onclick="abrirCsatTicketsAgente('${nome.replace(/'/g,"\\'")}','neg')">${cnt}</span>
+        <span class="agente-num" style="cursor:pointer;text-decoration:none" title="Ver tickets" onclick="abrirCsatTicketsAgente('${nome.replace(/'/g,"\\'")}','neg')">${cnt}</span>
       </div>`).join('') : '<p style="color:var(--muted);font-size:12px">Sem dados</p>';
 
     const topTags = Object.entries(activeDados.tags || {}).sort((a,b) => b[1]-a[1]).slice(0,6);
@@ -2079,7 +2079,7 @@
         <span class="agente-pos">${i===0?'🥇':i+1}</span>
         <span class="agente-nome">${nome.split(' ')[0]}</span>
         <div class="agente-bar-wrap"><div class="agente-bar" style="width:${Math.round(cnt/maxPosAg*100)}%;background:${i===0?'#ca8a04':'#16a34a'}"></div></div>
-        <span class="agente-num" style="cursor:pointer;text-decoration:underline dotted" onclick="abrirCsatTicketsAgente('${nome.replace(/'/g,"\\'")}','pos')">${cnt}</span>
+        <span class="agente-num" style="cursor:pointer;text-decoration:none" title="Ver tickets" onclick="abrirCsatTicketsAgente('${nome.replace(/'/g,"\\'")}','pos')">${cnt}</span>
       </div>`).join('') : '<p style="color:var(--muted);font-size:12px">Sem dados</p>';
 
     const topTagsPos = Object.entries(activeDados.tags_positivos || {}).sort((a,b) => b[1]-a[1]).slice(0,6);
