@@ -1093,7 +1093,7 @@ app.get('/agent-tickets-op', async (req, res) => {
     const rows = await dwQuery(`
       SELECT t.display_ticket_id, t.ticket_status, t.contact_name, t.csat_score,
              CASE WHEN t.ticket_status = 'snoozed' AND cf.field_value_bool = true THEN 'seller'
-                  WHEN t.ticket_status = 'snoozed' THEN 'adiado'
+                  WHEN t.ticket_status = 'snoozed' THEN 'sem_flag'
                   ELSE 'encerrado' END AS tipo
       FROM dw.fact_cloudchat_tickets t
       LEFT JOIN dw.fact_cloudchat_ticket_custom_fields cf
@@ -1101,7 +1101,7 @@ app.get('/agent-tickets-op', async (req, res) => {
       WHERE t.agent_on_resolution_name = '${agente}'
         AND (
           (t.ticket_status = 'resolved' AND t.resolved_at_local >= '${d0}' AND t.resolved_at_local < '${d1}')
-          OR (cf.field_value_bool = true AND t.created_at_local >= '${d0}' AND t.created_at_local < '${d1}')
+          OR (t.ticket_status = 'snoozed' AND t.created_at_local >= '${d0}' AND t.created_at_local < '${d1}')
         )
       ORDER BY t.created_at_local DESC LIMIT 500
     `);
