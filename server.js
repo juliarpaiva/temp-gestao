@@ -1073,6 +1073,42 @@ app.get('/backlog-tickets', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/agent-tickets-op', async (req, res) => {
+  const AGENTES = ['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa'];
+  const { agente, semana, mes, dia, inicio, fim } = req.query;
+  if (!agente || !AGENTES.includes(agente)) return res.status(400).json({ error: 'agente inválido' });
+  let d0, d1;
+  if (dia) {
+    d0 = dia; const nd = new Date(dia + 'T12:00:00Z'); nd.setUTCDate(nd.getUTCDate() + 1); d1 = nd.toISOString().slice(0, 10);
+  } else if (mes) {
+    const [y, m] = mes.split('-').map(Number); d0 = `${y}-${String(m).padStart(2,'0')}-01`;
+    const nd = new Date(Date.UTC(y, m, 1)); d1 = nd.toISOString().slice(0, 10);
+  } else if (inicio && fim) {
+    d0 = inicio; const nd = new Date(fim + 'T12:00:00Z'); nd.setUTCDate(nd.getUTCDate() + 1); d1 = nd.toISOString().slice(0, 10);
+  } else {
+    const s = semana || (() => { const h=new Date(); const dow=h.getUTCDay(); const lf=new Date(h); lf.setUTCDate(lf.getUTCDate()-(dow===5?7:(dow-5+7)%7)); const ls=new Date(lf); ls.setUTCDate(ls.getUTCDate()-6); return ls.toISOString().slice(0,10); })();
+    d0 = s; const nd = new Date(s + 'T12:00:00Z'); nd.setUTCDate(nd.getUTCDate() + 7); d1 = nd.toISOString().slice(0, 10);
+  }
+  try {
+    const rows = await dwQuery(`
+      SELECT t.display_ticket_id, t.ticket_status, t.contact_name, t.csat_score,
+             CASE WHEN t.ticket_status = 'snoozed' AND cf.field_value_bool = true THEN 'seller'
+                  WHEN t.ticket_status = 'snoozed' THEN 'adiado'
+                  ELSE 'encerrado' END AS tipo
+      FROM dw.fact_cloudchat_tickets t
+      LEFT JOIN dw.fact_cloudchat_ticket_custom_fields cf
+        ON cf.ticket_id = t.ticket_id AND cf.field_name = 'aguardando_confirmao_de_resoluo_lojista'
+      WHERE t.agent_on_resolution_name = '${agente}'
+        AND (
+          (t.ticket_status = 'resolved' AND t.resolved_at_local >= '${d0}' AND t.resolved_at_local < '${d1}')
+          OR (cf.field_value_bool = true AND t.created_at_local >= '${d0}' AND t.created_at_local < '${d1}')
+        )
+      ORDER BY t.created_at_local DESC LIMIT 500
+    `);
+    res.json(rows.map(r => ({ id: String(r[0]), status: r[1], cliente: r[2]||null, nota: r[3]!==null?Number(r[3]):null, tipo: r[4] })));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/admin/reprocess-all', async (req, res) => {
   if (!process.env.ADMIN_KEY || req.query.key !== process.env.ADMIN_KEY)
     return res.status(403).json({ error: 'Forbidden' });
