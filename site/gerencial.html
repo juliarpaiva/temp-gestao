@@ -1785,6 +1785,7 @@
         try { const _r = await fetch(`${API}/data/${_target}`); if (_r.ok) dayDataCache[_target] = await _r.json(); } catch(e) {}
       }
       render();
+      if (_target) abrirReportPanel(_target);
     } catch(e) {
       document.getElementById('conteudo').innerHTML = `<div class="erro">Erro ao carregar: ${e.message}</div>`;
     }
