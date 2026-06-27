@@ -769,17 +769,18 @@
           <td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
         </tr>`).join('')}` : '';
         const bg = kpisOp.backlog;
-        const bgTotal = bg ? (bg.open + bg.pending) : 0;
-        const bgPartes = bg ? [bg.open > 0 ? `${bg.open} abertas` : '', bg.pending > 0 ? `${bg.pending} pendentes` : ''].filter(Boolean).join(' · ') : '';
-        const emAbertoRow = bgTotal > 0 ? `<tr onclick="abrirBacklog()" style="color:var(--muted);font-style:italic;cursor:pointer" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.removeProperty('background')">
-          <td>Em aberto / pendente <span style="font-size:10px;color:#92400e">(histórico, ver tickets →)</span></td>
+        const pendVal = bg ? bg.pending : (atual.pendentes || 0);
+        const abertoVal = bg ? bg.open : (atual.em_aberto || 0);
+        const pendentesRow = pendVal > 0 ? `<tr onclick="abrirBacklog()" style="cursor:pointer" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.removeProperty('background')">
+          <td>Pendentes <span style="font-size:10px;color:var(--muted)">(ver tickets →)</span></td>
           <td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
-          <td class="r" style="font-weight:600;color:#92400e">${bgTotal}<div style="font-size:10px;font-weight:400;color:var(--muted)">${bgPartes}</div></td>
-        </tr>` : (emAb > 0 ? `<tr style="color:var(--muted);font-style:italic">
-          <td>Em aberto / pendente</td>
+          <td class="r" style="font-weight:600;color:#92400e">${pendVal}</td>
+        </tr>` : '';
+        const emAbertoRow = abertoVal > 0 ? `<tr onclick="abrirBacklog()" style="color:var(--muted);font-style:italic;cursor:pointer" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.removeProperty('background')">
+          <td>Em aberto <span style="font-size:10px;color:#92400e">(histórico →)</span></td>
           <td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
-          <td class="r">${emAb}</td>
-        </tr>` : '');
+          <td class="r" style="font-weight:600;color:#92400e">${abertoVal}</td>
+        </tr>` : '';
         return `<div class="painel">
           <div class="painel-title">Por agente — ${opsPeriodoLabel()}</div>
           <table class="ops-table">
@@ -792,7 +793,7 @@
               ${th('tempo_resp_h','1ª Resposta','r')}
               ${th('tempo_enc_h','Encerramento','r')}
             </tr></thead>
-            <tbody>${agRows}${claudiaRow}${outrosHeader}${emAbertoRow}</tbody>
+            <tbody>${agRows}${claudiaRow}${outrosHeader}${pendentesRow}${emAbertoRow}</tbody>
           </table>
           <div style="font-size:11px;color:var(--muted);margin-top:8px">Adiados: clique nos números para ver os tickets · <strong style="font-weight:600">seller</strong> = ticket adiado aguardando confirmação do lojista · <strong style="font-weight:600">sem flag</strong> = adiado sem motivo registrado</div>
           <div style="text-align:right;margin-top:10px">
