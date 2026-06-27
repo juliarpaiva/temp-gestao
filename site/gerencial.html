@@ -1527,24 +1527,36 @@
           '<p style="color:var(--muted);font-size:12px">Nenhum ticket encontrado.</p>';
         return;
       }
-      const linhas = tickets.map(t => {
+      const GRUPOS = [
+        { tipo: 'encerrado', label: 'Encerrados',       cor: '#16a34a', bg: '#f0fdf4', borda: '#bbf7d0' },
+        { tipo: 'seller',    label: 'Adiados — seller', cor: '#ca8a04', bg: '#fefce8', borda: '#fde68a' },
+        { tipo: 'adiado',    label: 'Adiados',          cor: '#d97706', bg: '#fffbeb', borda: '#fde68a' },
+      ];
+      function ticketRow(t) {
         const link = `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.id}`;
-        const tipoCor = t.tipo === 'encerrado' ? '#16a34a' : t.tipo === 'seller' ? '#ca8a04' : '#d97706';
-        const tipoLabel = t.tipo === 'encerrado' ? 'Encerrado' : t.tipo === 'seller' ? 'Aguard. seller' : 'Adiado';
-        const notaHtml = t.nota !== null ? `<span style="font-size:11px;font-weight:700;color:${t.nota>=4?'#16a34a':'#dc2626'}">&nbsp;CSAT ${t.nota}</span>` : '';
-        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--borda)">
+        const notaHtml = t.nota !== null ? `<span style="font-size:11px;font-weight:700;color:${t.nota>=4?'#16a34a':'#dc2626'};margin-left:6px">CSAT ${t.nota}</span>` : '';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--borda)">
           <a href="${link}" target="_blank" rel="noopener" style="color:var(--rosa);font-weight:700;font-size:13px;text-decoration:none;flex-shrink:0">
             #${t.id}
             <svg width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-left:2px"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
           </a>
           <span style="flex:1;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(t.cliente||'')}</span>
-          <span style="font-size:11px;font-weight:600;color:${tipoCor};flex-shrink:0">${tipoLabel}</span>
           ${notaHtml}
+        </div>`;
+      }
+      const secoes = GRUPOS.map(g => {
+        const grupo = tickets.filter(t => t.tipo === g.tipo);
+        if (!grupo.length) return '';
+        return `<div style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:11px;font-weight:700;color:${g.cor};background:${g.bg};border:1px solid ${g.borda};border-radius:20px;padding:2px 10px">${g.label}</span>
+            <span style="font-size:11px;color:var(--muted)">${grupo.length}</span>
+          </div>
+          ${grupo.map(ticketRow).join('')}
         </div>`;
       }).join('');
       document.getElementById('modal-outros-body').innerHTML =
-        `<div style="font-size:11px;color:var(--muted);margin-bottom:8px">${tickets.length} ticket${tickets.length>1?'s':''}</div>
-         <div style="max-height:460px;overflow-y:auto">${linhas}</div>`;
+        `<div style="max-height:480px;overflow-y:auto;padding-right:4px">${secoes}</div>`;
     } catch(e) {
       document.getElementById('modal-outros-body').innerHTML =
         `<p style="color:#dc2626;font-size:12px">Erro: ${e.message}</p>`;
