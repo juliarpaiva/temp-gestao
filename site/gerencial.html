@@ -1661,6 +1661,74 @@
     _renderListaAgentes();
   }
 
+  function _csatRange() {
+    if (filterMode === 'dia' && selectedDay) {
+      const nd = new Date(selectedDay + 'T12:00:00Z'); nd.setUTCDate(nd.getUTCDate() + 1);
+      return { d0: selectedDay, d1: nd.toISOString().slice(0, 10) };
+    }
+    if (filterMode === 'semana' && selectedWeek) {
+      const nd = new Date(selectedWeek + 'T12:00:00Z'); nd.setUTCDate(nd.getUTCDate() + 7);
+      return { d0: selectedWeek, d1: nd.toISOString().slice(0, 10) };
+    }
+    if (filterMode === 'mes' && mesAtivo) {
+      const [y, m] = mesAtivo.split('-').map(Number);
+      const nd = new Date(Date.UTC(y, m, 1));
+      return { d0: `${y}-${String(m).padStart(2,'0')}-01`, d1: nd.toISOString().slice(0, 10) };
+    }
+    if (filterMode === 'periodo' && periodoInicio && periodoFim) {
+      const nd = new Date(periodoFim + 'T12:00:00Z'); nd.setUTCDate(nd.getUTCDate() + 1);
+      return { d0: periodoInicio, d1: nd.toISOString().slice(0, 10) };
+    }
+    return null;
+  }
+
+  async function abrirCsatTicketsAgente(agente, tipo) {
+    const range = _csatRange();
+    if (!range) return;
+    const nome = agente.split(' ')[0];
+    const tipoLabel = tipo === 'pos' ? 'Positivas' : 'Negativas';
+    const corTipo = tipo === 'pos' ? '#16a34a' : 'var(--rosa)';
+    document.getElementById('modal-outros-titulo').textContent = `${nome} — ${tipoLabel}`;
+    document.getElementById('modal-outros-nav').innerHTML =
+      `<button class="btn-voltar-modal" onclick="fecharModalOutros()">✕ Fechar</button>`;
+    document.getElementById('modal-outros-body').innerHTML =
+      '<p style="color:var(--muted);font-size:12px;padding:8px 0">Carregando…</p>';
+    document.getElementById('modal-outros').classList.add('aberto');
+    try {
+      const r = await fetch(`${API}/csat-tickets-agente?agente=${encodeURIComponent(agente)}&d0=${range.d0}&d1=${range.d1}&tipo=${tipo}`);
+      const tickets = await r.json();
+      if (!tickets.length) {
+        document.getElementById('modal-outros-body').innerHTML =
+          '<p style="color:var(--muted);font-size:12px">Nenhum ticket encontrado.</p>';
+        return;
+      }
+      const linhas = tickets.map(t => {
+        const link = t.link || `https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.id}`;
+        const tagsHtml = (t.tags||[]).length
+          ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px">${t.tags.map(tg => `<span style="font-size:10px;background:#f1f5f9;border-radius:4px;padding:1px 6px;color:#475569">${escHtml(tg)}</span>`).join('')}</div>` : '';
+        const fbHtml = t.feedback
+          ? `<div style="font-size:11px;color:var(--muted);font-style:italic;margin-top:3px;line-height:1.4">"${escHtml(t.feedback.slice(0,140))}${t.feedback.length>140?'…':''}"</div>` : '';
+        return `<div style="padding:10px 0;border-bottom:1px solid var(--borda)">
+          <div style="display:flex;align-items:center;gap:10px">
+            <a href="${link}" target="_blank" rel="noopener" style="color:var(--rosa);font-weight:700;font-size:13px;text-decoration:none;flex-shrink:0">
+              #${t.id}<svg width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-left:2px"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
+            </a>
+            <span style="flex:1;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(t.cliente_nome||'')}</span>
+            <span style="font-size:12px;font-weight:700;color:${corTipo};flex-shrink:0">Nota ${t.nota}</span>
+            <span style="font-size:10px;color:var(--muted);flex-shrink:0">${t.date}</span>
+          </div>
+          ${fbHtml}${tagsHtml}
+        </div>`;
+      }).join('');
+      document.getElementById('modal-outros-body').innerHTML =
+        `<div style="font-size:11px;color:var(--muted);margin-bottom:8px">${tickets.length} ticket${tickets.length>1?'s':''}</div>
+         <div style="max-height:480px;overflow-y:auto;padding-right:4px">${linhas}</div>`;
+    } catch(e) {
+      document.getElementById('modal-outros-body').innerHTML =
+        `<p style="color:#dc2626;font-size:12px">Erro: ${e.message}</p>`;
+    }
+  }
+
   async function irParaHoje() {
     const today = new Date().toISOString().slice(0, 10);
     const dates  = Object.keys(summaryMap).sort().reverse();
@@ -1980,7 +2048,7 @@
         <span class="agente-pos" style="color:${cor};width:36px;font-size:12px">${d.pct}%</span>
         <span class="agente-nome">${medal}${d.nome.split(' ')[0]}</span>
         <div class="agente-bar-wrap"><div class="agente-bar" style="width:${d.pct}%;background:${barCor}"></div></div>
-        <span class="agente-num" style="font-size:11px;width:56px"><span style="color:#16a34a">✓ ${d.pos}</span> <span style="color:var(--rosa)">✗ ${d.neg}</span></span>
+        <span class="agente-num" style="font-size:11px;width:56px"><span style="color:#16a34a;cursor:pointer" onclick="abrirCsatTicketsAgente('${d.nome.replace(/'/g,"\\'")}','pos')">✓ ${d.pos}</span> <span style="color:var(--rosa);cursor:pointer" onclick="abrirCsatTicketsAgente('${d.nome.replace(/'/g,"\\'")}','neg')">✗ ${d.neg}</span></span>
       </div>`;
     }).join('') : '<p style="color:var(--muted);font-size:12px">Sem dados — reprocesse os dias do mês</p>';
 
@@ -1991,7 +2059,7 @@
         <span class="agente-pos">${i+1}</span>
         <span class="agente-nome">${nome.split(' ')[0]}</span>
         <div class="agente-bar-wrap"><div class="agente-bar" style="width:${Math.round(cnt/maxAg*100)}%"></div></div>
-        <span class="agente-num">${cnt}</span>
+        <span class="agente-num" style="cursor:pointer;text-decoration:underline dotted" onclick="abrirCsatTicketsAgente('${nome.replace(/'/g,"\\'")}','neg')">${cnt}</span>
       </div>`).join('') : '<p style="color:var(--muted);font-size:12px">Sem dados</p>';
 
     const topTags = Object.entries(activeDados.tags || {}).sort((a,b) => b[1]-a[1]).slice(0,6);
@@ -2011,7 +2079,7 @@
         <span class="agente-pos">${i===0?'🥇':i+1}</span>
         <span class="agente-nome">${nome.split(' ')[0]}</span>
         <div class="agente-bar-wrap"><div class="agente-bar" style="width:${Math.round(cnt/maxPosAg*100)}%;background:${i===0?'#ca8a04':'#16a34a'}"></div></div>
-        <span class="agente-num">${cnt}</span>
+        <span class="agente-num" style="cursor:pointer;text-decoration:underline dotted" onclick="abrirCsatTicketsAgente('${nome.replace(/'/g,"\\'")}','pos')">${cnt}</span>
       </div>`).join('') : '<p style="color:var(--muted);font-size:12px">Sem dados</p>';
 
     const topTagsPos = Object.entries(activeDados.tags_positivos || {}).sort((a,b) => b[1]-a[1]).slice(0,6);

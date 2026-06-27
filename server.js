@@ -1073,6 +1073,32 @@ app.get('/backlog-tickets', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/csat-tickets-agente', async (req, res) => {
+  const { agente, d0, d1, tipo } = req.query;
+  if (!agente || !d0 || !d1) return res.status(400).json({ error: 'agente, d0, d1 obrigatórios' });
+  const campo = tipo === 'pos' ? 'tickets_positivos' : 'tickets';
+  try {
+    const rows = await pool.query(`
+      SELECT r.date::text, t
+      FROM support_bi.csat_reports r,
+           jsonb_array_elements(r.data->'${campo}') AS t
+      WHERE r.date >= $1 AND r.date < $2
+        AND t->>'agente' = $3
+      ORDER BY r.date DESC
+    `, [d0, d1, agente]);
+    res.json(rows.rows.map(r => ({
+      date: r.date,
+      id: r.t.id,
+      link: r.t.link,
+      nota: r.t.nota,
+      agente: r.t.agente,
+      feedback: r.t.feedback || null,
+      cliente_nome: r.t.cliente_nome || null,
+      tags: Array.isArray(r.t.tags) ? r.t.tags : [],
+    })));
+  } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/agent-tickets-op', async (req, res) => {
   const AGENTES = ['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa'];
   const { agente, semana, mes, dia, inicio, fim } = req.query;
