@@ -708,7 +708,7 @@
           const p = porAg.find(x => x.agente === ag)   || {};
           const enc = r.resolvidos || 0;
           const adi = s.total || 0;
-          const pend = (kpisOp.backlog?.pending_por_agente || {})[ag] || 0;
+          const pend = (kpisOp.atual?.pendentes_por_agente || {})[ag] || 0;
           return { agente: ag,
             encerrados: enc,
             pendentes: pend,
@@ -785,7 +785,7 @@
               ${th('agente','Agente','')}
               ${th('total','Total','r')}
               ${th('encerrados','Encerrados','r')}
-              ${th('pendentes','Pendentes <span style="font-size:9px;font-weight:400;opacity:.6">(hoje)</span>','r')}
+              ${th('pendentes','Pendentes','r')}
               ${th('adiados_total','Adiados','r')}
               ${th('csat','CSAT','r')}
               ${th('tempo_resp_h','1ª Resposta','r')}
