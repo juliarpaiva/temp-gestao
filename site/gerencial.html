@@ -1274,7 +1274,7 @@
     abrirReportPanel(date);
   }
 
-  function abrirReportPanel(date) {
+  function abrirReportPanel(date, scroll = true) {
     const [da, dm, dd] = date.split('-');
     const titulo = `${Number(dd)} de ${MESES_PT[Number(dm)-1]} de ${da}`;
     document.getElementById('report-panel-title').textContent = `Relatório — ${titulo}`;
@@ -1282,7 +1282,7 @@
     document.getElementById('report-iframe').src = `report.html?date=${date}&embed=true`;
     document.getElementById('report-panel').classList.add('visivel');
     _renderOutrosNoPanel(date);
-    setTimeout(() => { document.getElementById('report-panel').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
+    if (scroll) setTimeout(() => { document.getElementById('report-panel').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
   }
 
   function _renderOutrosNoPanel(date) {
@@ -1920,7 +1920,7 @@
         try { const _r = await fetch(`${API}/data/${_target}`); if (_r.ok) dayDataCache[_target] = await _r.json(); } catch(e) {}
       }
       render();
-      if (_target) abrirReportPanel(_target);
+      if (_target) abrirReportPanel(_target, false);
     } catch(e) {
       document.getElementById('conteudo').innerHTML = `<div class="erro">Erro ao carregar: ${e.message}</div>`;
     }
