@@ -286,11 +286,11 @@
 
 <nav class="sec-nav">
   <div class="sec-nav-inner">
-    <a class="sec-nav-btn ativo" id="nav-op" href="#secao-kpis-op">Métricas Operacionais</a>
+    <a class="sec-nav-btn ativo" id="nav-op" href="#" onclick="event.preventDefault();document.getElementById('secao-kpis-op').scrollIntoView({behavior:'smooth'})">Métricas Operacionais</a>
     <span style="width:1px;height:16px;background:var(--borda);margin:0 4px;flex-shrink:0"></span>
-    <a class="sec-nav-btn" id="nav-csat" href="#secao-csat-ancora">Painel CSAT</a>
+    <a class="sec-nav-btn" id="nav-csat" href="#" onclick="event.preventDefault();document.getElementById('secao-csat-ancora').scrollIntoView({behavior:'smooth'})">Painel CSAT</a>
     <span style="width:1px;height:16px;background:var(--borda);margin:0 4px;flex-shrink:0"></span>
-    <a class="sec-nav-btn" id="nav-ia" href="#secao-claudia">Painel Claudia</a>
+    <a class="sec-nav-btn" id="nav-ia" href="#" onclick="event.preventDefault();document.getElementById('secao-claudia').scrollIntoView({behavior:'smooth'})">Painel Claudia</a>
   </div>
 </nav>
 <button class="btn-topo" id="btn-topo" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Voltar ao topo">↑</button>
@@ -334,7 +334,7 @@
 </div>
 
 <main class="main">
-  <div id="secao-kpis-op" style="margin-bottom:36px">
+  <div id="secao-kpis-op" style="margin-bottom:36px;scroll-margin-top:64px">
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px">
       <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
       <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
@@ -2226,7 +2226,7 @@
       : `<p style="color:var(--muted);font-size:12px;padding:12px 16px">Nenhuma avaliação indevida ${filterMode==='dia'&&selectedDay?'neste dia':filterMode==='semana'&&selectedWeek?'nesta semana':filterMode==='periodo'&&periodoInicio?'neste período':'neste mês'}.</p>`;
 
     document.getElementById('conteudo').innerHTML = `
-      <div id="secao-csat-ancora" style="display:flex;align-items:center;gap:16px;margin-bottom:28px;padding:18px 24px;background:var(--card);border:1px solid var(--borda);border-radius:var(--r);box-shadow:var(--sh)">
+      <div id="secao-csat-ancora" style="display:flex;align-items:center;gap:16px;margin-bottom:28px;padding:18px 24px;background:var(--card);border:1px solid var(--borda);border-radius:var(--r);box-shadow:var(--sh);scroll-margin-top:64px">
         <div style="width:3px;height:36px;background:var(--rosa);border-radius:2px;flex-shrink:0"></div>
         <div style="flex:1">
           <div style="font-size:13px;font-weight:800;color:var(--preto);margin-bottom:3px">Painel CSAT — Negativos &amp; Positivos</div>
@@ -2419,6 +2419,8 @@
   });
 
   // ── Navegação de seções + voltar ao topo ────────────────────────────────────
+  if (window.location.hash) history.replaceState(null, '', window.location.pathname + window.location.search);
+  window.scrollTo(0, 0);
   (function() {
     const btnTopo = document.getElementById('btn-topo');
     const navOp   = document.getElementById('nav-op');
