@@ -879,7 +879,7 @@ app.get('/kpis-semanais', async (req, res) => {
         volume:       Number(r[1]) || 0,
         tempo_resp_h: r[2] !== null ? Number(r[2]) : null,
         tempo_enc_h:  r[3] !== null ? Number(r[3]) : null,
-        csat:         csatCC !== null ? csatCC : (r[4] !== null ? Number(r[4]) : null),
+        csat:         csatCC !== null ? csatCC : null,
       };
     });
 
