@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/csat-tickets-agente'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/csat-tickets-agente', '/agent-tickets-op'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
