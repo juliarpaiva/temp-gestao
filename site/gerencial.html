@@ -630,7 +630,7 @@
       <tr>
         <td class="ops-agente">${escHtml(ag.agente)}</td>
         <td class="r" style="color:${ag.volume >= metaVol ? '#16a34a' : ag.volume >= metaVol * 0.8 ? '#ca8a04' : '#dc2626'};font-weight:700">${ag.volume}</td>
-        <td class="r">${opsCsatPill(ag.csat)}</td>
+        <td class="r">${!!atual.csat_cc_loading ? '<span style="color:#94a3b8;font-size:11px">...</span>' : opsCsatPill(ag.csat)}</td>
         <td class="r" style="color:${trCor};font-weight:700">${fmtHora(ag.tempo_resp_h)}</td>
         <td class="r">${fmtHora(ag.tempo_enc_h)}</td>
       </tr>`;
@@ -642,8 +642,10 @@
     const respondidos    = atual.respondidos ?? 0;
     const pctMeta        = metaTotalVol > 0 ? Math.round(respondidos / metaTotalVol * 100) : 0;
     const volCor  = totalAgentesOp > 0 && agentesComMeta === totalAgentesOp ? '#16a34a' : agentesComMeta > 0 ? '#ca8a04' : '#dc2626';
-    const csatOk  = atual.csat_time  !== null && atual.csat_time  >= 75;
-    const csatCor = atual.csat_time  !== null ? (atual.csat_time  >= 75 ? '#16a34a' : atual.csat_time  >= 55 ? '#ca8a04' : '#dc2626') : 'var(--rosa)';
+    const csatLoading = !!atual.csat_cc_loading;
+    if (csatLoading) setTimeout(() => mudarFilterModeOp(filterModeOp), 40000);
+    const csatOk  = !csatLoading && atual.csat_time  !== null && atual.csat_time  >= 75;
+    const csatCor = csatLoading ? '#94a3b8' : atual.csat_time  !== null ? (atual.csat_time  >= 75 ? '#16a34a' : atual.csat_time  >= 55 ? '#ca8a04' : '#dc2626') : 'var(--rosa)';
     const respOk  = atual.tempo_resposta_h !== null && atual.tempo_resposta_h <= 1;
     const respCor = atual.tempo_resposta_h !== null ? (atual.tempo_resposta_h <= 1 ? '#16a34a' : atual.tempo_resposta_h <= 2 ? '#ca8a04' : '#dc2626') : 'inherit';
 
@@ -666,9 +668,9 @@
         </div>
         <div class="kpi" style="border-left:4px solid ${csatCor}">
           <div class="kpi-label">CSAT geral</div>
-          <div class="ops-kpi-num" style="color:${csatCor}">${atual.csat_time !== null ? atual.csat_time + '%' : '—'}</div>
-          <div class="kpi-sub" style="color:${csatCor};margin-top:6px">${atual.csat_time !== null ? (csatOk?'✓':'✗')+' meta 75%' : '—'}</div>
-          <div class="kpi-sub flat" style="margin-top:3px">${opsVs(atual.csat_time, anterior.csat_time, false, true)}</div>
+          <div class="ops-kpi-num" style="color:${csatCor}">${csatLoading ? 'Carregando...' : atual.csat_time !== null ? atual.csat_time + '%' : '—'}</div>
+          <div class="kpi-sub" style="color:${csatCor};margin-top:6px">${csatLoading ? 'atualizando dados' : atual.csat_time !== null ? (csatOk?'✓':'✗')+' meta 75%' : '—'}</div>
+          <div class="kpi-sub flat" style="margin-top:3px">${csatLoading ? '' : opsVs(atual.csat_time, anterior.csat_time, false, true)}</div>
         </div>
         <div class="kpi">
           <div class="kpi-label">CSAT Claudia</div>
@@ -754,7 +756,7 @@
             <td class="r" style="font-weight:600">${u.encerrados || '—'}</td>
             <td class="r" ${u.pendentes > 0 ? `style="font-weight:700;color:#92400e;cursor:pointer" onclick="abrirPendentesAgente('${u.agente}')" title="Ver tickets pendentes"` : `style="font-weight:600"`}>${u.pendentes || '—'}</td>
             <td class="r"><div style="font-weight:700">${adTotal}</div>${adSub}</td>
-            <td class="r">${opsCsatPill(u.csat)}</td>
+            <td class="r">${csatLoading ? '<span style="color:#94a3b8;font-size:11px">...</span>' : opsCsatPill(u.csat)}</td>
             <td class="r" style="color:${trCor};font-weight:700">${fmtHora(u.tempo_resp_h)}</td>
             <td class="r">${fmtHora(u.tempo_enc_h)}</td>
           </tr>`;

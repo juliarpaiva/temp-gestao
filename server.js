@@ -482,10 +482,10 @@ async function fetchCsatSurveysCC(d0, d1) {
 
 function calcCsatCC(surveys) {
   if (!surveys || !surveys.length) return null;
-  const scores = surveys.map(s => s.rating).filter(r => r != null);
-  if (!scores.length) return null;
-  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-  return Math.round(((avg - 1) / 4 * 100) * 10) / 10;
+  const rated = surveys.filter(s => s.rating != null);
+  if (!rated.length) return null;
+  const pos = rated.filter(s => s.rating >= 4).length;
+  return Math.round(pos / rated.length * 1000) / 10; // positivas ÷ total, igual ao Painel CSAT
 }
 
 // Puxar todas as indevidas históricas de junho via CloudChat API e importar
@@ -705,6 +705,48 @@ app.get('/kpis-semanais', async (req, res) => {
     } catch (_e) {}
     const indevidasNotIn = indevidasIds.length ? `AND t.ticket_id NOT IN (${indevidasIds.join(',')})` : '';
 
+    // Para mês/período: verificar cache de CC CSAT separado e disparar fetch em background se necessário
+    const ccCsatKey = `cc_csat:${periodKey}`;
+    let ccCsatCached = null;
+    let csatCcLoading = false;
+    if (modoLabel === 'mes' || modoLabel === 'periodo') {
+      try {
+        const row = await pool.query(
+          `SELECT data FROM support_bi.kpis_op_cache WHERE period_key=$1 AND fetched_at > NOW() - INTERVAL '12 hours'`,
+          [ccCsatKey]
+        );
+        if (row.rows.length) ccCsatCached = row.rows[0].data;
+      } catch(_) {}
+      if (!ccCsatCached) {
+        csatCcLoading = true;
+        const _bgD0 = d0, _bgD1 = d1, _bgKey = periodKey, _bgCcKey = ccCsatKey, _bgIndev = [...indevidasIds];
+        fetchCsatSurveysCC(_bgD0, _bgD1).then(surveys => {
+          if (!surveys) return;
+          const indevSet = new Set(_bgIndev.map(String));
+          const valid = surveys.filter(s => !indevSet.has(String(s.conversation_id)));
+          const csatTimeCC = calcCsatCC(valid);
+          const agenteScores = {};
+          for (const s of valid) {
+            const nome = s.assigned_agent?.name;
+            if (!nome) continue;
+            if (!agenteScores[nome]) agenteScores[nome] = [];
+            agenteScores[nome].push(s.rating);
+          }
+          const csatPorAgenteCC = {};
+          for (const [nome, ratings] of Object.entries(agenteScores)) {
+            const vr = ratings.filter(r => r != null);
+            if (vr.length) csatPorAgenteCC[nome] = Math.round(vr.filter(r => r >= 4).length / vr.length * 1000) / 10;
+          }
+          pool.query(
+            `INSERT INTO support_bi.kpis_op_cache (period_key, data) VALUES ($1,$2) ON CONFLICT (period_key) DO UPDATE SET data=$2, fetched_at=NOW()`,
+            [_bgCcKey, JSON.stringify({ csat_time: csatTimeCC, csat_por_agente: csatPorAgenteCC })]
+          ).then(() => {
+            pool.query(`DELETE FROM support_bi.kpis_op_cache WHERE period_key=$1`, [_bgKey]).catch(() => {});
+          }).catch(e => console.error('[cc-csat-bg]', e.message));
+        }).catch(e => console.error('[cc-csat-bg]', e.message));
+      }
+    }
+
     const token = await getMetabaseToken();
 
     async function sqlScalar(sql) {
@@ -793,32 +835,35 @@ app.get('/kpis-semanais', async (req, res) => {
       sqlRows(`SELECT COALESCE(agent_on_resolution_name,'Encerrado pelo seller'), COUNT(*)::int FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND (agent_on_resolution_name IS NULL OR (agent_on_resolution_name NOT IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND agent_on_resolution_name NOT ILIKE '%claudia%')) AND resolved_at_local >= '${d0}' AND resolved_at_local < '${d1}' GROUP BY 1 ORDER BY 2 DESC`),
       sqlRows(`SELECT display_ticket_id, DATE(created_at_local)::text, ticket_status, csat_score, csat_feedback, contact_name FROM dw.fact_cloudchat_tickets WHERE agent_on_resolution_name ILIKE '%claudia%' AND agent_on_resolution_name NOT ILIKE '%projetos%' AND created_at_local >= '${d0}' AND created_at_local < '${d1}' ORDER BY created_at_local DESC LIMIT 300`),
       sqlRows(`SELECT agent_on_resolution_name, COUNT(*)::int FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'pending' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND created_at_local >= '${d0}' AND created_at_local < '${d1}' GROUP BY 1`),
-      fetchCsatSurveysCC(d0, d1).catch(() => null),
+      // Dia/semana: busca CloudChat ao vivo (rápido). Mês/período: usa cache assíncrono acima.
+      (modoLabel === 'dia' || modoLabel === 'semana') ? fetchCsatSurveysCC(d0, d1).catch(() => null) : Promise.resolve(null),
     ]);
 
-    // CSAT calculado via CloudChat API (data de avaliação real), excluindo indevidas
-    const indevidasSet = new Set(indevidasIds.map(String));
-    const ccValid = ccSurveys ? ccSurveys.filter(s => !indevidasSet.has(String(s.conversation_id))) : null;
-    const csatTime = ccValid ? calcCsatCC(ccValid) : csatTimeDW;
-
-    // CSAT por agente via CloudChat (fallback para DW se não disponível)
-    const csatPorAgenteCC = {};
-    if (ccValid) {
+    // Resolve dados de CSAT do CloudChat
+    let ccCsatData = null;
+    if (ccCsatCached) {
+      ccCsatData = ccCsatCached; // mês/período com cache pronto
+    } else if (ccSurveys) {
+      // dia/semana: calcular a partir dos surveys buscados ao vivo
+      const indevidasSet = new Set(indevidasIds.map(String));
+      const valid = ccSurveys.filter(s => !indevidasSet.has(String(s.conversation_id)));
       const agenteScores = {};
-      for (const s of ccValid) {
+      for (const s of valid) {
         const nome = s.assigned_agent?.name;
         if (!nome) continue;
         if (!agenteScores[nome]) agenteScores[nome] = [];
         agenteScores[nome].push(s.rating);
       }
+      const csatPA = {};
       for (const [nome, ratings] of Object.entries(agenteScores)) {
-        const valid = ratings.filter(r => r != null);
-        if (valid.length) {
-          const avg = valid.reduce((a, b) => a + b, 0) / valid.length;
-          csatPorAgenteCC[nome] = Math.round(((avg - 1) / 4 * 100) * 10) / 10;
-        }
+        const vr = ratings.filter(r => r != null);
+        if (vr.length) csatPA[nome] = Math.round(((vr.reduce((a,b)=>a+b,0)/vr.length - 1) / 4 * 100) * 10) / 10;
       }
+      ccCsatData = { csat_time: calcCsatCC(valid), csat_por_agente: csatPA };
     }
+
+    const csatTime = ccCsatData ? ccCsatData.csat_time : csatTimeDW;
+    const csatPorAgenteCC = (ccCsatData && ccCsatData.csat_por_agente) || {};
 
     const porAgente = porAgenteRows.map(r => {
       const agente = r[0];
@@ -855,6 +900,7 @@ app.get('/kpis-semanais', async (req, res) => {
         respondidos:          respondidos ?? 0,
         media_diaria:         mediaDiaria ?? 0,
         csat_time:            csatTime,
+        csat_cc_loading:      csatCcLoading,
         csat_claudia:         csatClaudia,
         retencao_n1:          retencaoN1  ?? 0,
         tempo_resposta_h:     tempoResposta,
