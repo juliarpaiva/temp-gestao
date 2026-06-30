@@ -462,21 +462,26 @@ async function fetchCsatSurveysCC(d0, d1) {
   if (!ccToken) return null;
   const since = Math.floor(new Date(d0 + 'T00:00:00Z').getTime() / 1000);
   const until  = Math.floor(new Date(d1 + 'T00:00:00Z').getTime() / 1000);
-  let all = [];
-  let page = 1;
-  while (true) {
-    const data = await fetchCloudChat(
-      `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/csat_survey_responses?since=${since}&until=${until}&page=${page}`,
-      ccToken
-    );
-    const items = Array.isArray(data) ? data : (data.data || []);
-    if (!items.length) break;
-    all = all.concat(items);
-    if (items.length < 25) break;
-    page++;
-    if (page > 80) break;
-  }
-  return all;
+  // Timeout de 8s para não bloquear a resposta em períodos grandes
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
+  const fetch = async () => {
+    let all = [];
+    let page = 1;
+    while (true) {
+      const data = await fetchCloudChat(
+        `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/csat_survey_responses?since=${since}&until=${until}&page=${page}`,
+        ccToken
+      );
+      const items = Array.isArray(data) ? data : (data.data || []);
+      if (!items.length) break;
+      all = all.concat(items);
+      if (items.length < 25) break;
+      page++;
+      if (page > 80) break;
+    }
+    return all;
+  };
+  return Promise.race([fetch(), timeout]);
 }
 
 function calcCsatCC(surveys) {
