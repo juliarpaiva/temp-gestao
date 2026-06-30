@@ -1474,6 +1474,7 @@ async function runDailyReport(dateOverride = null, force = false) {
            csat_feedback, contact_name, ticket_link
     FROM dw.fact_cloudchat_tickets
     WHERE csat_score IS NOT NULL
+      AND ticket_status = 'resolved'
       AND resolved_at_local >= '${date}'
       AND resolved_at_local < '${dateNext}'
     ORDER BY resolved_at_local DESC
