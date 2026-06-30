@@ -457,6 +457,36 @@ async function fetchCloudChat(path, token, method = 'GET', body = null) {
   return resp.json();
 }
 
+async function fetchCsatSurveysCC(d0, d1) {
+  const ccToken = process.env.CLOUDCHAT_TOKEN;
+  if (!ccToken) return null;
+  const since = Math.floor(new Date(d0 + 'T00:00:00Z').getTime() / 1000);
+  const until  = Math.floor(new Date(d1 + 'T00:00:00Z').getTime() / 1000);
+  let all = [];
+  let page = 1;
+  while (true) {
+    const data = await fetchCloudChat(
+      `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/csat_survey_responses?since=${since}&until=${until}&page=${page}`,
+      ccToken
+    );
+    const items = Array.isArray(data) ? data : (data.data || []);
+    if (!items.length) break;
+    all = all.concat(items);
+    if (items.length < 25) break;
+    page++;
+    if (page > 80) break;
+  }
+  return all;
+}
+
+function calcCsatCC(surveys) {
+  if (!surveys || !surveys.length) return null;
+  const scores = surveys.map(s => s.rating).filter(r => r != null);
+  if (!scores.length) return null;
+  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+  return Math.round(((avg - 1) / 4 * 100) * 10) / 10;
+}
+
 // Puxar todas as indevidas históricas de junho via CloudChat API e importar
 // Etapas: (1) CSATs de junho, (2) conversas com avaliao_de_csat_vlida=true, (3) cruzamento + import
 app.get('/admin/puxar-indevidas-cloudchat', async (req, res) => {
@@ -698,13 +728,14 @@ app.get('/kpis-semanais', async (req, res) => {
     }
 
     const [
-      volume, respondidos, mediaDiaria, csatTime, csatClaudia, retencaoN1,
+      volume, respondidos, mediaDiaria, csatTimeDW, csatClaudia, retencaoN1,
       tempoResposta, tempoEncerramento,
       volAnterior, retencaoAnterior, csatAnterior,
       porAgenteRows, snoozedRows,
       emAberto, semAtribuicao, pendentes,
       resolvidosPorAgenteRows, outrosRows,
-      claudiaTicketsRows, pendentesAgenteRows
+      claudiaTicketsRows, pendentesAgenteRows,
+      ccSurveys
     ] = await Promise.all([
       sqlScalar(`SELECT COUNT(ticket_id) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
@@ -760,16 +791,45 @@ app.get('/kpis-semanais', async (req, res) => {
       sqlRows(`SELECT agent_on_resolution_name, COUNT(*)::int AS resolvidos FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND resolved_at_local >= '${d0}' AND resolved_at_local < '${d1}' GROUP BY 1 ORDER BY 2 DESC`),
       sqlRows(`SELECT COALESCE(agent_on_resolution_name,'Encerrado pelo seller'), COUNT(*)::int FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND (agent_on_resolution_name IS NULL OR (agent_on_resolution_name NOT IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND agent_on_resolution_name NOT ILIKE '%claudia%')) AND resolved_at_local >= '${d0}' AND resolved_at_local < '${d1}' GROUP BY 1 ORDER BY 2 DESC`),
       sqlRows(`SELECT display_ticket_id, DATE(created_at_local)::text, ticket_status, csat_score, csat_feedback, contact_name FROM dw.fact_cloudchat_tickets WHERE agent_on_resolution_name ILIKE '%claudia%' AND agent_on_resolution_name NOT ILIKE '%projetos%' AND created_at_local >= '${d0}' AND created_at_local < '${d1}' ORDER BY created_at_local DESC LIMIT 300`),
-      sqlRows(`SELECT agent_on_resolution_name, COUNT(*)::int FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'pending' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND created_at_local >= '${d0}' AND created_at_local < '${d1}' GROUP BY 1`)
+      sqlRows(`SELECT agent_on_resolution_name, COUNT(*)::int FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'pending' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND created_at_local >= '${d0}' AND created_at_local < '${d1}' GROUP BY 1`),
+      fetchCsatSurveysCC(d0, d1).catch(() => null),
     ]);
 
-    const porAgente = porAgenteRows.map(r => ({
-      agente: r[0],
-      volume: Number(r[1]) || 0,
-      tempo_resp_h: r[2] !== null ? Number(r[2]) : null,
-      tempo_enc_h:  r[3] !== null ? Number(r[3]) : null,
-      csat:         r[4] !== null ? Number(r[4]) : null,
-    }));
+    // CSAT calculado via CloudChat API (data de avaliação real), excluindo indevidas
+    const indevidasSet = new Set(indevidasIds.map(String));
+    const ccValid = ccSurveys ? ccSurveys.filter(s => !indevidasSet.has(String(s.conversation_id))) : null;
+    const csatTime = ccValid ? calcCsatCC(ccValid) : csatTimeDW;
+
+    // CSAT por agente via CloudChat (fallback para DW se não disponível)
+    const csatPorAgenteCC = {};
+    if (ccValid) {
+      const agenteScores = {};
+      for (const s of ccValid) {
+        const nome = s.assigned_agent?.name;
+        if (!nome) continue;
+        if (!agenteScores[nome]) agenteScores[nome] = [];
+        agenteScores[nome].push(s.rating);
+      }
+      for (const [nome, ratings] of Object.entries(agenteScores)) {
+        const valid = ratings.filter(r => r != null);
+        if (valid.length) {
+          const avg = valid.reduce((a, b) => a + b, 0) / valid.length;
+          csatPorAgenteCC[nome] = Math.round(((avg - 1) / 4 * 100) * 10) / 10;
+        }
+      }
+    }
+
+    const porAgente = porAgenteRows.map(r => {
+      const agente = r[0];
+      const csatCC = csatPorAgenteCC[agente] !== undefined ? csatPorAgenteCC[agente] : null;
+      return {
+        agente,
+        volume:       Number(r[1]) || 0,
+        tempo_resp_h: r[2] !== null ? Number(r[2]) : null,
+        tempo_enc_h:  r[3] !== null ? Number(r[3]) : null,
+        csat:         csatCC !== null ? csatCC : (r[4] !== null ? Number(r[4]) : null),
+      };
+    });
 
     const snoozedPorAgente = snoozedRows.map(r => ({
       agente:       r[0],
