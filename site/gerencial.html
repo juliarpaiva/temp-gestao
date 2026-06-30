@@ -196,21 +196,6 @@
     .filter-tab:hover { color: var(--preto); }
     .filter-tab.ativo { background: #fff; color: var(--preto); box-shadow: 0 1px 4px rgba(0,0,0,.1); }
 
-    /* REPORT INLINE PANEL */
-    .report-panel { display: none; margin: 0 0 32px; }
-    .report-panel.visivel { display: block; }
-    .report-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; background: var(--preto); border-radius: var(--r) var(--r) 0 0; }
-    .report-panel-title { font-size: 13px; font-weight: 700; color: #fff; }
-    .report-panel-actions { display: flex; align-items: center; gap: 10px; }
-    .report-panel-link { color: #aaa; font-size: 11px; font-weight: 600; text-decoration: none; border: 1px solid #333; border-radius: 5px; padding: 3px 10px; transition: all .15s; }
-    .report-panel-link:hover { background: var(--rosa); border-color: var(--rosa); color: #fff; }
-    .report-panel-close { background: none; border: none; color: #666; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 4px; transition: color .15s; }
-    .report-panel-close:hover { color: #fff; }
-    .report-panel iframe { display: block; width: 100%; height: 680px; border: 1px solid var(--borda); border-top: none; border-bottom: none; background: var(--bg); }
-    .report-panel-outros { border: 1px solid var(--borda); border-radius: 0 0 var(--r) var(--r); background: var(--card); padding: 18px 24px; }
-    .report-panel-outros-head { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .7px; color: var(--muted); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
-    .report-panel-outros-head::before { content:""; display:block; width:3px; height:13px; background:#94a3b8; border-radius:2px; }
-    .report-panel-outros-grid { display: flex; flex-wrap: wrap; gap: 8px; }
 
     /* STREAK */
     .streak-badge { display: inline-flex; align-items: center; gap: 8px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 700; color: #c2410c; margin-bottom: 12px; }
@@ -374,17 +359,6 @@
     </div>
   </div>
 
-  <div id="report-panel" class="report-panel">
-    <div class="report-panel-header">
-      <span class="report-panel-title" id="report-panel-title">Relatório do dia</span>
-      <div class="report-panel-actions">
-        <a class="report-panel-link" id="report-panel-extlink" href="#" target="_blank" rel="noopener">Abrir em nova aba ↗</a>
-        <button class="report-panel-close" onclick="fecharReportPanel()" title="Fechar">✕</button>
-      </div>
-    </div>
-    <iframe id="report-iframe" src="" title="Relatório do dia"></iframe>
-    <div id="report-panel-outros" class="report-panel-outros" style="display:none"></div>
-  </div>
 
   <div id="secao-claudia" style="margin-bottom:36px;scroll-margin-top:64px">
     <div class="section-head">Painel Claudia — Retenção N1</div>
@@ -1275,39 +1249,8 @@
     abrirReportPanel(date);
   }
 
-  function abrirReportPanel(date, scroll = true) {
-    const [da, dm, dd] = date.split('-');
-    const titulo = `${Number(dd)} de ${MESES_PT[Number(dm)-1]} de ${da}`;
-    document.getElementById('report-panel-title').textContent = `Relatório — ${titulo}`;
-    document.getElementById('report-panel-extlink').href = `report.html?date=${date}`;
-    document.getElementById('report-iframe').src = `report.html?date=${date}&embed=true`;
-    document.getElementById('report-panel').classList.add('visivel');
-    _renderOutrosNoPanel(date);
-    if (scroll) setTimeout(() => { document.getElementById('report-panel').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80);
-  }
-
-  function _renderOutrosNoPanel(date) {
-    const el = document.getElementById('report-panel-outros');
-    const dayData = dayDataCache[date];
-    const porAg = (dayData && dayData.por_agente_outros) ? dayData.por_agente_outros : null;
-    if (!porAg || !Object.keys(porAg).length) { el.style.display = 'none'; return; }
-    const sorted = Object.entries(porAg).sort((a, b) => b[1] - a[1]);
-    el.style.display = 'block';
-    el.innerHTML = `
-      <div class="report-panel-outros-head">Outros agentes neste dia</div>
-      <div class="report-panel-outros-grid">
-        ${sorted.map(([nome, cnt]) => {
-          const nomeEsc = escHtml(nome).replace(/'/g, "\\'");
-          return `<button onclick="outrosAgenteDoDia('${nomeEsc}','${date}')"
-            style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;border:1px solid var(--borda);background:#f8fafc;font-size:12px;font-weight:600;color:var(--preto);cursor:pointer;transition:all .15s"
-            onmouseover="this.style.borderColor='var(--rosa)';this.style.color='var(--rosa)'"
-            onmouseout="this.style.borderColor='var(--borda)';this.style.color='var(--preto)'">
-            ${escHtml(nome)}
-            <span style="background:#e2e8f0;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:700;color:#64748b">${cnt}</span>
-          </button>`;
-        }).join('')}
-      </div>`;
-  }
+  function abrirReportPanel(date, scroll = true) {}
+  function _renderOutrosNoPanel(date) {}
 
   async function outrosAgenteDoDia(nome, date) {
     // Garante que temos os dados do dia e abre o modal direto no agente
@@ -1324,11 +1267,7 @@
     await verTicketsAgente(nome);
   }
 
-  function fecharReportPanel() {
-    document.getElementById('report-panel').classList.remove('visivel');
-    document.getElementById('report-iframe').src = '';
-    document.getElementById('report-panel-outros').style.display = 'none';
-  }
+  function fecharReportPanel() {}
 
   let _indevAgFilter = null; // agente selecionado no resumo de indevidas
 
