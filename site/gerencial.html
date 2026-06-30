@@ -2217,6 +2217,13 @@
       ${filterTabsHtml}
       ${modeNavHtml}
 
+      <div class="section">
+        <div class="section-head indev-head" id="section-indevidas">Avaliações indevidas — ${kpiLabel}</div>
+        <div class="painel" style="padding:0;overflow:hidden">
+          ${indevidasListHtml}
+        </div>
+      </div>
+
       <div class="section-head" id="section-tags">Tags de avaliações — ${kpiLabel}</div>
       <div class="dois-col">
         <div class="painel pos">
@@ -2226,13 +2233,6 @@
         <div class="painel">
           <div class="painel-title">Tags negativas</div>
           ${showTags ? tagsHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando…</p>' : '<p style="color:var(--muted);font-size:12px">Tags disponíveis após carregar os dados.</p>'}
-        </div>
-      </div>
-
-      <div class="section">
-        <div class="section-head indev-head" id="section-indevidas">Avaliações indevidas — ${kpiLabel}</div>
-        <div class="painel" style="padding:0;overflow:hidden">
-          ${indevidasListHtml}
         </div>
       </div>
 
