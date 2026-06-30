@@ -457,6 +457,12 @@ async function fetchCloudChat(path, token, method = 'GET', body = null) {
   return resp.json();
 }
 
+function addOneDay(date) {
+  const d = new Date(date + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 async function fetchCsatSurveysCC(d0, d1) {
   const ccToken = process.env.CLOUDCHAT_TOKEN;
   if (!ccToken) return null;
@@ -1500,6 +1506,22 @@ async function runDailyReport(dateOverride = null, force = false) {
     const nome = t.agent_on_resolution_name;
     por_agente_positivos[nome] = (por_agente_positivos[nome] || 0) + 1;
   }
+
+  // Sobrescreve contagens por agente com CloudChat (usa data de avaliação, não de criação do ticket)
+  try {
+    const ccSurveys = await fetchCsatSurveysCC(date, addOneDay(date));
+    if (ccSurveys && ccSurveys.length) {
+      for (const k of Object.keys(por_agente)) delete por_agente[k];
+      for (const k of Object.keys(por_agente_positivos)) delete por_agente_positivos[k];
+      for (const s of ccSurveys) {
+        const nome = s.assigned_agent?.name;
+        if (!nome || !isAgentMonitorada(nome)) continue;
+        if (indevidasSet.has(String(s.conversation_id))) continue;
+        if (s.rating != null && s.rating <= 3) por_agente[nome] = (por_agente[nome] || 0) + 1;
+        else if (s.rating != null && s.rating >= 4) por_agente_positivos[nome] = (por_agente_positivos[nome] || 0) + 1;
+      }
+    }
+  } catch (e) { console.error('[run-cc-override]', e.message); }
 
   // Tickets de agentes não monitoradas (inclui IA, gestão, etc.)
   const outrosTickets = comNota.filter(t => !isAgentMonitorada(t.agent_on_resolution_name));
