@@ -1507,19 +1507,23 @@ async function runDailyReport(dateOverride = null, force = false) {
     por_agente_positivos[nome] = (por_agente_positivos[nome] || 0) + 1;
   }
 
-  // Sobrescreve contagens por agente com CloudChat (usa data de avaliação, não de criação do ticket)
+  // Sobrescreve contagens por agente e totais com CloudChat (usa data de avaliação, não de criação do ticket)
+  let ccTotalNeg = null, ccTotalPos = null;
   try {
     const ccSurveys = await fetchCsatSurveysCC(date, addOneDay(date));
     if (ccSurveys && ccSurveys.length) {
       for (const k of Object.keys(por_agente)) delete por_agente[k];
       for (const k of Object.keys(por_agente_positivos)) delete por_agente_positivos[k];
+      let _neg = 0, _pos = 0;
       for (const s of ccSurveys) {
         const nome = s.assigned_agent?.name;
         if (!nome || !isAgentMonitorada(nome)) continue;
         if (indevidasSet.has(String(s.conversation_id))) continue;
-        if (s.rating != null && s.rating <= 3) por_agente[nome] = (por_agente[nome] || 0) + 1;
-        else if (s.rating != null && s.rating >= 4) por_agente_positivos[nome] = (por_agente_positivos[nome] || 0) + 1;
+        if (s.rating != null && s.rating <= 3) { por_agente[nome] = (por_agente[nome] || 0) + 1; _neg++; }
+        else if (s.rating != null && s.rating >= 4) { por_agente_positivos[nome] = (por_agente_positivos[nome] || 0) + 1; _pos++; }
       }
+      ccTotalNeg = _neg;
+      ccTotalPos = _pos;
     }
   } catch (e) { console.error('[run-cc-override]', e.message); }
 
@@ -1554,11 +1558,11 @@ async function runDailyReport(dateOverride = null, force = false) {
     date,
     generated_at: new Date().toISOString(),
     indevidas_removidas: indevidasSet.size,
-    total: tickets.length,
+    total:           ccTotalNeg !== null ? ccTotalNeg : tickets.length,
     total_recebidos: comNota.length,
-    total_avaliados: tickets.length + positivosMonitorados.length,
-    total_positivos: positivosMonitorados.length,
-    total_negativos: tickets.length,
+    total_avaliados: ccTotalNeg !== null ? ccTotalNeg + ccTotalPos : tickets.length + positivosMonitorados.length,
+    total_positivos: ccTotalPos !== null ? ccTotalPos : positivosMonitorados.length,
+    total_negativos: ccTotalNeg !== null ? ccTotalNeg : tickets.length,
     por_agente,
     por_agente_positivos,
     por_agente_outros,
