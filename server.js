@@ -1446,12 +1446,31 @@ async function runDailyReport(dateOverride = null, force = false) {
 
   // Tickets marcados como indevidos para esse dia são excluídos dos totais
   const indevidasRes = await pool.query(
-    'SELECT ticket_id FROM support_bi.csat_indevidas WHERE date = $1',
-    [date]
+    'SELECT ticket_id FROM support_bi.csat_indevidas'
   );
   const indevidasSet = new Set(indevidasRes.rows.map(r => String(r.ticket_id)));
 
-  const todosCsats    = await getAllCsats(token, date, 2000);
+  // Busca avaliações via DW por resolved_at_local — mesma base das Métricas Ops
+  const dateNext = addOneDay(date);
+  const dwCsatRows = await pool.query(`
+    SELECT display_ticket_id, agent_on_resolution_name, csat_score,
+           csat_feedback, contact_name, ticket_link
+    FROM dw.fact_cloudchat_tickets
+    WHERE csat_score IS NOT NULL
+      AND resolved_at_local >= $1
+      AND resolved_at_local < $2
+    ORDER BY resolved_at_local DESC
+    LIMIT 2000
+  `, [date, dateNext]);
+  const todosCsats = dwCsatRows.rows.map(r => ({
+    display_ticket_id:       r.display_ticket_id,
+    agent_on_resolution_name: r.agent_on_resolution_name,
+    csat_score:              r.csat_score !== null ? Number(r.csat_score) : null,
+    csat_feedback:           r.csat_feedback || null,
+    contact_name:            r.contact_name  || null,
+    contact_email:           null,
+    ticket_link:             r.ticket_link   || null,
+  }));
   const comNota       = todosCsats.filter(t => t.csat_score !== null);
   const negativosAll  = comNota.filter(t => t.csat_score <= 3);
   const positivosAll  = comNota.filter(t => t.csat_score >= 4);
