@@ -648,8 +648,8 @@
     const maxAg   = agentes[0]?.[1] || 1;
     const indevidaCount = Object.keys(indevidaMap).length;
 
-    /* KPIs */
-    const totalRecebidas = total + tickets_positivos.length;
+    /* KPIs — total já exclui indevidas; exibir indevidas separado */
+    const totalRecebidas = total + tickets_positivos.length + indevidaCount;
     let kpis = `
       <div class="kpi">
         <div class="kpi-label">Recebidas</div>
@@ -671,12 +671,7 @@
         <div class="kpi kpi-indev">
           <div class="kpi-label">Indevidas</div>
           <div class="kpi-num">${indevidaCount}</div>
-          <div class="kpi-sub">avaliações indevidas</div>
-        </div>
-        <div class="kpi kpi-ajust">
-          <div class="kpi-label">Negativas válidas</div>
-          <div class="kpi-num">${total - indevidaCount}</div>
-          <div class="kpi-sub">descontando indevidas</div>
+          <div class="kpi-sub">excluídas do CSAT</div>
         </div>`;
     }
 
