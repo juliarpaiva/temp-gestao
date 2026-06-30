@@ -288,7 +288,6 @@
   <div class="sec-nav-inner">
     <a class="sec-nav-btn ativo" id="nav-op" href="#" onclick="event.preventDefault();document.getElementById('secao-kpis-op').scrollIntoView({behavior:'smooth'})">Métricas Operacionais</a>
     <span style="width:1px;height:16px;background:var(--borda);margin:0 4px;flex-shrink:0"></span>
-    <a class="sec-nav-btn" id="nav-csat" href="#" onclick="event.preventDefault();document.getElementById('secao-csat-ancora').scrollIntoView({behavior:'smooth'})">Painel CSAT</a>
     <span style="width:1px;height:16px;background:var(--borda);margin:0 4px;flex-shrink:0"></span>
     <a class="sec-nav-btn" id="nav-ia" href="#" onclick="event.preventDefault();document.getElementById('secao-claudia').scrollIntoView({behavior:'smooth'})">Painel Claudia</a>
   </div>
@@ -2262,7 +2261,7 @@
       <div class="kpi-secao">
         <div class="kpi-grupo-label">Equipe monitorada</div>
         <div class="kpi-grid">
-          <div class="kpi destaque clicavel" onclick="document.getElementById('section-satisfacao').scrollIntoView({behavior:'smooth'})">
+          <div class="kpi destaque">
             <div class="kpi-label">% Satisfação</div>
             <div class="kpi-num">${pctSatisfacao !== null ? pctSatisfacao + '%' : '—'}</div>
             <div class="kpi-sub flat">✓ ${totalPositivos} · ✗ ${totalNegAll}</div>
@@ -2302,14 +2301,6 @@
             <div class="kpi-sub flat">${totalAvaliados ? `${totalAvaliados} equipe · ${totalOutros} outros agentes` : 'inclui IA e outras equipes'}</div>
           </div>
         </div>
-      </div>
-
-      <div class="painel" style="margin-bottom:32px" id="section-satisfacao">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-          <div class="painel-title" style="margin-bottom:0">Satisfação por agente — ${kpiLabel}</div>
-          <div style="font-size:10px;color:#94a3b8">🥇 ≥ 85% &nbsp;·&nbsp; 🥈 ≥ 75%</div>
-        </div>
-        ${showRankings ? satisfacaoHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando dados do período…</p>' : '<p style="color:var(--muted);font-size:12px">Selecione um dia, semana ou mês para ver o ranking por agente.</p>'}
       </div>
 
       <div class="section-head pos" id="section-positivos">Monitoramento de positivos</div>
