@@ -711,6 +711,26 @@ app.get('/kpis-semanais', async (req, res) => {
     } catch (_e) {}
     const indevidasNotIn = indevidasIds.length ? `AND t.ticket_id NOT IN (${indevidasIds.join(',')})` : '';
 
+    // Agrega CSAT por agente a partir dos csat_reports (mesma fonte do Painel CSAT — data de criação)
+    const csatByAgentReports = {};
+    try {
+      const repRows = await pool.query(
+        `SELECT data FROM support_bi.csat_reports WHERE date >= $1 AND date < $2`,
+        [d0, d1]
+      );
+      for (const row of repRows.rows) {
+        const rd = row.data;
+        for (const [ag, neg] of Object.entries(rd.por_agente || {})) {
+          if (!csatByAgentReports[ag]) csatByAgentReports[ag] = { neg: 0, pos: 0 };
+          csatByAgentReports[ag].neg += (neg || 0);
+        }
+        for (const [ag, pos] of Object.entries(rd.por_agente_positivos || {})) {
+          if (!csatByAgentReports[ag]) csatByAgentReports[ag] = { neg: 0, pos: 0 };
+          csatByAgentReports[ag].pos += (pos || 0);
+        }
+      }
+    } catch (_e) {}
+
     const token = await getMetabaseToken();
 
     async function sqlScalar(sql) {
@@ -802,13 +822,22 @@ app.get('/kpis-semanais', async (req, res) => {
 
     const csatTime = csatTimeDW;
 
-    const porAgente = porAgenteRows.map(r => ({
-      agente:       r[0],
-      volume:       Number(r[1]) || 0,
-      tempo_resp_h: r[2] !== null ? Number(r[2]) : null,
-      tempo_enc_h:  r[3] !== null ? Number(r[3]) : null,
-      csat:         r[4] !== null ? Number(r[4]) : null,
-    }));
+    const porAgente = porAgenteRows.map(r => {
+      const agente = r[0];
+      const rep = csatByAgentReports[agente];
+      let csat = null;
+      if (rep) {
+        const tot = rep.neg + rep.pos;
+        if (tot > 0) csat = Math.round(rep.pos / tot * 1000) / 10;
+      }
+      return {
+        agente,
+        volume:       Number(r[1]) || 0,
+        tempo_resp_h: r[2] !== null ? Number(r[2]) : null,
+        tempo_enc_h:  r[3] !== null ? Number(r[3]) : null,
+        csat,
+      };
+    });
 
     const snoozedPorAgente = snoozedRows.map(r => ({
       agente:       r[0],
