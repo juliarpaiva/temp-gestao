@@ -2224,6 +2224,17 @@
         </div>
       </div>
 
+      <div class="section">
+        <div class="section-head" id="section-outros">Outros agentes — ${kpiLabel}</div>
+        <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+          <div class="kpi clicavel" onclick="abrirModalOutros()" style="cursor:pointer">
+            <div class="kpi-label">Total de avaliações recebidas</div>
+            <div class="kpi-num">${totalRecebidos || '—'}</div>
+            <div class="kpi-sub flat">${totalAvaliados ? `${totalAvaliados} equipe · ${totalOutros} outros agentes` : 'inclui IA e outras equipes'}</div>
+          </div>
+        </div>
+      </div>
+
       <div class="section-head" id="section-tags">Tags de avaliações — ${kpiLabel}</div>
       <div class="dois-col">
         <div class="painel pos">
@@ -2233,17 +2244,6 @@
         <div class="painel">
           <div class="painel-title">Tags negativas</div>
           ${showTags ? tagsHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando…</p>' : '<p style="color:var(--muted);font-size:12px">Tags disponíveis após carregar os dados.</p>'}
-        </div>
-      </div>
-
-      <div class="section">
-        <div class="section-head" id="section-outros">Outros agentes — ${kpiLabel}</div>
-        <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
-          <div class="kpi clicavel" onclick="abrirModalOutros()" style="cursor:pointer">
-            <div class="kpi-label">Total de avaliações recebidas</div>
-            <div class="kpi-num">${totalRecebidos || '—'}</div>
-            <div class="kpi-sub flat">${totalAvaliados ? `${totalAvaliados} equipe · ${totalOutros} outros agentes` : 'inclui IA e outras equipes'}</div>
-          </div>
         </div>
       </div>
 
