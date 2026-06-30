@@ -834,6 +834,10 @@ app.get('/kpis-semanais', async (req, res) => {
         const tot = rep.neg + rep.pos;
         if (tot > 0) csat = Math.round(rep.pos / tot * 1000) / 10;
       }
+      // Fallback para DW quando csat_reports ainda não tem dados (Metabase com delay)
+      if (csat === null && r[4] !== null && r[4] !== undefined) {
+        csat = Number(r[4]);
+      }
       return {
         agente,
         volume:       Number(r[1]) || 0,

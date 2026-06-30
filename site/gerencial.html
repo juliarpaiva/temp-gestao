@@ -2091,7 +2091,7 @@
         ${periodoInicio||periodoFim ? `<button style="padding:7px 14px;border-radius:8px;border:1px solid var(--borda);background:#fff;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer" onclick="limparPeriodo()">✕ Limpar</button>` : ''}
       </div>`;
     } else if (filterMode === 'dia' && !selectedDay) {
-      modeNavHtml = `<p style="font-size:12px;color:var(--muted);margin-bottom:20px">Clique em um dia no calendário para ver os KPIs daquele dia.</p>`;
+      modeNavHtml = `<p style="font-size:12px;color:var(--muted);margin-bottom:20px">Selecione "Última coleta" para ver os dados do dia mais recente.</p>`;
     }
 
     // ── Rankings from activeDados ──
@@ -2227,102 +2227,29 @@
       : `<p style="color:var(--muted);font-size:12px;padding:12px 16px">Nenhuma avaliação indevida ${filterMode==='dia'&&selectedDay?'neste dia':filterMode==='semana'&&selectedWeek?'nesta semana':filterMode==='periodo'&&periodoInicio?'neste período':'neste mês'}.</p>`;
 
     document.getElementById('conteudo').innerHTML = `
-      <div id="secao-csat-ancora" style="display:flex;align-items:center;gap:16px;margin-bottom:28px;padding:18px 24px;background:var(--card);border:1px solid var(--borda);border-radius:var(--r);box-shadow:var(--sh);scroll-margin-top:64px">
-        <div style="width:3px;height:36px;background:var(--rosa);border-radius:2px;flex-shrink:0"></div>
-        <div style="flex:1">
-          <div style="font-size:13px;font-weight:800;color:var(--preto);margin-bottom:3px">Painel CSAT — Negativos &amp; Positivos</div>
-          <div style="font-size:12px;color:var(--muted);line-height:1.5">Histórico diário de avaliações das agentes monitoradas · Mari, Fernanda, Paty, Lu Almeida, Rafa · Atualizado todo dia útil às 7h</div>
-        </div>
-        <a href="#secao-kpis-op" style="display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:8px;border:1px solid var(--borda);background:transparent;font-size:11px;font-weight:700;color:var(--muted);text-decoration:none;white-space:nowrap;flex-shrink:0;transition:all .15s" onmouseover="this.style.borderColor='var(--preto)';this.style.color='var(--preto)'" onmouseout="this.style.borderColor='var(--borda)';this.style.color='var(--muted)'">↑ Métricas</a>
-      </div>
-      <div class="cal-wrap">
-        <div class="section-head" style="display:flex;align-items:center;justify-content:space-between">
-          <span>Calendário — ${mesLabel(calMesRef)}</span>
-          <div style="display:flex;gap:4px">
-            <button onclick="navCal(-1)" style="background:none;border:1px solid var(--borda);border-radius:6px;padding:2px 10px;cursor:pointer;font-size:15px;color:var(--text);opacity:${calCanPrev?1:.25};pointer-events:${calCanPrev?'auto':'none'}">‹</button>
-            <button onclick="navCal(1)"  style="background:none;border:1px solid var(--borda);border-radius:6px;padding:2px 10px;cursor:pointer;font-size:15px;color:var(--text);opacity:${calCanNext?1:.25};pointer-events:${calCanNext?'auto':'none'}">›</button>
-          </div>
-        </div>
-        ${streak > 0 && calMesRef === [...new Set(Object.keys(summaryMap).map(d=>d.slice(0,7)))].sort().at(-1) ? `<div class="streak-badge">🔥 ${streak} dia${streak!==1?'s':''} seguido${streak!==1?'s':''} acima de 75% de satisfação</div>` : ''}
-        ${calHtml}
-        <div class="legenda">
-          <span>Satisfação:</span>
-          <span class="legenda-item"><span class="legenda-dot" style="background:#f0fdf4;border:2px solid #16a34a;box-sizing:border-box"></span> Alta (≥75%)</span>
-          <span class="legenda-item"><span class="legenda-dot" style="background:#fefce8;border:2px solid #ca8a04;box-sizing:border-box"></span> Média (55–74%)</span>
-          <span class="legenda-item"><span class="legenda-dot" style="background:#fef2f2;border:2px solid #ef4444;box-sizing:border-box"></span> Baixa (&lt;55%)</span>
-          <span style="margin-left:8px;color:#94a3b8">· Clique num dia para ver o relatório inline</span>
-        </div>
-      </div>
-
-      <div class="section-head">Visão geral — ${kpiLabel}</div>
       ${filterTabsHtml}
       ${modeNavHtml}
 
-      <div class="kpi-secao">
-        <div class="kpi-grupo-label">Equipe monitorada</div>
-        <div class="kpi-grid">
-          <div class="kpi destaque">
-            <div class="kpi-label">% Satisfação</div>
-            <div class="kpi-num">${pctSatisfacao !== null ? pctSatisfacao + '%' : '—'}</div>
-            <div class="kpi-sub flat">✓ ${totalPositivos} · ✗ ${totalNegAll}</div>
-            ${satisfVsHtml}
-          </div>
-          <div class="kpi clicavel" style="border-left:4px solid #16a34a" onclick="document.getElementById('section-positivos').scrollIntoView({behavior:'smooth'})">
-            <div class="kpi-label">Positivos</div>
-            <div class="kpi-num" style="color:#16a34a">${totalPositivos || '—'}</div>
-            <div class="kpi-sub flat">Mari, Fer, Paty, Lu, Rafa</div>
-          </div>
-          <div class="kpi clicavel" onclick="document.getElementById('section-negativos').scrollIntoView({behavior:'smooth'})">
-            <div class="kpi-label">Negativos</div>
-            <div class="kpi-num">${totalNegAll}</div>
-            ${filterMode === 'mes' ? vsHtml : ''}
-          </div>
-          <div class="kpi clicavel" style="border-left:4px solid #94a3b8" onclick="document.getElementById('section-indevidas').scrollIntoView({behavior:'smooth'})">
-            <div class="kpi-label">Indevidas</div>
-            <div class="kpi-num" style="color:#64748b">${indevidasMes.length || (filterMode==='dia'&&selectedDay&&!dayData ? '...' : (indevidasMes.length === 0 ? '0' : '—'))}</div>
-            <div class="kpi-sub flat">marcadas via CloudChat</div>
-          </div>
-          <div class="kpi">
-            <div class="kpi-label">Negativas válidas</div>
-            <div class="kpi-num">${Math.max(0, totalNegAll - indevidasMes.length)}</div>
-            <div class="kpi-sub flat">descontando indevidas</div>
-          </div>
-        </div>
-      </div>
-
-      ${indevidasMes.length > 0 ? `<p style="font-size:12px;color:#64748b;margin:-12px 0 20px;display:flex;align-items:center;gap:6px"><span style="font-size:14px">ℹ️</span> Indicadores calculados desconsiderando <strong>${indevidasMes.length}</strong> avaliação${indevidasMes.length!==1?'es':''} marcada${indevidasMes.length!==1?'s':''} como indevida${indevidasMes.length!==1?'s':''}</p>` : ''}
-
-      <div class="kpi-secao">
-        <div class="kpi-grupo-label">Todos os agentes</div>
-        <div class="kpi-grid" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr))">
-          <div class="kpi clicavel" onclick="abrirModalOutros()" style="cursor:pointer">
-            <div class="kpi-label">Total de avaliações recebidas</div>
-            <div class="kpi-num">${totalRecebidos || '—'}</div>
-            <div class="kpi-sub flat">${totalAvaliados ? `${totalAvaliados} equipe · ${totalOutros} outros agentes` : 'inclui IA e outras equipes'}</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="section-head pos" id="section-positivos">Monitoramento de positivos</div>
+      <div class="section-head pos" id="section-positivos">Monitoramento de positivos — ${kpiLabel}</div>
       <div class="dois-col">
         <div class="painel pos">
           <div class="painel-title">Positivos por agente</div>
           ${showRankings ? posRankingHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando…</p>' : '<p style="color:var(--muted);font-size:12px">Disponível por Dia, Semana ou Mês.</p>'}
         </div>
         <div class="painel pos">
-          <div class="painel-title">Top tags — positivos</div>
+          <div class="painel-title">Tags positivas</div>
           ${showTags ? tagsPositivosHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando…</p>' : '<p style="color:var(--muted);font-size:12px">Tags disponíveis após carregar os dados.</p>'}
         </div>
       </div>
 
-      <div class="section-head" id="section-negativos">Monitoramento de negativos</div>
+      <div class="section-head" id="section-negativos">Monitoramento de negativos — ${kpiLabel}</div>
       <div class="dois-col">
         <div class="painel">
           <div class="painel-title">Negativos por agente</div>
           ${showRankings ? rankingHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando…</p>' : '<p style="color:var(--muted);font-size:12px">Disponível por Dia, Semana ou Mês.</p>'}
         </div>
         <div class="painel">
-          <div class="painel-title">Top tags — negativos</div>
+          <div class="painel-title">Tags negativas</div>
           ${showTags ? tagsHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando…</p>' : '<p style="color:var(--muted);font-size:12px">Tags disponíveis após carregar os dados.</p>'}
         </div>
       </div>
@@ -2331,6 +2258,17 @@
         <div class="section-head indev-head" id="section-indevidas">Avaliações indevidas — ${kpiLabel}</div>
         <div class="painel" style="padding:0;overflow:hidden">
           ${indevidasListHtml}
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-head" id="section-outros">Outros agentes — ${kpiLabel}</div>
+        <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+          <div class="kpi clicavel" onclick="abrirModalOutros()" style="cursor:pointer">
+            <div class="kpi-label">Total de avaliações recebidas</div>
+            <div class="kpi-num">${totalRecebidos || '—'}</div>
+            <div class="kpi-sub flat">${totalAvaliados ? `${totalAvaliados} equipe · ${totalOutros} outros agentes` : 'inclui IA e outras equipes'}</div>
+          </div>
         </div>
       </div>
 
