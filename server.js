@@ -1400,14 +1400,22 @@ app.get('/data/:date', async (req, res) => {
   }
 });
 
-// Cron: todo dia útil às 10h UTC (7h Brasília)
-cron.schedule('0 10 * * 1-5', () => {
-  console.log('Cron disparado — processando dia útil anterior...');
-  runDailyReport(null, false).catch(err => console.error('Erro no cron:', err.message));
-  // Invalida cache de KPIs operacionais para forçar re-fetch com dados do dia
+// Cron: todo dia às 10h UTC (7h Brasília) — data de criação do ticket, alinhado com CloudChat
+cron.schedule('0 10 * * *', () => {
+  console.log('Cron 7h — processando ontem...');
+  runDailyReport(null, false).catch(err => console.error('Erro no cron 7h:', err.message));
   pool.query(`DELETE FROM support_bi.kpis_op_cache WHERE period_key LIKE 'semana:%' OR period_key LIKE 'mes:%' OR period_key LIKE 'dia:%'`)
-    .then(() => console.log('[cron] cache kpis-op invalidado'))
-    .catch(err => console.error('[cron] erro ao invalidar cache kpis-op:', err.message));
+    .then(() => console.log('[cron 7h] cache kpis-op invalidado'))
+    .catch(err => console.error('[cron 7h] erro ao invalidar cache kpis-op:', err.message));
+});
+
+// Cron: todo dia às 15h UTC (12h Brasília) — reprocessa ontem para capturar avaliações tardias
+cron.schedule('0 15 * * *', () => {
+  console.log('Cron 12h — reprocessando ontem com force...');
+  runDailyReport(null, true).catch(err => console.error('Erro no cron 12h:', err.message));
+  pool.query(`DELETE FROM support_bi.kpis_op_cache WHERE period_key LIKE 'semana:%' OR period_key LIKE 'mes:%' OR period_key LIKE 'dia:%'`)
+    .then(() => console.log('[cron 12h] cache kpis-op invalidado'))
+    .catch(err => console.error('[cron 12h] erro ao invalidar cache kpis-op:', err.message));
 });
 
 // --- Lógica principal ---
@@ -1418,7 +1426,7 @@ function isAgentMonitorada(nome) {
 }
 
 async function runDailyReport(dateOverride = null, force = false) {
-  const date = dateOverride || previousBusinessDate();
+  const date = dateOverride || yesterdayDate();
 
   const existing = await pool.query(
     'SELECT 1 FROM support_bi.csat_reports WHERE date = $1',
@@ -1585,12 +1593,10 @@ function countBusinessDays(d0, d1) {
   return count;
 }
 
-function previousBusinessDate() {
+function yesterdayDate() {
   const date = new Date();
   date.setUTCHours(date.getUTCHours() - 3);
   date.setUTCDate(date.getUTCDate() - 1);
-  if (date.getUTCDay() === 0) date.setUTCDate(date.getUTCDate() - 2);
-  if (date.getUTCDay() === 6) date.setUTCDate(date.getUTCDate() - 1);
   return date.toISOString().slice(0, 10);
 }
 
