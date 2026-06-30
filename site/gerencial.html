@@ -1519,12 +1519,23 @@
   }
 
   let _ticketsPeriodoCache = [];
+  let _ticketsPeriodoFiltro = 'todos';
+  function _setFiltroTickets(f) {
+    _ticketsPeriodoFiltro = f;
+    document.querySelectorAll('.tab-filtro-tickets').forEach(el => {
+      el.style.background = el.dataset.f === f ? 'var(--rosa)' : 'transparent';
+      el.style.color = el.dataset.f === f ? '#fff' : 'var(--muted)';
+    });
+    _renderTicketsPeriodo(document.getElementById('busca-tickets-periodo')?.value || '');
+  }
   function _renderTicketsPeriodo(busca) {
     const q = (busca || '').toLowerCase().trim();
+    let base = _ticketsPeriodoCache;
+    if (_ticketsPeriodoFiltro === 'pos') base = base.filter(t => t.nota !== null && t.nota >= 4);
+    else if (_ticketsPeriodoFiltro === 'neg') base = base.filter(t => t.nota !== null && t.nota <= 3);
     const todos = q
-      ? _ticketsPeriodoCache.filter(t =>
-          String(t.id).includes(q) || (t.cliente||'').toLowerCase().includes(q))
-      : _ticketsPeriodoCache;
+      ? base.filter(t => String(t.id).includes(q) || (t.cliente||'').toLowerCase().includes(q))
+      : base;
 
     const CSAT_GRUPOS = [
       { key: 'pos', label: 'Positivos', cor: '#16a34a', bg: '#f0fdf4', borda: '#bbf7d0',
@@ -1584,13 +1595,22 @@
           '<p style="color:var(--muted);font-size:12px">Nenhum ticket encontrado.</p>';
         return;
       }
+      _ticketsPeriodoFiltro = 'todos';
       document.getElementById('modal-outros-body').innerHTML = `
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <button class="tab-filtro-tickets" data-f="todos" onclick="_setFiltroTickets('todos')"
+            style="flex:1;padding:6px 0;font-size:12px;font-weight:600;border:1px solid var(--borda);border-radius:8px;cursor:pointer;background:var(--rosa);color:#fff;transition:background .15s">Todos</button>
+          <button class="tab-filtro-tickets" data-f="pos" onclick="_setFiltroTickets('pos')"
+            style="flex:1;padding:6px 0;font-size:12px;font-weight:600;border:1px solid var(--borda);border-radius:8px;cursor:pointer;background:transparent;color:var(--muted);transition:background .15s">Positivos</button>
+          <button class="tab-filtro-tickets" data-f="neg" onclick="_setFiltroTickets('neg')"
+            style="flex:1;padding:6px 0;font-size:12px;font-weight:600;border:1px solid var(--borda);border-radius:8px;cursor:pointer;background:transparent;color:var(--muted);transition:background .15s">Negativos</button>
+        </div>
         <div style="margin-bottom:10px">
           <input id="busca-tickets-periodo" type="text" placeholder="Buscar por #ticket ou nome…"
             oninput="_renderTicketsPeriodo(this.value)"
             style="width:100%;box-sizing:border-box;border:1px solid var(--borda);border-radius:8px;padding:7px 10px;font-size:12px;color:var(--texto);background:var(--fundo);outline:none">
         </div>
-        <div id="modal-tickets-lista" style="max-height:460px;overflow-y:auto;padding-right:4px"></div>`;
+        <div id="modal-tickets-lista" style="max-height:430px;overflow-y:auto;padding-right:4px"></div>`;
       _renderTicketsPeriodo('');
     } catch(e) {
       document.getElementById('modal-outros-body').innerHTML =
