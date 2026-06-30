@@ -1452,24 +1452,24 @@ async function runDailyReport(dateOverride = null, force = false) {
 
   // Busca avaliações via DW por resolved_at_local — mesma base das Métricas Ops
   const dateNext = addOneDay(date);
-  const dwCsatRows = await pool.query(`
+  const dwCsatRows = await dwQuery(`
     SELECT display_ticket_id, agent_on_resolution_name, csat_score,
            csat_feedback, contact_name, ticket_link
     FROM dw.fact_cloudchat_tickets
     WHERE csat_score IS NOT NULL
-      AND resolved_at_local >= $1
-      AND resolved_at_local < $2
+      AND resolved_at_local >= '${date}'
+      AND resolved_at_local < '${dateNext}'
     ORDER BY resolved_at_local DESC
     LIMIT 2000
-  `, [date, dateNext]);
-  const todosCsats = dwCsatRows.rows.map(r => ({
-    display_ticket_id:       r.display_ticket_id,
-    agent_on_resolution_name: r.agent_on_resolution_name,
-    csat_score:              r.csat_score !== null ? Number(r.csat_score) : null,
-    csat_feedback:           r.csat_feedback || null,
-    contact_name:            r.contact_name  || null,
-    contact_email:           null,
-    ticket_link:             r.ticket_link   || null,
+  `);
+  const todosCsats = dwCsatRows.map(r => ({
+    display_ticket_id:        r[0],
+    agent_on_resolution_name: r[1],
+    csat_score:               r[2] !== null ? Number(r[2]) : null,
+    csat_feedback:            r[3] || null,
+    contact_name:             r[4] || null,
+    contact_email:            null,
+    ticket_link:              r[5] || null,
   }));
   const comNota       = todosCsats.filter(t => t.csat_score !== null);
   const negativosAll  = comNota.filter(t => t.csat_score <= 3);
