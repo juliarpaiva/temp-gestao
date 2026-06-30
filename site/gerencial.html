@@ -2197,23 +2197,11 @@
       ${filterTabsHtml}
       ${modeNavHtml}
 
-      <div class="section-head pos" id="section-positivos">Monitoramento de positivos — ${kpiLabel}</div>
+      <div class="section-head" id="section-tags">Tags de avaliações — ${kpiLabel}</div>
       <div class="dois-col">
-        <div class="painel pos">
-          <div class="painel-title">Positivos por agente</div>
-          ${showRankings ? posRankingHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando…</p>' : '<p style="color:var(--muted);font-size:12px">Disponível por Dia, Semana ou Mês.</p>'}
-        </div>
         <div class="painel pos">
           <div class="painel-title">Tags positivas</div>
           ${showTags ? tagsPositivosHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando…</p>' : '<p style="color:var(--muted);font-size:12px">Tags disponíveis após carregar os dados.</p>'}
-        </div>
-      </div>
-
-      <div class="section-head" id="section-negativos">Monitoramento de negativos — ${kpiLabel}</div>
-      <div class="dois-col">
-        <div class="painel">
-          <div class="painel-title">Negativos por agente</div>
-          ${showRankings ? rankingHtml : periodoLoading ? '<p style="color:var(--muted);font-size:12px">Carregando…</p>' : '<p style="color:var(--muted);font-size:12px">Disponível por Dia, Semana ou Mês.</p>'}
         </div>
         <div class="painel">
           <div class="painel-title">Tags negativas</div>
