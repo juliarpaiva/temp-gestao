@@ -358,6 +358,10 @@ app.get('/run', async (req, res) => {
   const force = req.query.force === 'true';
   try {
     const resultado = await runDailyReport(dateParam, force);
+    if (force) {
+      pool.query(`DELETE FROM support_bi.kpis_op_cache WHERE period_key LIKE 'semana:%' OR period_key LIKE 'mes:%' OR period_key LIKE 'dia:%'`)
+        .catch(() => {});
+    }
     res.json(resultado);
   } catch (err) {
     res.status(500).json({ error: err.message });
