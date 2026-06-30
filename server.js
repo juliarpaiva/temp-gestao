@@ -344,10 +344,20 @@ app.post('/webhook/csat-invalida', express.json(), express.urlencoded({ extended
   // Limpa cache de ops para forçar recálculo com a nova indevida
   pool.query(`DELETE FROM support_bi.kpis_op_cache`).catch(() => {});
 
-  // Re-processa o dia automaticamente — exclui indevidas dos totais
-  runDailyReport(date, true)
-    .then(r => console.log('[webhook] reprocessamento concluido:', r))
-    .catch(e => console.error('[webhook] erro no reprocessamento:', e.message));
+  // Reprocessa pelo dia de RESOLUÇÃO (fonte do CSAT agora) — busca no DW
+  // Também reprocessa data de criação como fallback caso não encontre resolução
+  (async () => {
+    try {
+      const rows = await dwQuery(`SELECT DATE(resolved_at_local)::text FROM dw.fact_cloudchat_tickets WHERE display_ticket_id = '${ticketId}' AND resolved_at_local IS NOT NULL LIMIT 1`);
+      const resolvedDate = (rows.length > 0 && rows[0][0]) ? rows[0][0] : date;
+      console.log(`[webhook] reprocessando data resolucao=${resolvedDate} (criacao=${date})`);
+      await runDailyReport(resolvedDate, true);
+      if (resolvedDate !== date) await runDailyReport(date, true);
+    } catch(e) {
+      console.error('[webhook] erro no reprocessamento:', e.message);
+      runDailyReport(date, true).catch(() => {});
+    }
+  })();
 
   res.json({ ok: true, ticket_id: ticketId, date, status: 'indevida salva, reprocessando...' });
 });
