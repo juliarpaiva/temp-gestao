@@ -1800,7 +1800,7 @@
   async function irParaHoje() {
     const today = new Date().toISOString().slice(0, 10);
     const dates  = Object.keys(summaryMap).sort().reverse();
-    const target = dates.find(d => d <= today) || dates[0];
+    const target = dates.find(d => d < today) || dates[0];
     if (!target) return;
     selectedDay  = target;
     filterMode   = 'dia';
@@ -1913,7 +1913,7 @@
       // Default: última coleta
       const _today  = new Date().toISOString().slice(0, 10);
       const _dates  = Object.keys(summaryMap).sort().reverse();
-      const _target = _dates.find(d => d <= _today) || _dates[0];
+      const _target = _dates.find(d => d < _today) || _dates[0];
       if (_target) {
         selectedDay = _target;
         filterMode  = 'dia';
