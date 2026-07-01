@@ -414,26 +414,34 @@
 
   const MESES_OP = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 
+  function _hojeBRT() {
+    // Retorna {y, m, d} no fuso de Brasília — evita mostrar "hoje UTC" com zeros no final do dia
+    const s = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const [dd, mm, yy] = s.split('/').map(Number);
+    return { y: yy, m: mm, d: dd };
+  }
+
   function gerarDiasOps(n) {
-    const hoje = new Date();
+    const { y, m, d } = _hojeBRT();
+    const base = new Date(y, m - 1, d); // meia-noite BRT
     const dias = [];
-    for (let i = 1; i <= n; i++) {
-      const d = new Date(hoje);
-      d.setUTCDate(d.getUTCDate() - i);
-      const dow = d.getUTCDay();
-      if (dow === 0 || dow === 6) continue; // pula fim de semana
-      dias.push(d.toISOString().slice(0, 10));
-      if (dias.length >= n) break;
+    for (let i = 1; dias.length < 7 && i <= 30; i++) {
+      const dt = new Date(base);
+      dt.setDate(dt.getDate() - i);
+      if (dt.getDay() === 0 || dt.getDay() === 6) continue;
+      dias.push(`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`);
     }
-    return dias.slice(0, 7);
+    return dias;
   }
 
   function gerarMesesOps(n) {
-    const hoje = new Date();
+    const { y, m, d } = _hojeBRT();
+    // Se hoje é dia 1, o cron ainda não rodou para este mês — começa pelo mês anterior
+    const startOffset = d <= 1 ? 1 : 0;
     const meses = [];
-    for (let i = 0; i < n; i++) {
-      const d = new Date(Date.UTC(hoje.getUTCFullYear(), hoje.getUTCMonth() - i, 1));
-      meses.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
+    for (let i = startOffset; meses.length < n; i++) {
+      const dt = new Date(y, m - 1 - i, 1);
+      meses.push(`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`);
     }
     return meses;
   }
