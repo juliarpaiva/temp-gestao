@@ -838,15 +838,15 @@ app.get('/kpis-semanais', async (req, res) => {
 
     const porAgente = porAgenteRows.map(r => {
       const agente = r[0];
-      // Usa DW direto (mesma fonte do modal) — consistência entre % e aba Negativos
-      let csat = (r[4] !== null && r[4] !== undefined) ? Number(r[4]) : null;
-      // Fallback: csat_reports quando DW ainda não computou o período
-      if (csat === null) {
-        const rep = csatByAgentReports[agente];
-        if (rep) {
-          const tot = rep.neg + rep.pos;
-          if (tot > 0) csat = Math.round(rep.pos / tot * 1000) / 10;
-        }
+      const rep = csatByAgentReports[agente];
+      let csat = null;
+      if (rep) {
+        const tot = rep.neg + rep.pos;
+        if (tot > 0) csat = Math.round(rep.pos / tot * 1000) / 10;
+      }
+      // Fallback para DW quando csat_reports ainda não tem dados
+      if (csat === null && r[4] !== null && r[4] !== undefined) {
+        csat = Number(r[4]);
       }
       return {
         agente,
