@@ -421,6 +421,11 @@
     return { y: yy, m: mm, d: dd };
   }
 
+  function _strHojeBRT() {
+    const { y, m, d } = _hojeBRT();
+    return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  }
+
   function gerarDiasOps(n) {
     const { y, m, d } = _hojeBRT();
     const base = new Date(y, m - 1, d); // meia-noite BRT
@@ -1791,7 +1796,7 @@
   }
 
   async function irParaHoje() {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = _strHojeBRT();
     const dates  = Object.keys(summaryMap).sort().reverse();
     const target = dates.find(d => d < today) || dates[0];
     if (!target) return;
@@ -1903,8 +1908,8 @@
       const mesesKeys = Object.keys(dadosGestao.meses).sort().reverse();
       mesAtivo = mesesKeys[0] || null;
       if (!mesAtivo) { document.getElementById('conteudo').innerHTML = '<div class="erro">Sem dados disponíveis ainda.</div>'; return; }
-      // Default: última coleta
-      const _today  = new Date().toISOString().slice(0, 10);
+      // Default: última coleta (usa BRT para não incluir "hoje" antes do cron rodar)
+      const _today  = _strHojeBRT();
       const _dates  = Object.keys(summaryMap).sort().reverse();
       const _target = _dates.find(d => d < _today) || _dates[0];
       if (_target) {
@@ -2050,9 +2055,9 @@
     const streak = computeStreak();
 
     // ── Filter tabs ──
-    const _todayStr   = new Date().toISOString().slice(0, 10);
+    const _todayStr   = _strHojeBRT();
     const _allDates   = Object.keys(summaryMap).sort().reverse();
-    const _hojeTarget = _allDates.find(d => d <= _todayStr) || _allDates[0];
+    const _hojeTarget = _allDates.find(d => d < _todayStr) || _allDates[0];
     const hojeAtivo   = filterMode === 'dia' && selectedDay === _hojeTarget;
     const filterTabsHtml = `
       <div class="filter-tabs">
