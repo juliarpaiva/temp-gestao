@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat', '/admin/mark-indevida'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -1247,6 +1247,24 @@ app.get('/agent-tickets-op', async (req, res) => {
       .map(r => ({ id: String(r[0]), status: r[1], cliente: r[2]||null, nota: r[3]!==null?Number(r[3]):null, tipo: r[4] }))
       .filter(t => !(indevidasSet.has(t.id) && t.nota !== null && t.nota <= 3));
     res.json(tickets);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/admin/mark-indevida', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  const { ticket_id, date, observacao } = req.query;
+  if (!ticket_id || !date) return res.status(400).json({ error: 'ticket_id e date obrigatorios' });
+  try {
+    await pool.query(
+      `INSERT INTO support_bi.csat_indevidas (ticket_id, date, motivo, observacao)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (ticket_id) DO UPDATE SET motivo=$3, observacao=$4, marcado_em=NOW()`,
+      [ticket_id, date, 'avaliacao_reaberto', observacao || null]
+    );
+    await pool.query(`DELETE FROM support_bi.kpis_op_cache WHERE period_key LIKE 'semana:%' OR period_key LIKE 'mes:%' OR period_key LIKE 'dia:%'`).catch(() => {});
+    const r = await runDailyReport(date, true);
+    res.json({ ok: true, ticket_id, date, total_dia: r.total });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
