@@ -795,7 +795,9 @@ app.get('/kpis-semanais', async (req, res) => {
           COUNT(*) AS volume,
           ROUND(AVG(CASE WHEN t.first_agent_reply_time_min IS NOT NULL AND t.first_agent_first_reply_at_local IS NOT NULL AND t.first_agent_reply_time_min >= 0 THEN t.first_agent_reply_time_min END) / 60.0, 1) AS tempo_resp_h,
           ROUND(AVG(CASE WHEN t.first_agent_resolution_time_min IS NOT NULL AND t.first_agent_resolution_time_min > 0 AND t.first_agent_resolution_time_min < 2880 AND t.resolved_at_local IS NOT NULL THEN t.first_agent_resolution_time_min END) / 60.0, 1) AS tempo_enc_h,
-          ROUND(COUNT(CASE WHEN t.csat_score >= 4 ${indevidasNotIn} THEN 1 END) * 100.0 / NULLIF(COUNT(CASE WHEN t.csat_score IS NOT NULL ${indevidasNotIn} THEN 1 END), 0), 1) AS csat
+          ROUND(COUNT(CASE WHEN t.csat_score >= 4 ${indevidasNotIn} THEN 1 END) * 100.0 / NULLIF(COUNT(CASE WHEN t.csat_score IS NOT NULL ${indevidasNotIn} THEN 1 END), 0), 1) AS csat,
+          ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY t.first_agent_reply_time_min) FILTER (WHERE t.first_agent_reply_time_min IS NOT NULL AND t.first_agent_reply_time_min >= 0 AND t.first_agent_first_reply_at_local IS NOT NULL))::numeric / 60.0, 1) AS mediana_resp_h,
+          ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY t.first_agent_resolution_time_min) FILTER (WHERE t.first_agent_resolution_time_min IS NOT NULL AND t.first_agent_resolution_time_min > 0 AND t.first_agent_resolution_time_min < 2880 AND t.resolved_at_local IS NOT NULL))::numeric / 60.0, 1) AS mediana_enc_h
         FROM dw.fact_cloudchat_tickets t
         LEFT JOIN dw.fact_cloudchat_ticket_custom_fields cf
           ON cf.ticket_id = t.ticket_id
@@ -853,10 +855,12 @@ app.get('/kpis-semanais', async (req, res) => {
       }
       return {
         agente,
-        volume:       Number(r[1]) || 0,
-        tempo_resp_h: r[2] !== null ? Number(r[2]) : null,
-        tempo_enc_h:  r[3] !== null ? Number(r[3]) : null,
+        volume:          Number(r[1]) || 0,
+        tempo_resp_h:    r[2] !== null ? Number(r[2]) : null,
+        tempo_enc_h:     r[3] !== null ? Number(r[3]) : null,
         csat,
+        mediana_resp_h:  r[5] !== null && r[5] !== undefined ? Number(r[5]) : null,
+        mediana_enc_h:   r[6] !== null && r[6] !== undefined ? Number(r[6]) : null,
       };
     });
 

@@ -705,7 +705,7 @@
             adiados_total: adi, adiados_com: s.com_flag || 0, adiados_sem: s.sem_flag || 0,
             ids_com: s.ids_com_flag || [], ids_sem: s.ids_sem_flag || [],
             total: enc + adi,
-            csat: p.csat ?? null, tempo_resp_h: p.tempo_resp_h ?? null, tempo_enc_h: p.tempo_enc_h ?? null,
+            csat: p.csat ?? null, tempo_resp_h: p.tempo_resp_h ?? null, tempo_enc_h: p.tempo_enc_h ?? null, mediana_resp_h: p.mediana_resp_h ?? null, mediana_enc_h: p.mediana_enc_h ?? null,
           };
         });
         const validKeys = ['agente','encerrados','pendentes','em_aberto','adiados_total','total','csat','tempo_resp_h','tempo_enc_h'];
@@ -746,8 +746,8 @@
             <td class="r" ${u.em_aberto > 0 ? `style="font-weight:700;color:#1d4ed8;cursor:pointer" onclick="abrirAbertosAgente('${u.agente}')" title="Ver tickets em aberto"` : `style="font-weight:600"`}>${u.em_aberto || '—'}</td>
             <td class="r"><div style="font-weight:700">${adTotal}</div>${adSub}</td>
             <td class="r">${csatLoading ? '<span style="color:#94a3b8;font-size:11px">...</span>' : opsCsatPill(u.csat)}</td>
-            <td class="r" style="color:${trCor};font-weight:700">${fmtHora(u.tempo_resp_h)}</td>
-            <td class="r">${fmtHora(u.tempo_enc_h)}</td>
+            <td class="r" style="color:${trCor};font-weight:700">${fmtHora(u.tempo_resp_h)}${u.mediana_resp_h !== null ? `<div style="font-size:10px;color:var(--muted);font-weight:400">${fmtHora(u.mediana_resp_h)} med</div>` : ''}</td>
+            <td class="r">${fmtHora(u.tempo_enc_h)}${u.mediana_enc_h !== null ? `<div style="font-size:10px;color:var(--muted);font-weight:400">${fmtHora(u.mediana_enc_h)} med</div>` : ''}</td>
           </tr>`;
         }).join('');
         const claudiaRow = claudia ? `<tr style="color:var(--muted);font-style:italic;border-top:2px solid #e2e8f0">
