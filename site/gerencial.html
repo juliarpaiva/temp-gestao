@@ -667,13 +667,21 @@
           <div class="kpi-label">Tempo 1ª resposta</div>
           <div class="ops-kpi-num" style="color:${respCor}">${fmtHora(atual.tempo_resposta_h)}</div>
           <div class="kpi-sub" style="color:${respCor};margin-top:6px">${atual.tempo_resposta_h !== null ? (respOk?'✓':'✗')+' meta 60min' : '—'}</div>
-          ${atual.mediana_resposta_h !== null ? `<div class="kpi-sub flat" style="margin-top:4px">${fmtHora(atual.mediana_resposta_h)} mediana</div>` : ''}
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Mediana 1ª resposta</div>
+          <div class="ops-kpi-num">${fmtHora(atual.mediana_resposta_h)}</div>
+          <div class="kpi-sub flat">mediana do período</div>
         </div>
         <div class="kpi">
           <div class="kpi-label">Tempo encerramento</div>
           <div class="ops-kpi-num">${fmtHora(atual.tempo_encerramento_h)}</div>
           <div class="kpi-sub flat">média do período</div>
-          ${atual.mediana_encerramento_h !== null ? `<div class="kpi-sub flat" style="margin-top:4px">${fmtHora(atual.mediana_encerramento_h)} mediana</div>` : ''}
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Mediana encerramento</div>
+          <div class="ops-kpi-num">${fmtHora(atual.mediana_encerramento_h)}</div>
+          <div class="kpi-sub flat">mediana do período</div>
         </div>
         <div class="kpi">
           <div class="kpi-label">Retenção N1 Claudia</div>
