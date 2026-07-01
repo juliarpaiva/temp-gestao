@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat', '/admin/mark-indevida'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat', '/admin/mark-indevida', '/admin/breakdown-recebidos'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -1265,6 +1265,37 @@ app.get('/admin/mark-indevida', async (req, res) => {
     await pool.query(`DELETE FROM support_bi.kpis_op_cache WHERE period_key LIKE 'semana:%' OR period_key LIKE 'mes:%' OR period_key LIKE 'dia:%'`).catch(() => {});
     const r = await runDailyReport(date, true);
     res.json({ ok: true, ticket_id, date, total_dia: r.total });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Destrincha os tickets "recebidos" que não aparecem em Resolvidos (5 agentes) nem Claudia
+app.get('/admin/breakdown-recebidos', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  const mes = req.query.mes || '2026-06';
+  const [ano, mm] = mes.split('-').map(Number);
+  const d0 = `${mes}-01`;
+  const d1 = `${ano}-${String(mm < 12 ? mm + 1 : 1).padStart(2,'0')}-01`;
+  try {
+    const [totalRows, breakdownRows] = await Promise.all([
+      dwQuery(`SELECT COUNT(*)::int FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
+      dwQuery(`
+        SELECT
+          ticket_status,
+          COALESCE(agent_on_resolution_name, 'Sem atribuição') AS agente,
+          COUNT(*)::int AS total
+        FROM dw.fact_cloudchat_tickets
+        WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'
+          AND NOT (ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa'))
+          AND NOT (ticket_status = 'resolved' AND agent_on_resolution_name ILIKE '%claudia%' AND agent_on_resolution_name NOT ILIKE '%projetos%')
+        GROUP BY 1, 2
+        ORDER BY 3 DESC, 1
+      `),
+    ]);
+    const total = totalRows[0]?.[0] || 0;
+    const rows = breakdownRows.map(r => ({ status: r[0], agente: r[1], total: r[2] }));
+    const totalOthers = rows.reduce((s, r) => s + r.total, 0);
+    res.json({ mes, total_recebidos: total, total_outros: totalOthers, breakdown: rows });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
