@@ -778,7 +778,7 @@ app.get('/kpis-semanais', async (req, res) => {
       claudiaTicketsRows, pendentesAgenteRows,
     ] = await Promise.all([
       sqlScalar(`SELECT COUNT(ticket_id) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
-      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
+      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND resolved_at_local >= '${d0}' AND resolved_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(COUNT(*) * 1.0 / NULLIF(COUNT(DISTINCT DATE(created_at_local)), 0), 1) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(COUNT(CASE WHEN csat_score >= 4 THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 1) FROM dw.fact_cloudchat_tickets t WHERE csat_score IS NOT NULL AND t.created_at_local >= '${d0}' AND t.created_at_local < '${d1}' ${indevidasNotIn}`),
       sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND agent_on_resolution_name ILIKE '%claudia%' AND agent_on_resolution_name NOT ILIKE '%projetos%' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
@@ -1286,7 +1286,11 @@ app.get('/admin/breakdown-recebidos', async (req, res) => {
           COALESCE(agent_on_resolution_name, 'Sem atribuição') AS agente,
           COUNT(*)::int AS total
         FROM dw.fact_cloudchat_tickets
-        WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'
+        WHERE (
+          (ticket_status = 'resolved' AND resolved_at_local >= '${d0}' AND resolved_at_local < '${d1}')
+          OR
+          (ticket_status != 'resolved' AND created_at_local >= '${d0}' AND created_at_local < '${d1}')
+        )
           AND NOT (ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa'))
           AND NOT (ticket_status = 'resolved' AND agent_on_resolution_name ILIKE '%claudia%' AND agent_on_resolution_name NOT ILIKE '%projetos%')
         GROUP BY 1, 2
