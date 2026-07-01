@@ -1287,7 +1287,8 @@ app.get('/admin/check-stale-csat', async (req, res) => {
       const dw = dwMap[id];
       const dwNota = dw ? dw.nota : null;
       const dwStatus = dw ? dw.status : 'NOT_FOUND';
-      if (dwNota === null || dwNota > 3) {
+      // Stale: score zerado, score virou positivo, ticket não mais resolvido, ou não encontrado
+      if (dwNota === null || dwNota > 3 || dwStatus !== 'resolved') {
         stale.push({ ...info, dw_nota: dwNota, dw_status: dwStatus });
       }
     }
