@@ -1270,7 +1270,8 @@ app.get('/admin/mark-indevida', async (req, res) => {
 
 // Destrincha os tickets "recebidos" que não aparecem em Resolvidos (5 agentes) nem Claudia
 app.get('/admin/breakdown-recebidos', async (req, res) => {
-  if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY)
+  const adminKey = req.query.key || req.headers['x-admin-key'];
+  if (!process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY)
     return res.status(403).json({ error: 'Forbidden' });
   const mes = req.query.mes || '2026-06';
   const [ano, mm] = mes.split('-').map(Number);
