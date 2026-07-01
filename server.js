@@ -1275,21 +1275,26 @@ app.get('/admin/check-stale-csat', async (req, res) => {
     const ids = Object.keys(ticketMap);
 
     const dwRows = await dwQuery(`
-      SELECT display_ticket_id::text, csat_score, ticket_status
+      SELECT display_ticket_id::text, csat_score, ticket_status, agent_on_resolution_name,
+             DATE(resolved_at_local)::text
       FROM dw.fact_cloudchat_tickets
       WHERE display_ticket_id::text IN (${ids.map(i => `'${i}'`).join(',')})
     `);
     const dwMap = {};
-    for (const r of dwRows) dwMap[String(r[0])] = { nota: r[1] !== null ? Number(r[1]) : null, status: r[2] };
+    for (const r of dwRows) dwMap[String(r[0])] = {
+      nota: r[1] !== null ? Number(r[1]) : null, status: r[2], agente: r[3], resolved_at: r[4]
+    };
 
     const stale = [];
     for (const [id, info] of Object.entries(ticketMap)) {
       const dw = dwMap[id];
       const dwNota = dw ? dw.nota : null;
       const dwStatus = dw ? dw.status : 'NOT_FOUND';
-      // Stale: score zerado, score virou positivo, ticket não mais resolvido, ou não encontrado
-      if (dwNota === null || dwNota > 3 || dwStatus !== 'resolved') {
-        stale.push({ ...info, dw_nota: dwNota, dw_status: dwStatus });
+      const dwAgente = dw ? dw.agente : null;
+      const dwResolvedAt = dw ? dw.resolved_at : null;
+      // Stale: score zerado, score virou positivo, não mais resolvido, não encontrado, ou agente mudou
+      if (dwNota === null || dwNota > 3 || dwStatus !== 'resolved' || dwAgente !== info.agente) {
+        stale.push({ ...info, dw_nota: dwNota, dw_status: dwStatus, dw_agente: dwAgente, dw_resolved_at: dwResolvedAt });
       }
     }
 
