@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -1247,6 +1247,72 @@ app.get('/agent-tickets-op', async (req, res) => {
       .map(r => ({ id: String(r[0]), status: r[1], cliente: r[2]||null, nota: r[3]!==null?Number(r[3]):null, tipo: r[4] }))
       .filter(t => !(indevidasSet.has(t.id) && t.nota !== null && t.nota <= 3));
     res.json(tickets);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Verifica negativos em csat_reports cujo csat_score foi zerado no DW (ticket reaberto)
+// action=fix → adiciona às indevidas e reprocessa os dias afetados
+app.get('/admin/check-stale-csat', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.headers['x-admin-key'] !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  const mes = req.query.mes || '2026-06';
+  const action = req.query.action;
+  try {
+    const reportsRes = await pool.query(
+      `SELECT r.date::text, t->>'id' AS id, t->>'agente' AS agente, (t->>'nota')::numeric AS nota
+       FROM support_bi.csat_reports r,
+            jsonb_array_elements(r.data->'tickets') AS t
+       WHERE r.date LIKE $1
+       ORDER BY r.date`,
+      [mes + '%']
+    );
+    if (reportsRes.rows.length === 0) return res.json({ stale: [], total_negativos: 0 });
+
+    const ticketMap = {};
+    for (const row of reportsRes.rows) {
+      ticketMap[String(row.id)] = { id: String(row.id), date: row.date, agente: row.agente, nota: Number(row.nota) };
+    }
+    const ids = Object.keys(ticketMap);
+
+    const dwRows = await dwQuery(`
+      SELECT display_ticket_id::text, csat_score, ticket_status
+      FROM dw.fact_cloudchat_tickets
+      WHERE display_ticket_id::text IN (${ids.map(i => `'${i}'`).join(',')})
+    `);
+    const dwMap = {};
+    for (const r of dwRows) dwMap[String(r[0])] = { nota: r[1] !== null ? Number(r[1]) : null, status: r[2] };
+
+    const stale = [];
+    for (const [id, info] of Object.entries(ticketMap)) {
+      const dw = dwMap[id];
+      const dwNota = dw ? dw.nota : null;
+      const dwStatus = dw ? dw.status : 'NOT_FOUND';
+      if (dwNota === null || dwNota > 3) {
+        stale.push({ ...info, dw_nota: dwNota, dw_status: dwStatus });
+      }
+    }
+
+    if (action === 'fix' && stale.length > 0) {
+      await Promise.all(stale.map(t =>
+        pool.query(
+          `INSERT INTO support_bi.csat_indevidas (ticket_id, date, motivo, observacao)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (ticket_id) DO UPDATE SET motivo=$3, observacao=$4, marcado_em=NOW()`,
+          [t.id, t.date, 'avaliacao_reaberto', `Avaliação de mês anterior — ticket reaberto e refinalizado em ${t.date}`]
+        )
+      ));
+      pool.query(`DELETE FROM support_bi.kpis_op_cache WHERE period_key LIKE 'semana:%' OR period_key LIKE 'mes:%' OR period_key LIKE 'dia:%'`).catch(() => {});
+      const dates = [...new Set(stale.map(t => t.date))].sort();
+      const reprocessados = [];
+      for (const date of dates) {
+        try { const r = await runDailyReport(date, true); reprocessados.push({ date, total: r.total }); }
+        catch (e) { reprocessados.push({ date, erro: e.message }); }
+        await new Promise(r => setTimeout(r, 300));
+      }
+      return res.json({ adicionadas_indevidas: stale.length, reprocessados, tickets: stale });
+    }
+
+    res.json({ total_negativos: ids.length, stale_count: stale.length, stale });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
