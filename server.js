@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat', '/admin/mark-indevida', '/admin/breakdown-recebidos'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat', '/admin/mark-indevida', '/admin/breakdown-recebidos', '/admin/setup-reply-times', '/admin/process-reply-times', '/admin/reply-times-status', '/admin/report-tag-times'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -1407,6 +1407,140 @@ app.get('/admin/reprocess-all', async (req, res) => {
       console.log(`[reprocess-all] concluido: ${ok} ok, ${err} erros`);
     })();
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ── Tempos de resposta subsequente por tag ────────────────────────────────
+
+let _rjtJob = { running: false, total: 0, processed: 0, errors: 0, startedAt: null, completedAt: null };
+
+function calcSubsequentReplyTime(msgs) {
+  const sorted = msgs
+    .filter(m => m.message_type !== 2)
+    .sort((a, b) => a.created_at - b.created_at);
+  const firstIdx = sorted.findIndex(m => m.message_type === 1 && m.sender?.type === 'user');
+  if (firstIdx < 0) return null;
+  const pairs = [];
+  let lastSellerTs = null;
+  for (let i = firstIdx + 1; i < sorted.length; i++) {
+    const m = sorted[i];
+    if (m.message_type === 0) {
+      lastSellerTs = m.created_at;
+    } else if (m.message_type === 1 && m.sender?.type === 'user' && lastSellerTs) {
+      const diff = m.created_at - lastSellerTs;
+      if (diff > 0 && diff < 259200) { pairs.push(diff); lastSellerTs = null; }
+    }
+  }
+  if (!pairs.length) return null;
+  return { avg_sec: Math.round(pairs.reduce((a, b) => a + b, 0) / pairs.length), count: pairs.length };
+}
+
+app.get('/admin/setup-reply-times', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.query.key !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS support_bi.ticket_times_enriched (
+        display_ticket_id bigint PRIMARY KEY,
+        tag_grupo         text NOT NULL DEFAULT 'sem_tag',
+        created_at_local  timestamp,
+        first_reply_min   numeric,
+        resolution_min    numeric,
+        avg_subsequent_reply_sec  numeric,
+        count_subsequent_pairs    int DEFAULT 0,
+        processed_at      timestamp DEFAULT NOW()
+      )
+    `);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/admin/process-reply-times', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.query.key !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  if (_rjtJob.running) return res.json({ ok: false, message: 'Job já em execução', state: _rjtJob });
+  const from  = req.query.from || '2026-04-01';
+  const to    = req.query.to   || '2026-07-01';
+  const token = process.env.CLOUDCHAT_TOKEN;
+  if (!token) return res.status(500).json({ error: 'CLOUDCHAT_TOKEN não configurado' });
+  _rjtJob = { running: true, total: 0, processed: 0, errors: 0, startedAt: new Date().toISOString(), completedAt: null };
+  res.json({ ok: true, message: 'Job iniciado em background', params: { from, to } });
+  (async () => {
+    try {
+      const dwRows = await dwQuery(`
+        SELECT t.display_ticket_id, t.first_agent_reply_time_min, t.first_agent_resolution_time_min,
+          t.created_at_local,
+          COALESCE(
+            (SELECT CASE WHEN l2.label_name = 'no_tag' THEN 'sem_tag'
+                         ELSE SPLIT_PART(l2.label_name, '_', 1) END
+             FROM dw.fact_cloudchat_ticket_labels l2
+             WHERE l2.ticket_id = t.ticket_id AND l2.label_name != 'no_tag'
+             ORDER BY l2.label_name LIMIT 1),
+            'sem_tag'
+          ) AS tag_grupo
+        FROM dw.fact_cloudchat_tickets t
+        WHERE t.created_at_local >= '${from}' AND t.created_at_local < '${to}'
+        ORDER BY t.display_ticket_id
+      `);
+      const existing = new Set(
+        (await pool.query('SELECT display_ticket_id FROM support_bi.ticket_times_enriched')).rows.map(r => Number(r.display_ticket_id))
+      );
+      const toProcess = dwRows.filter(r => !existing.has(Number(r[0])));
+      _rjtJob.total = toProcess.length;
+      for (const row of toProcess) {
+        const [display_id, first_reply, resolution, created_at, tag] = row;
+        try {
+          const msgs = await fetchCloudChat(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${display_id}/messages`, token);
+          const payload = msgs.payload || msgs || [];
+          const result = calcSubsequentReplyTime(Array.isArray(payload) ? payload : []);
+          await pool.query(`
+            INSERT INTO support_bi.ticket_times_enriched
+              (display_ticket_id, tag_grupo, created_at_local, first_reply_min, resolution_min, avg_subsequent_reply_sec, count_subsequent_pairs)
+            VALUES ($1,$2,$3,$4,$5,$6,$7)
+            ON CONFLICT (display_ticket_id) DO UPDATE SET
+              tag_grupo=$2, created_at_local=$3, first_reply_min=$4, resolution_min=$5,
+              avg_subsequent_reply_sec=$6, count_subsequent_pairs=$7, processed_at=NOW()
+          `, [Number(display_id), tag || 'sem_tag', created_at || null,
+              first_reply != null ? Number(first_reply) : null,
+              resolution != null ? Number(resolution) : null,
+              result?.avg_sec ?? null, result?.count ?? 0]);
+          _rjtJob.processed++;
+        } catch(_e) { _rjtJob.errors++; }
+        await new Promise(r => setTimeout(r, 150));
+      }
+      _rjtJob.running = false;
+      _rjtJob.completedAt = new Date().toISOString();
+    } catch(e) { _rjtJob.running = false; _rjtJob.error = e.message; }
+  })();
+});
+
+app.get('/admin/reply-times-status', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.query.key !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  const dbCount = await pool.query('SELECT COUNT(*) FROM support_bi.ticket_times_enriched').catch(() => ({ rows: [{ count: 0 }] }));
+  res.json({ job: _rjtJob, db_count: Number(dbCount.rows[0].count) });
+});
+
+app.get('/admin/report-tag-times', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.query.key !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  const from = req.query.from || '2026-04-01';
+  const to   = req.query.to   || '2026-07-01';
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        tag_grupo AS grupo,
+        COUNT(*) AS tickets,
+        ROUND(AVG(first_reply_min) / 60.0, 2)                             AS media_1a_resp_h,
+        ROUND(AVG(CASE WHEN resolution_min > 0 AND resolution_min < 2880 THEN resolution_min END) / 60.0, 2) AS media_fechamento_h,
+        ROUND(AVG(avg_subsequent_reply_sec) / 60.0, 2)                    AS media_subseq_min,
+        COUNT(CASE WHEN avg_subsequent_reply_sec IS NOT NULL THEN 1 END)   AS tickets_com_subseq
+      FROM support_bi.ticket_times_enriched
+      WHERE created_at_local >= $1 AND created_at_local < $2
+      GROUP BY 1
+      ORDER BY tickets DESC
+    `, [from, to]);
+    res.json({ from, to, rows });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/admin/clear-ops-cache', async (req, res) => {
