@@ -1409,34 +1409,30 @@ app.get('/admin/reprocess-all', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Temp: testa mensagens de uma conversa pelo display_ticket_id
+// Temp: busca mensagens de uma conversa pelo display_ticket_id (= conversation_id no CloudChat)
 app.get('/admin/cc-messages', async (req, res) => {
   if (!process.env.ADMIN_KEY || req.query.key !== process.env.ADMIN_KEY)
     return res.status(403).json({ error: 'Forbidden' });
   const token = process.env.CLOUDCHAT_TOKEN;
   if (!token) return res.status(500).json({ error: 'CLOUDCHAT_TOKEN não configurado' });
-  const ticketId = req.query.ticket;
-  if (!ticketId) return res.status(400).json({ error: 'Parâmetro ?ticket= obrigatório' });
+  const convId = req.query.ticket; // display_ticket_id = conversation_id no CloudChat
+  if (!convId) return res.status(400).json({ error: 'Parâmetro ?ticket= obrigatório' });
   try {
-    // Busca a conversa pelo display_ticket_id
-    const search = await fetchCloudChat(
-      `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations?page=1`,
-      token
-    );
-    // Tenta pelo search endpoint
-    const found = await fetchCloudChat(
-      `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/search?q=${ticketId}&page=1`,
-      token
-    );
-    const conv = (found.conversations?.payload || []).find(c => String(c.id) === String(ticketId) || String(c.meta?.id) === String(ticketId));
-    const convId = conv?.id;
-    if (!convId) return res.json({ found: false, search_result: found.conversations?.payload?.slice(0,3) });
-    // Busca mensagens da conversa
     const msgs = await fetchCloudChat(
       `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${convId}/messages`,
       token
     );
-    res.json({ convId, messages: (msgs.payload || msgs).slice(0, 20) });
+    const payload = msgs.payload || msgs || [];
+    // Retorna apenas campos relevantes para calcular tempos
+    const simplified = payload.map(m => ({
+      id: m.id,
+      created_at: m.created_at,
+      type: m.message_type, // 0=incoming (seller), 1=outgoing (agente), 2=activity
+      author_type: m.sender?.type,
+      author_name: m.sender?.name,
+      content: (m.content || '').substring(0, 80),
+    })).sort((a,b) => a.created_at - b.created_at);
+    res.json({ convId, total: simplified.length, messages: simplified });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
