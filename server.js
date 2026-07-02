@@ -1409,6 +1409,20 @@ app.get('/admin/reprocess-all', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/admin/metabase-tables', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.query.key !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const token = await getMetabaseToken();
+    const r = await fetch(`${METABASE_URL}/api/database/${METABASE_DATABASE_ID}/metadata?include_hidden=true`, {
+      headers: { 'X-Metabase-Session': token },
+    });
+    const meta = await r.json();
+    const tables = (meta.tables || []).map(t => ({ id: t.id, schema: t.schema, name: t.name }));
+    res.json({ total: tables.length, tables });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/admin/clear-ops-cache', async (req, res) => {
   if (!process.env.ADMIN_KEY || req.query.key !== process.env.ADMIN_KEY)
     return res.status(403).json({ error: 'Forbidden' });
