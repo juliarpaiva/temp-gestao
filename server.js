@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat', '/admin/mark-indevida', '/admin/breakdown-recebidos'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat', '/admin/mark-indevida', '/admin/breakdown-recebidos', '/admin/cc-messages'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -1407,6 +1407,37 @@ app.get('/admin/reprocess-all', async (req, res) => {
       console.log(`[reprocess-all] concluido: ${ok} ok, ${err} erros`);
     })();
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Temp: testa mensagens de uma conversa pelo display_ticket_id
+app.get('/admin/cc-messages', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.query.key !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  const token = process.env.CLOUDCHAT_TOKEN;
+  if (!token) return res.status(500).json({ error: 'CLOUDCHAT_TOKEN não configurado' });
+  const ticketId = req.query.ticket;
+  if (!ticketId) return res.status(400).json({ error: 'Parâmetro ?ticket= obrigatório' });
+  try {
+    // Busca a conversa pelo display_ticket_id
+    const search = await fetchCloudChat(
+      `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations?page=1`,
+      token
+    );
+    // Tenta pelo search endpoint
+    const found = await fetchCloudChat(
+      `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/search?q=${ticketId}&page=1`,
+      token
+    );
+    const conv = (found.conversations?.payload || []).find(c => String(c.id) === String(ticketId) || String(c.meta?.id) === String(ticketId));
+    const convId = conv?.id;
+    if (!convId) return res.json({ found: false, search_result: found.conversations?.payload?.slice(0,3) });
+    // Busca mensagens da conversa
+    const msgs = await fetchCloudChat(
+      `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${convId}/messages`,
+      token
+    );
+    res.json({ convId, messages: (msgs.payload || msgs).slice(0, 20) });
+  } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 app.get('/admin/clear-ops-cache', async (req, res) => {
