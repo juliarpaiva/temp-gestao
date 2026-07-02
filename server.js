@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat', '/admin/mark-indevida', '/admin/breakdown-recebidos', '/admin/metabase-tables'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat', '/admin/mark-indevida', '/admin/breakdown-recebidos'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -1406,20 +1406,6 @@ app.get('/admin/reprocess-all', async (req, res) => {
       }
       console.log(`[reprocess-all] concluido: ${ok} ok, ${err} erros`);
     })();
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/admin/metabase-tables', async (req, res) => {
-  if (!process.env.ADMIN_KEY || req.query.key !== process.env.ADMIN_KEY)
-    return res.status(403).json({ error: 'Forbidden' });
-  try {
-    const token = await getMetabaseToken();
-    const r = await fetch(`${METABASE_URL}/api/database/${METABASE_DATABASE_ID}/metadata?include_hidden=true`, {
-      headers: { 'X-Metabase-Session': token },
-    });
-    const meta = await r.json();
-    const tables = (meta.tables || []).map(t => ({ id: t.id, schema: t.schema, name: t.name }));
-    res.json({ total: tables.length, tables });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
