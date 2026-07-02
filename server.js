@@ -1532,8 +1532,8 @@ app.get('/admin/report-tag-times', async (req, res) => {
         COUNT(*) AS tickets,
         ROUND(AVG(first_reply_min) / 60.0, 2)                             AS media_1a_resp_h,
         ROUND(AVG(CASE WHEN resolution_min > 0 AND resolution_min < 2880 THEN resolution_min END) / 60.0, 2) AS media_fechamento_h,
-        ROUND(AVG(avg_subsequent_reply_sec) / 60.0, 2)                    AS media_subseq_min,
-        COUNT(CASE WHEN avg_subsequent_reply_sec IS NOT NULL THEN 1 END)   AS tickets_com_subseq
+        ROUND(AVG(CASE WHEN avg_subsequent_reply_sec > 0 THEN avg_subsequent_reply_sec END) / 60.0, 2) AS media_subseq_min,
+        COUNT(CASE WHEN avg_subsequent_reply_sec > 0 THEN 1 END)           AS tickets_com_subseq
       FROM support_bi.ticket_times_enriched
       WHERE created_at_local >= $1 AND created_at_local < $2
       GROUP BY 1
