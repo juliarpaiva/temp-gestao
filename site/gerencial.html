@@ -403,7 +403,7 @@
   // ── Métricas Operacionais ────────────────────────────────────────────────
   let kpisOp       = null;
   let semanaOp     = null;
-  let filterModeOp = 'dia'; // 'dia' | 'semana' | 'mes' | 'periodo'
+  let filterModeOp = 'dia'; // 'dia' | 'semana' | 'mes' | 'periodo' | 'acumulado'
   let opsDiaAtivo  = null;
   let opsMesAtivo  = null;
   let opsPeriodoI  = null;
@@ -490,6 +490,9 @@
           <input type="date" id="ops-periodo-fim" value="${opsPeriodoF || ''}" style="border:1px solid var(--borda);border-radius:8px;padding:5px 10px;font-size:12px;font-family:inherit;outline:none" onchange="opsAtualizarPeriodo()">
           <button class="ops-week-btn ativo" onclick="opsAplicarPeriodo()" style="padding:5px 18px">Aplicar</button>
         </div>`;
+    }
+    if (filterModeOp === 'acumulado') {
+      return `<span style="font-size:12px;color:var(--muted)">01/02/26 – hoje</span>`;
     }
     return '';
   }
@@ -584,6 +587,7 @@
           <button class="filter-tab${filterModeOp==='semana' ?' ativo':''}" onclick="mudarFilterModeOp('semana')">Semana</button>
           <button class="filter-tab${filterModeOp==='mes'    ?' ativo':''}" onclick="mudarFilterModeOp('mes')">Mês</button>
           <button class="filter-tab${filterModeOp==='periodo'?' ativo':''}" onclick="mudarFilterModeOp('periodo')">Período</button>
+          <button class="filter-tab${filterModeOp==='acumulado'?' ativo':''}" onclick="mudarFilterModeOp('acumulado')">Acumulado</button>
         </div>
         <div class="ops-week-nav">${opsNavHtml()}</div>
         <p style="color:var(--muted);font-size:12px;padding:8px 0">${filterModeOp==='periodo'&&(!opsPeriodoI||!opsPeriodoF)?'Selecione o intervalo e clique em Aplicar.':'Carregando…'}</p>`;
@@ -598,6 +602,7 @@
         <button class="filter-tab${filterModeOp==='semana' ?' ativo':''}" onclick="mudarFilterModeOp('semana')">Semana</button>
         <button class="filter-tab${filterModeOp==='mes'    ?' ativo':''}" onclick="mudarFilterModeOp('mes')">Mês</button>
         <button class="filter-tab${filterModeOp==='periodo'?' ativo':''}" onclick="mudarFilterModeOp('periodo')">Período</button>
+        <button class="filter-tab${filterModeOp==='acumulado'?' ativo':''}" onclick="mudarFilterModeOp('acumulado')">Acumulado</button>
       </div>`;
 
     _opsAgentes = [...(atual.por_agente || [])];
@@ -1008,6 +1013,16 @@
       // mostra os inputs sem buscar ainda
       kpisOp = null;
       renderKpisOp();
+    } else if (modo === 'acumulado') {
+      const hoje = new Date().toISOString().slice(0, 10);
+      opsPeriodoI = '2026-02-01';
+      opsPeriodoF = hoje;
+      kpisOp = null;
+      renderKpisOp();
+      try {
+        kpisOp = await _fetchKpisOp(`inicio=2026-02-01&fim=${hoje}`);
+        renderKpisOp();
+      } catch (e) { _opsErro(e); }
     }
   }
 
@@ -1559,9 +1574,10 @@
 
 
   function _opsQs() {
-    if (filterModeOp === 'dia')     return `dia=${opsDiaAtivo}`;
-    if (filterModeOp === 'mes')     return `mes=${opsMesAtivo}`;
-    if (filterModeOp === 'periodo') return `inicio=${opsPeriodoI}&fim=${opsPeriodoF}`;
+    if (filterModeOp === 'dia')       return `dia=${opsDiaAtivo}`;
+    if (filterModeOp === 'mes')       return `mes=${opsMesAtivo}`;
+    if (filterModeOp === 'periodo')   return `inicio=${opsPeriodoI}&fim=${opsPeriodoF}`;
+    if (filterModeOp === 'acumulado') return `inicio=2026-02-01&fim=${opsPeriodoF || new Date().toISOString().slice(0,10)}`;
     return `semana=${semanaOp}`;
   }
 
