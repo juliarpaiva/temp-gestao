@@ -819,6 +819,7 @@
         <button class="filter-tab${claudiaFilterMode==='semana' ?' ativo':''}" onclick="mudarFilterModeClaudia('semana')">Semana</button>
         <button class="filter-tab${claudiaFilterMode==='mes'    ?' ativo':''}" onclick="mudarFilterModeClaudia('mes')">Mês</button>
         <button class="filter-tab${claudiaFilterMode==='periodo'?' ativo':''}" onclick="mudarFilterModeClaudia('periodo')">Período</button>
+        <button class="filter-tab${claudiaFilterMode==='acumulado'?' ativo':''}" onclick="mudarFilterModeClaudia('acumulado')">Acumulado</button>
       </div>
       <div class="ops-week-nav">${claudiaNavHtml()}</div>`;
 
@@ -1090,6 +1091,9 @@
         <button onclick="aplicarPeriodoClaudia()" style="background:var(--preto);color:#fff;border:none;border-radius:8px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Aplicar</button>
       </div>`;
     }
+    if (claudiaFilterMode === 'acumulado') {
+      return `<span style="font-size:12px;color:var(--muted)">01/02/26 – hoje</span>`;
+    }
     return '';
   }
 
@@ -1163,6 +1167,15 @@
       } catch(e) { _claudiaErro(e); }
     } else if (modo === 'periodo') {
       claudiaData = null; renderClaudia();
+    } else if (modo === 'acumulado') {
+      const hoje = new Date().toISOString().slice(0, 10);
+      claudiaPeriodoI = '2026-02-01';
+      claudiaPeriodoF = hoje;
+      claudiaData = null; renderClaudia();
+      try {
+        claudiaData = await _fetchClaudia(`inicio=2026-02-01&fim=${hoje}`);
+        renderClaudia();
+      } catch(e) { _claudiaErro(e); }
     }
   }
 
