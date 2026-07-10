@@ -863,7 +863,7 @@
       const fb = t.feedback
         ? escHtml(t.feedback.length > 130 ? t.feedback.slice(0,130)+'…' : t.feedback)
         : `<span style="color:var(--muted);font-style:italic">sem avaliação</span>`;
-      return `<tr>
+      return `<tr data-st="${t.status || ''}">
         <td style="white-space:nowrap;color:var(--muted)">${data}</td>
         <td><a href="${link}" target="_blank" rel="noopener" style="color:var(--preto);font-weight:700;text-decoration:none">#${t.id}<svg width="9" height="9" style="margin-left:2px;vertical-align:middle" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></td>
         <td>${notaH}</td>
@@ -904,18 +904,33 @@
                 <tbody>${linhas}</tbody>
               </table>
             </div>
-            <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${
+            <div id="claudia-status-pills" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${
               Object.entries(tickets.reduce((acc, t) => { acc[t.status || 'desconhecido'] = (acc[t.status || 'desconhecido'] || 0) + 1; return acc; }, {}))
                 .sort((a,b) => b[1] - a[1])
                 .map(([st, n]) => {
                   const label = { resolved:'resolvido', open:'aberto', pending:'pendente', snoozed:'snoozed' }[st] || st;
                   const cor   = { resolved:'#16a34a', open:'#dc2626', pending:'#ca8a04', snoozed:'#6366f1' }[st] || '#94a3b8';
-                  return `<span style="font-size:11px;background:${cor}18;color:${cor};border:1px solid ${cor}44;border-radius:4px;padding:2px 7px">${n} ${label}</span>`;
+                  return `<span data-filter-st="${st}" onclick="claudiaFiltrarStatus(this,'${st}')" style="cursor:pointer;font-size:11px;background:${cor}18;color:${cor};border:1px solid ${cor}44;border-radius:4px;padding:2px 7px;transition:opacity .15s">${n} ${label}</span>`;
                 }).join('')
             }</div>`
           : `<p style="color:var(--muted);font-size:13px;margin:0">Nenhum ticket retido pela Claudia neste período.</p>`
         }
       </div>`;
+  }
+
+  let _claudiaStFilter = null;
+  function claudiaFiltrarStatus(pill, st) {
+    const ativo = _claudiaStFilter === st;
+    _claudiaStFilter = ativo ? null : st;
+    // atualiza pílulas
+    document.querySelectorAll('#claudia-status-pills [data-filter-st]').forEach(p => {
+      p.style.opacity = (!_claudiaStFilter || p.dataset.filterSt === _claudiaStFilter) ? '1' : '0.35';
+      p.style.fontWeight = p.dataset.filterSt === _claudiaStFilter ? '700' : '';
+    });
+    // filtra linhas da tabela
+    document.querySelectorAll('#secao-claudia tbody tr[data-st]').forEach(tr => {
+      tr.style.display = (!_claudiaStFilter || tr.dataset.st === _claudiaStFilter) ? '' : 'none';
+    });
   }
 
   function exportarOpsCSV() {
