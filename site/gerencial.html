@@ -903,7 +903,16 @@
                 <thead><tr><th style="padding-top:12px">Data</th><th style="padding-top:12px">Ticket</th><th style="padding-top:12px">CSAT</th><th style="padding-top:12px">Feedback do cliente</th></tr></thead>
                 <tbody>${linhas}</tbody>
               </table>
-            </div>`
+            </div>
+            <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${
+              Object.entries(tickets.reduce((acc, t) => { acc[t.status || 'desconhecido'] = (acc[t.status || 'desconhecido'] || 0) + 1; return acc; }, {}))
+                .sort((a,b) => b[1] - a[1])
+                .map(([st, n]) => {
+                  const label = { resolved:'resolvido', open:'aberto', pending:'pendente', snoozed:'snoozed' }[st] || st;
+                  const cor   = { resolved:'#16a34a', open:'#dc2626', pending:'#ca8a04', snoozed:'#6366f1' }[st] || '#94a3b8';
+                  return `<span style="font-size:11px;background:${cor}18;color:${cor};border:1px solid ${cor}44;border-radius:4px;padding:2px 7px">${n} ${label}</span>`;
+                }).join('')
+            }</div>`
           : `<p style="color:var(--muted);font-size:13px;margin:0">Nenhum ticket retido pela Claudia neste período.</p>`
         }
       </div>`;
