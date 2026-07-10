@@ -381,12 +381,15 @@
     const [a,m] = chave.split('-').map(Number);
     return `${MESES_PT[m-1]} ${a}`;
   }
-  function semanaLabel(monday) {
-    const [a,m,d] = monday.split('-').map(Number);
-    const fri = new Date(a, m-1, d+4);
-    const dFri = fri.getDate(), mFri = fri.getMonth();
-    if (mFri === m-1) return `${d}–${dFri} ${MESES_ABR[m-1]}`;
-    return `${d} ${MESES_ABR[m-1]} – ${dFri} ${MESES_ABR[mFri]}`;
+  function semanaLabel(sunStr) {
+    // Recebe domingo da semana, exibe seg–sex (dias úteis da semana)
+    const [a,m,d] = sunStr.split('-').map(Number);
+    const mon = new Date(Date.UTC(a, m-1, d+1));
+    const fri = new Date(Date.UTC(a, m-1, d+5));
+    const md = mon.getUTCDate(), mm = mon.getUTCMonth();
+    const fd = fri.getUTCDate(), fm = fri.getUTCMonth();
+    if (mm === fm) return `${md}–${fd} ${MESES_ABR[mm]}`;
+    return `${md} ${MESES_ABR[mm]} – ${fd} ${MESES_ABR[fm]}`;
   }
 
   let dadosGestao    = null;
@@ -508,30 +511,27 @@
 
   function gerarSemanasOps(n) {
     const hoje = new Date();
-    const dow  = hoje.getUTCDay();
-    const daysSinceLastFri = dow === 5 ? 7 : (dow - 5 + 7) % 7;
-    const lastFri = new Date(hoje);
-    lastFri.setUTCDate(lastFri.getUTCDate() - daysSinceLastFri);
+    const dow  = hoje.getUTCDay(); // 0=domingo
+    const lastSun = new Date(hoje);
+    lastSun.setUTCDate(lastSun.getUTCDate() - dow);
     const semanas = [];
     for (let i = 0; i < n; i++) {
-      const fri = new Date(lastFri);
-      fri.setUTCDate(fri.getUTCDate() - i * 7);
-      const sat = new Date(fri);
-      sat.setUTCDate(sat.getUTCDate() - 6);
-      semanas.push(sat.toISOString().slice(0, 10));
+      const sun = new Date(lastSun);
+      sun.setUTCDate(sun.getUTCDate() - i * 7);
+      semanas.push(sun.toISOString().slice(0, 10));
     }
     return semanas;
   }
 
-  function semanaOpsLabel(satStr) {
-    const [ay, am, ad] = satStr.split('-').map(Number);
-    const sat = new Date(Date.UTC(ay, am - 1, ad));
-    const fri = new Date(sat);
-    fri.setUTCDate(fri.getUTCDate() + 6);
-    const sd = sat.getUTCDate(), sm = sat.getUTCMonth();
-    const fd = fri.getUTCDate(), fm = fri.getUTCMonth();
-    if (sm === fm) return `${sd}–${fd} ${MESES_OP[sm]}`;
-    return `${sd} ${MESES_OP[sm]} – ${fd} ${MESES_OP[fm]}`;
+  function semanaOpsLabel(sunStr) {
+    const [ay, am, ad] = sunStr.split('-').map(Number);
+    const sun = new Date(Date.UTC(ay, am - 1, ad));
+    const sat = new Date(sun);
+    sat.setUTCDate(sat.getUTCDate() + 6);
+    const sd = sun.getUTCDate(), sm = sun.getUTCMonth();
+    const ed = sat.getUTCDate(), em = sat.getUTCMonth();
+    if (sm === em) return `${sd}–${ed} ${MESES_OP[sm]}`;
+    return `${sd} ${MESES_OP[sm]} – ${ed} ${MESES_OP[em]}`;
   }
 
   function opsVs(atual, ant, inverso, isPct) {

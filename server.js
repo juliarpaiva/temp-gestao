@@ -680,24 +680,21 @@ app.get('/kpis-semanais', async (req, res) => {
       pd1 = d0;
       modoLabel = 'periodo';
     } else {
-      // Modo semana (padrão sáb–sex)
+      // Modo semana (dom–sáb)
       let semana = req.query.semana;
       if (!semana) {
         const hoje = new Date();
-        const dow  = hoje.getUTCDay();
-        const daysSinceLastFri = dow === 5 ? 7 : (dow - 5 + 7) % 7;
-        const lastFri = new Date(hoje);
-        lastFri.setUTCDate(lastFri.getUTCDate() - daysSinceLastFri);
-        const lastCompleteSat = new Date(lastFri);
-        lastCompleteSat.setUTCDate(lastCompleteSat.getUTCDate() - 6);
-        semana = lastCompleteSat.toISOString().slice(0, 10);
+        const dow  = hoje.getUTCDay(); // 0=dom
+        const lastSun = new Date(hoje);
+        lastSun.setUTCDate(lastSun.getUTCDate() - dow);
+        semana = lastSun.toISOString().slice(0, 10);
       }
-      const sat = new Date(semana + 'T12:00:00Z');
-      const nextSat = new Date(sat); nextSat.setUTCDate(nextSat.getUTCDate() + 7);
-      const prevSat = new Date(sat); prevSat.setUTCDate(prevSat.getUTCDate() - 7);
+      const sun = new Date(semana + 'T12:00:00Z');
+      const nextSun = new Date(sun); nextSun.setUTCDate(nextSun.getUTCDate() + 7);
+      const prevSun = new Date(sun); prevSun.setUTCDate(prevSun.getUTCDate() - 7);
       d0  = semana;
-      d1  = nextSat.toISOString().slice(0, 10);
-      pd0 = prevSat.toISOString().slice(0, 10);
+      d1  = nextSun.toISOString().slice(0, 10);
+      pd0 = prevSun.toISOString().slice(0, 10);
       pd1 = d0;
       modoLabel = 'semana';
     }
@@ -1233,7 +1230,7 @@ app.get('/agent-tickets-op', async (req, res) => {
   } else if (inicio && fim) {
     d0 = inicio; const nd = new Date(fim + 'T12:00:00Z'); nd.setUTCDate(nd.getUTCDate() + 1); d1 = nd.toISOString().slice(0, 10);
   } else {
-    const s = semana || (() => { const h=new Date(); const dow=h.getUTCDay(); const lf=new Date(h); lf.setUTCDate(lf.getUTCDate()-(dow===5?7:(dow-5+7)%7)); const ls=new Date(lf); ls.setUTCDate(ls.getUTCDate()-6); return ls.toISOString().slice(0,10); })();
+    const s = semana || (() => { const h=new Date(); const dow=h.getUTCDay(); const ls=new Date(h); ls.setUTCDate(ls.getUTCDate()-dow); return ls.toISOString().slice(0,10); })();
     d0 = s; const nd = new Date(s + 'T12:00:00Z'); nd.setUTCDate(nd.getUTCDate() + 7); d1 = nd.toISOString().slice(0, 10);
   }
   try {
@@ -1632,9 +1629,9 @@ app.get('/gestao', async (req, res) => {
       for (const [t, c] of Object.entries(tags_resumo_positivos)) meses[mesChave].tags_positivos[t] = (meses[mesChave].tags_positivos[t] || 0) + c;
       const d   = new Date(date + 'T12:00:00Z');
       const dow = d.getUTCDay();
-      const mon = new Date(d);
-      mon.setUTCDate(d.getUTCDate() - (dow === 0 ? 6 : dow - 1));
-      const semChave = mon.toISOString().slice(0, 10);
+      const sun = new Date(d);
+      sun.setUTCDate(d.getUTCDate() - dow); // volta até o domingo da semana
+      const semChave = sun.toISOString().slice(0, 10);
       if (!semanas[semChave]) semanas[semChave] = { total: 0, total_recebidos: 0, total_avaliados: 0, total_positivos: 0, dias: 0, por_agente: {}, por_agente_positivos: {}, por_agente_outros: {}, tags: {}, tags_positivos: {}, pior_dia: null, pior_total: 0 };
       semanas[semChave].total           += total;
       semanas[semChave].total_recebidos += total_recebidos;
