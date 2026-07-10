@@ -1314,6 +1314,53 @@ app.get('/admin/breakdown-recebidos', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Outliers de 1ª resposta por agente — diagnóstico
+app.get('/admin/first-reply-outliers', async (req, res) => {
+  const adminKey = req.query.key || req.headers['x-admin-key'];
+  if (!process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  const inicio = req.query.inicio || '2026-07-03';
+  const fim    = req.query.fim    || '2026-07-10';
+  const agente = req.query.agente || null; // ex: "Paty" ou "Lu Almeida"
+  const limit  = Math.min(parseInt(req.query.limit || '20'), 100);
+  const d1 = new Date(fim + 'T12:00:00Z'); d1.setUTCDate(d1.getUTCDate() + 1);
+  const d1str = d1.toISOString().slice(0, 10);
+  const agenteFilter = agente ? `AND agent_on_resolution_name ILIKE '%${agente.replace(/'/g,"''")}%'` : '';
+  try {
+    const rows = await dwQuery(`
+      SELECT
+        display_ticket_id,
+        agent_on_resolution_name,
+        ROUND(first_agent_reply_time_min::numeric, 1) AS first_reply_min,
+        ROUND(first_agent_reply_time_min::numeric / 60.0, 2) AS first_reply_h,
+        DATE(created_at_local)::text AS criado_em,
+        DATE(first_agent_first_reply_at_local)::text AS primeira_resposta_em,
+        ticket_status,
+        csat_score
+      FROM dw.fact_cloudchat_tickets
+      WHERE created_at_local >= '${inicio}'
+        AND created_at_local < '${d1str}'
+        AND first_agent_reply_time_min IS NOT NULL
+        AND first_agent_reply_time_min >= 0
+        AND first_agent_first_reply_at_local IS NOT NULL
+        ${agenteFilter}
+      ORDER BY first_agent_reply_time_min DESC
+      LIMIT ${limit}
+    `);
+    const result = rows.map(r => ({
+      ticket: r[0],
+      agente: r[1],
+      first_reply_min: r[2],
+      first_reply_h: r[3],
+      criado_em: r[4],
+      primeira_resposta_em: r[5],
+      status: r[6],
+      csat: r[7],
+    }));
+    res.json({ inicio, fim, agente: agente || 'todos', total: result.length, rows: result });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // Verifica negativos em csat_reports cujo csat_score foi zerado no DW (ticket reaberto)
 // action=fix → adiciona às indevidas e reprocessa os dias afetados
 app.get('/admin/check-stale-csat', async (req, res) => {
