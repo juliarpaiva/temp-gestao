@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat', '/admin/mark-indevida', '/admin/breakdown-recebidos', '/admin/setup-reply-times', '/admin/process-reply-times', '/admin/reply-times-status', '/admin/report-tag-times'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat', '/admin/mark-indevida', '/admin/breakdown-recebidos', '/admin/setup-reply-times', '/admin/process-reply-times', '/admin/reply-times-status', '/admin/report-tag-times', '/admin/first-reply-outliers'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
