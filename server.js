@@ -15,7 +15,7 @@ const METABASE_URL = 'https://rsv-ink-metabase-f7ef97f28c72.herokuapp.com';
 const METABASE_DATABASE_ID = 2;
 const METABASE_TABLE_ID = 7375;
 const METABASE_LABELS_TABLE_ID = 7376;
-const AGENTES = ['Mari', 'Fernanda', 'Fer', 'Paty', 'Lu Almeida', 'Rafa'];
+const AGENTES = ['Mari', 'Fernanda', 'Fer', 'Paty', 'Lu Almeida', 'Rafa', 'Natchely'];
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -776,7 +776,7 @@ app.get('/kpis-semanais', async (req, res) => {
       emAbertoAgenteRows, emAbertoOutrosRows,
     ] = await Promise.all([
       sqlScalar(`SELECT COUNT(ticket_id) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
-      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND resolved_at_local >= '${d0}' AND resolved_at_local < '${d1}'`),
+      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz') AND resolved_at_local >= '${d0}' AND resolved_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(COUNT(*) * 1.0 / NULLIF(COUNT(DISTINCT DATE(created_at_local)), 0), 1) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(COUNT(CASE WHEN csat_score >= 4 THEN 1 END) * 100.0 / NULLIF(COUNT(*), 0), 1) FROM dw.fact_cloudchat_tickets t WHERE csat_score IS NOT NULL AND t.created_at_local >= '${d0}' AND t.created_at_local < '${d1}' ${indevidasNotIn}`),
       sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND agent_on_resolution_name ILIKE '%claudia%' AND agent_on_resolution_name NOT ILIKE '%projetos%' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
@@ -801,7 +801,7 @@ app.get('/kpis-semanais', async (req, res) => {
         LEFT JOIN dw.fact_cloudchat_ticket_custom_fields cf
           ON cf.ticket_id = t.ticket_id
           AND cf.field_name = 'aguardando_confirmao_de_resoluo_lojista'
-        WHERE t.agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa')
+        WHERE t.agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
           AND (
             (t.ticket_status = 'resolved' AND t.resolved_at_local >= '${d0}' AND t.resolved_at_local < '${d1}')
             OR (cf.field_value_bool = true AND t.created_at_local >= '${d0}' AND t.created_at_local < '${d1}')
@@ -822,7 +822,7 @@ app.get('/kpis-semanais', async (req, res) => {
           ON cf.ticket_id = t.ticket_id
           AND cf.field_name = 'aguardando_confirmao_de_resoluo_lojista'
         WHERE t.ticket_status = 'snoozed'
-          AND t.agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa')
+          AND t.agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
           AND t.created_at_local >= '${d0}' AND t.created_at_local < '${d1}'
         GROUP BY 1
         ORDER BY total DESC
@@ -830,12 +830,12 @@ app.get('/kpis-semanais', async (req, res) => {
       sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'open' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'open' AND agent_on_resolution_name IS NULL AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'pending' AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
-      sqlRows(`SELECT agent_on_resolution_name, COUNT(*)::int AS resolvidos FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND resolved_at_local >= '${d0}' AND resolved_at_local < '${d1}' GROUP BY 1 ORDER BY 2 DESC`),
-      sqlRows(`SELECT COALESCE(agent_on_resolution_name,'Encerrado pelo seller'), COUNT(*)::int FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND (agent_on_resolution_name IS NULL OR (agent_on_resolution_name NOT IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND agent_on_resolution_name NOT ILIKE '%claudia%')) AND resolved_at_local >= '${d0}' AND resolved_at_local < '${d1}' GROUP BY 1 ORDER BY 2 DESC`),
+      sqlRows(`SELECT agent_on_resolution_name, COUNT(*)::int AS resolvidos FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz') AND resolved_at_local >= '${d0}' AND resolved_at_local < '${d1}' GROUP BY 1 ORDER BY 2 DESC`),
+      sqlRows(`SELECT COALESCE(agent_on_resolution_name,'Encerrado pelo seller'), COUNT(*)::int FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND (agent_on_resolution_name IS NULL OR (agent_on_resolution_name NOT IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz') AND agent_on_resolution_name NOT ILIKE '%claudia%')) AND resolved_at_local >= '${d0}' AND resolved_at_local < '${d1}' GROUP BY 1 ORDER BY 2 DESC`),
       sqlRows(`SELECT display_ticket_id, DATE(created_at_local)::text, ticket_status, csat_score, csat_feedback, contact_name FROM dw.fact_cloudchat_tickets WHERE agent_on_resolution_name ILIKE '%claudia%' AND agent_on_resolution_name NOT ILIKE '%projetos%' AND created_at_local >= '${d0}' AND created_at_local < '${d1}' ORDER BY created_at_local DESC LIMIT 300`),
-      sqlRows(`SELECT agent_on_resolution_name, COUNT(*)::int FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'pending' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND created_at_local >= '${d0}' AND created_at_local < '${d1}' GROUP BY 1`),
-      sqlRows(`SELECT COALESCE(agent_on_resolution_name,'Sem atribuição'), COUNT(*)::int FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'open' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') GROUP BY 1`),
-      sqlRows(`SELECT COALESCE(agent_on_resolution_name,'Sem atribuição'), COUNT(*)::int FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'open' AND (agent_on_resolution_name IS NULL OR (agent_on_resolution_name NOT IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND agent_on_resolution_name NOT ILIKE '%claudia%')) GROUP BY 1`),
+      sqlRows(`SELECT agent_on_resolution_name, COUNT(*)::int FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'pending' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz') AND created_at_local >= '${d0}' AND created_at_local < '${d1}' GROUP BY 1`),
+      sqlRows(`SELECT COALESCE(agent_on_resolution_name,'Sem atribuição'), COUNT(*)::int FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'open' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz') GROUP BY 1`),
+      sqlRows(`SELECT COALESCE(agent_on_resolution_name,'Sem atribuição'), COUNT(*)::int FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'open' AND (agent_on_resolution_name IS NULL OR (agent_on_resolution_name NOT IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz') AND agent_on_resolution_name NOT ILIKE '%claudia%')) GROUP BY 1`),
     ]);
 
     const csatTime = csatTimeDW;
@@ -916,7 +916,7 @@ app.get('/kpis-semanais', async (req, res) => {
         sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'open' AND (agent_on_resolution_name IS NULL OR agent_on_resolution_name NOT ILIKE '%projetos%')`),
         sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'pending' AND (agent_on_resolution_name IS NULL OR agent_on_resolution_name NOT ILIKE '%projetos%')`),
         sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status IN ('open','pending') AND agent_on_resolution_name IS NULL`),
-        sqlRows(`SELECT agent_on_resolution_name, COUNT(*)::int FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'pending' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') GROUP BY 1`),
+        sqlRows(`SELECT agent_on_resolution_name, COUNT(*)::int FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'pending' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz') GROUP BY 1`),
       ]);
       const pendingPorAgente = {};
       for (const r of bgPendingRows) pendingPorAgente[r[0]] = Number(r[1]) || 0;
@@ -1218,7 +1218,7 @@ app.get('/csat-tickets-agente', async (req, res) => {
 });
 
 app.get('/agent-tickets-op', async (req, res) => {
-  const AGENTES = ['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa'];
+  const AGENTES = ['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz']; // lista local deste endpoint
   const { agente, semana, mes, dia, inicio, fim } = req.query;
   if (!agente || !AGENTES.includes(agente)) return res.status(400).json({ error: 'agente inválido' });
   let d0, d1;
@@ -1301,7 +1301,7 @@ app.get('/admin/breakdown-recebidos', async (req, res) => {
           OR
           (ticket_status != 'resolved' AND created_at_local >= '${d0}' AND created_at_local < '${d1}')
         )
-          AND NOT (ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa'))
+          AND NOT (ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz'))
           AND NOT (ticket_status = 'resolved' AND agent_on_resolution_name ILIKE '%claudia%' AND agent_on_resolution_name NOT ILIKE '%projetos%')
         GROUP BY 1, 2
         ORDER BY 3 DESC, 1
