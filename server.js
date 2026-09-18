@@ -428,6 +428,17 @@ app.post('/indevida', express.json(), async (req, res) => {
        ON CONFLICT (ticket_id) DO UPDATE SET motivo=$3, observacao=$4, marcado_em=NOW()`,
       [ticket_id, date, motivo || null, observacao || null]
     );
+    pool.query(`DELETE FROM support_bi.kpis_op_cache`).catch(() => {});
+    (async () => {
+      try {
+        const rows = await dwQuery(`SELECT DATE(resolved_at_local)::text FROM dw.fact_cloudchat_tickets WHERE display_ticket_id = '${ticket_id}' AND resolved_at_local IS NOT NULL LIMIT 1`);
+        const resolvedDate = (rows.length > 0 && rows[0][0]) ? rows[0][0] : date;
+        await runDailyReport(resolvedDate, true);
+        if (resolvedDate !== date) await runDailyReport(date, true);
+      } catch(e) {
+        runDailyReport(date, true).catch(() => {});
+      }
+    })();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
