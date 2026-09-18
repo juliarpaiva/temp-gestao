@@ -1731,6 +1731,29 @@ app.get('/admin/report-tag-times', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+app.get('/admin/debug-msgs/:ticketId', async (req, res) => {
+  if (!process.env.ADMIN_KEY || req.query.key !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  const token = process.env.CLOUDCHAT_TOKEN;
+  if (!token) return res.status(500).json({ error: 'sem CLOUDCHAT_TOKEN' });
+  try {
+    const data = await fetchCloudChat(
+      `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${req.params.ticketId}/messages`, token
+    );
+    const payload = Array.isArray(data.payload) ? data.payload : (Array.isArray(data) ? data : []);
+    const summary = payload.map(m => ({
+      id: m.id,
+      message_type: m.message_type,
+      sender_type: m.sender?.type,
+      sender_name: m.sender?.name,
+      private: m.private,
+      created_at: m.created_at,
+      content: (m.content || '').slice(0, 80),
+    }));
+    res.json({ total: summary.length, messages: summary });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/admin/clear-ops-cache', async (req, res) => {
   if (!process.env.ADMIN_KEY || req.query.key !== process.env.ADMIN_KEY)
     return res.status(403).json({ error: 'Forbidden' });
