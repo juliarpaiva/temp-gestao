@@ -761,14 +761,16 @@ app.get('/kpis-semanais', async (req, res) => {
       indevidasIds = indevRows.rows.map(r => parseInt(r.ticket_id, 10)).filter(n => !isNaN(n));
     } catch (_e) {}
     const indevidasNotIn = indevidasIds.length ? `AND t.display_ticket_id::text NOT IN (${indevidasIds.map(id => `'${id}'`).join(',')})` : '';
+    console.log(`[kpis-debug] periodo=${d0}..${d1} indevidasIds=${JSON.stringify(indevidasIds)}`);
 
     // Agrega CSAT por agente a partir dos csat_reports (mesma fonte do Painel CSAT — data de criação)
     const csatByAgentReports = {};
     try {
       const repRows = await pool.query(
-        `SELECT data FROM support_bi.csat_reports WHERE date >= $1 AND date < $2`,
+        `SELECT date::text, data FROM support_bi.csat_reports WHERE date >= $1 AND date < $2`,
         [d0, d1]
       );
+      console.log(`[kpis-debug] csat_reports rows=${repRows.rows.length} para ${d0}..${d1}`);
       for (const row of repRows.rows) {
         const rd = row.data;
         for (const [ag, neg] of Object.entries(rd.por_agente || {})) {
@@ -780,7 +782,8 @@ app.get('/kpis-semanais', async (req, res) => {
           csatByAgentReports[ag].pos += (pos || 0);
         }
       }
-    } catch (_e) {}
+    } catch (_e) { console.log('[kpis-debug] ERRO ao buscar csat_reports:', _e.message); }
+    console.log('[kpis-debug] csatByAgentReports Rafa=', JSON.stringify(csatByAgentReports['Rafa']));
 
     const token = await getMetabaseToken();
 
@@ -881,6 +884,7 @@ app.get('/kpis-semanais', async (req, res) => {
       if (csat === null && r[4] !== null && r[4] !== undefined) {
         csat = Number(r[4]);
       }
+      if (agente === 'Rafa') console.log(`[kpis-debug] Rafa: rep=${JSON.stringify(rep)} dwCsat=${r[4]} csat_final=${csat}`);
       return {
         agente,
         volume:          Number(r[1]) || 0,
