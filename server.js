@@ -812,8 +812,12 @@ app.get('/kpis-semanais', async (req, res) => {
       SELECT
         display_ticket_id::text,
         first_agent_reply_name,
-        EXTRACT(EPOCH FROM (first_agent_first_reply_at_local - created_at_local)) / 60.0 AS criacao_min,
-        EXTRACT(EPOCH FROM (first_agent_first_reply_at_local - first_agent_assignment_at_local)) / 60.0 AS atrib_min,
+        CASE
+          WHEN created_at_local IS NOT NULL AND first_agent_first_reply_at_local IS NOT NULL
+          THEN EXTRACT(EPOCH FROM (first_agent_first_reply_at_local - created_at_local)) / 60.0
+          ELSE NULL
+        END AS criacao_min,
+        CASE WHEN first_agent_reply_time_min >= 0 THEN first_agent_reply_time_min ELSE NULL END AS atrib_min,
         EXTRACT(EPOCH FROM created_at_local) AS created_epoch,
         EXTRACT(EPOCH FROM first_agent_assignment_at_local) AS atrib_epoch
       FROM dw.fact_cloudchat_tickets
@@ -907,12 +911,18 @@ app.get('/kpis-semanais', async (req, res) => {
               .filter(m => m.message_type === 1 && m.sender?.type === 'user' && !m.private)
               .sort((a, b) => a.created_at - b.created_at)[0];
             if (firstReal) {
-              const replyEpoch = firstReal.created_at;
+              // CloudChat retorna created_at em segundos; alguns clientes retornam ms
+              let replyEpoch = firstReal.created_at;
+              if (replyEpoch > 1e12) replyEpoch = replyEpoch / 1000; // normaliza para segundos
               const createdEpoch = Number(t[4]);
               const atribEpoch  = Number(t[5]);
+              const cm = isFinite(createdEpoch) && createdEpoch > 0 ? (replyEpoch - createdEpoch) / 60 : null;
+              const am = isFinite(atribEpoch)   && atribEpoch  > 0 ? (replyEpoch - atribEpoch)  / 60 : null;
+              // Só aceita correção se resultar num valor menor que o original e positivo
+              const origCm = Number(t[2]); const origAm = Number(t[3]);
               correctedFirst[t[0]] = {
-                criacao_min: isFinite(createdEpoch) && createdEpoch > 0 ? (replyEpoch - createdEpoch) / 60 : null,
-                atrib_min:   isFinite(atribEpoch)   && atribEpoch  > 0 ? (replyEpoch - atribEpoch)  / 60 : null,
+                criacao_min: cm !== null && cm >= 0 && (!isFinite(origCm) || cm < origCm) ? cm : null,
+                atrib_min:   am !== null && am >= 0 && (!isFinite(origAm) || am < origAm) ? am : null,
               };
             }
           } catch (_) {}
@@ -930,13 +940,23 @@ app.get('/kpis-semanais', async (req, res) => {
       const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
       return { avg, median };
     }
+    const MAX_MIN = 10080; // 7 dias — acima disso sem correção = provável ticket histórico reaberto
     const frAgData = {};
     for (const t of ticketRows) {
       const ag = t[1]; if (!ag) continue;
       if (!frAgData[ag]) frAgData[ag] = { criacao: [], atrib: [] };
       const corr = correctedFirst[t[0]];
-      frAgData[ag].criacao.push(corr?.criacao_min ?? Number(t[2]));
-      frAgData[ag].atrib.push(corr?.atrib_min   ?? Number(t[3]));
+      const rawCm = t[2] !== null && t[2] !== undefined ? Number(t[2]) : null;
+      const rawAm = t[3] !== null && t[3] !== undefined ? Number(t[3]) : null;
+      // Usa valor corrigido pelo CloudChat; se não corrigido e > 7 dias, exclui (null)
+      const cm = corr?.criacao_min !== undefined && corr?.criacao_min !== null
+        ? corr.criacao_min
+        : (rawCm !== null && rawCm <= MAX_MIN ? rawCm : null);
+      const am = corr?.atrib_min !== undefined && corr?.atrib_min !== null
+        ? corr.atrib_min
+        : (rawAm !== null && rawAm <= MAX_MIN ? rawAm : null);
+      frAgData[ag].criacao.push(cm);
+      frAgData[ag].atrib.push(am);
     }
     const firstReplyByAgent = {};
     for (const [ag, d] of Object.entries(frAgData)) {
