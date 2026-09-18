@@ -839,8 +839,8 @@ app.get('/kpis-semanais', async (req, res) => {
           FROM dw.fact_cloudchat_tickets
           WHERE first_agent_reply_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
             AND first_agent_first_reply_at_local IS NOT NULL
-            AND ticket_status = 'resolved'
-            AND resolved_at_local >= '${d0}' AND resolved_at_local < '${d1}'
+            AND first_agent_reply_time_min >= 0
+            AND first_agent_first_reply_at_local >= '${d0}' AND first_agent_first_reply_at_local < '${d1}'
           GROUP BY 1
         )
         SELECT
