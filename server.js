@@ -808,18 +808,18 @@ app.get('/kpis-semanais', async (req, res) => {
     }
 
     // Query ticket-level de primeira resposta — roda em paralelo com o bloco principal
+    // fila_min  = criação do ticket → atribuição ao agente (tempo no bot + fila, fora do controle da agente)
+    // resp_min  = atribuição ao agente → primeira resposta (tempo real da agente)
     const ticketFirstReplyPromise = dwQuery(`
       SELECT
-        display_ticket_id::text,
         first_agent_reply_name,
         CASE
-          WHEN created_at_local IS NOT NULL AND first_agent_first_reply_at_local IS NOT NULL
-          THEN EXTRACT(EPOCH FROM (first_agent_first_reply_at_local - created_at_local)) / 60.0
+          WHEN created_at_local IS NOT NULL AND first_agent_assignment_at_local IS NOT NULL
+               AND first_agent_assignment_at_local >= created_at_local
+          THEN EXTRACT(EPOCH FROM (first_agent_assignment_at_local - created_at_local)) / 60.0
           ELSE NULL
-        END AS criacao_min,
-        CASE WHEN first_agent_reply_time_min >= 0 THEN first_agent_reply_time_min ELSE NULL END AS atrib_min,
-        EXTRACT(EPOCH FROM created_at_local) AS created_epoch,
-        EXTRACT(EPOCH FROM first_agent_assignment_at_local) AS atrib_epoch
+        END AS fila_min,
+        CASE WHEN first_agent_reply_time_min >= 0 THEN first_agent_reply_time_min ELSE NULL END AS resp_min
       FROM dw.fact_cloudchat_tickets
       WHERE first_agent_reply_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
         AND first_agent_first_reply_at_local IS NOT NULL
@@ -888,49 +888,9 @@ app.get('/kpis-semanais', async (req, res) => {
 
     const csatTime = csatTimeDW;
 
-    // ── Correção de primeira resposta via CloudChat ────────────────────────────
+    // ── Agrega primeira resposta por agente ───────────────────────────────────
     const ticketRows = await ticketFirstReplyPromise;
-    const OUTLIER_MIN = 240; // > 4h vira candidato à verificação no CloudChat
-    const ccToken = process.env.CLOUDCHAT_TOKEN;
-    const correctedFirst = {};
-
-    if (ccToken && ticketRows.length > 0) {
-      const outliers = ticketRows.filter(r => {
-        const cm = Number(r[2]); const am = Number(r[3]);
-        return (isFinite(cm) && cm > OUTLIER_MIN) || (isFinite(am) && am > OUTLIER_MIN);
-      });
-      const BATCH = 10;
-      for (let i = 0; i < outliers.length; i += BATCH) {
-        await Promise.all(outliers.slice(i, i + BATCH).map(async t => {
-          try {
-            const msgs = await fetchCloudChat(
-              `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${t[0]}/messages`, ccToken
-            );
-            const payload = Array.isArray(msgs.payload) ? msgs.payload : (Array.isArray(msgs) ? msgs : []);
-            const firstReal = payload
-              .filter(m => m.message_type === 1 && m.sender?.type === 'user' && !m.private)
-              .sort((a, b) => a.created_at - b.created_at)[0];
-            if (firstReal) {
-              // CloudChat retorna created_at em segundos; alguns clientes retornam ms
-              let replyEpoch = firstReal.created_at;
-              if (replyEpoch > 1e12) replyEpoch = replyEpoch / 1000; // normaliza para segundos
-              const createdEpoch = Number(t[4]);
-              const atribEpoch  = Number(t[5]);
-              const cm = isFinite(createdEpoch) && createdEpoch > 0 ? (replyEpoch - createdEpoch) / 60 : null;
-              const am = isFinite(atribEpoch)   && atribEpoch  > 0 ? (replyEpoch - atribEpoch)  / 60 : null;
-              // Só aceita correção se resultar num valor menor que o original e positivo
-              const origCm = Number(t[2]); const origAm = Number(t[3]);
-              correctedFirst[t[0]] = {
-                criacao_min: cm !== null && cm >= 0 && (!isFinite(origCm) || cm < origCm) ? cm : null,
-                atrib_min:   am !== null && am >= 0 && (!isFinite(origAm) || am < origAm) ? am : null,
-              };
-            }
-          } catch (_) {}
-        }));
-      }
-    }
-
-    // Agrega primeira resposta por agente com dados corrigidos
+    const MAX_MIN = 10080; // 7 dias — acima disso = ticket histórico reaberto, excluir da média
     function calcAgg(arr) {
       const v = arr.filter(x => x !== null && isFinite(x) && x >= 0);
       if (!v.length) return { avg: null, median: null };
@@ -940,31 +900,22 @@ app.get('/kpis-semanais', async (req, res) => {
       const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
       return { avg, median };
     }
-    const MAX_MIN = 10080; // 7 dias — acima disso sem correção = provável ticket histórico reaberto
     const frAgData = {};
     for (const t of ticketRows) {
-      const ag = t[1]; if (!ag) continue;
-      if (!frAgData[ag]) frAgData[ag] = { criacao: [], atrib: [] };
-      const corr = correctedFirst[t[0]];
-      const rawCm = t[2] !== null && t[2] !== undefined ? Number(t[2]) : null;
-      const rawAm = t[3] !== null && t[3] !== undefined ? Number(t[3]) : null;
-      // Usa valor corrigido pelo CloudChat; se não corrigido e > 7 dias, exclui (null)
-      const cm = corr?.criacao_min !== undefined && corr?.criacao_min !== null
-        ? corr.criacao_min
-        : (rawCm !== null && rawCm <= MAX_MIN ? rawCm : null);
-      const am = corr?.atrib_min !== undefined && corr?.atrib_min !== null
-        ? corr.atrib_min
-        : (rawAm !== null && rawAm <= MAX_MIN ? rawAm : null);
-      frAgData[ag].criacao.push(cm);
-      frAgData[ag].atrib.push(am);
+      const ag = t[0]; if (!ag) continue;
+      if (!frAgData[ag]) frAgData[ag] = { fila: [], resp: [] };
+      const rawFila = t[1] !== null && t[1] !== undefined ? Number(t[1]) : null;
+      const rawResp = t[2] !== null && t[2] !== undefined ? Number(t[2]) : null;
+      frAgData[ag].fila.push(rawFila !== null && rawFila <= MAX_MIN ? rawFila : null);
+      frAgData[ag].resp.push(rawResp !== null && rawResp <= MAX_MIN ? rawResp : null);
     }
     const firstReplyByAgent = {};
     for (const [ag, d] of Object.entries(frAgData)) {
-      const sc = calcAgg(d.criacao); const sa = calcAgg(d.atrib);
+      const sf = calcAgg(d.fila); const sr = calcAgg(d.resp);
       const r1 = v => v !== null ? Math.round(v / 60 * 10) / 10 : null;
       firstReplyByAgent[ag] = {
-        tempo_resp_criacao_h:   r1(sc.avg),    mediana_resp_criacao_h: r1(sc.median),
-        tempo_resp_atrib_h:     r1(sa.avg),    mediana_resp_atrib_h:   r1(sa.median),
+        tempo_fila_h:    r1(sf.avg),  mediana_fila_h:    r1(sf.median),
+        tempo_resp_h:    r1(sr.avg),  mediana_resp_h:    r1(sr.median),
       };
     }
     // ─────────────────────────────────────────────────────────────────────────
@@ -984,14 +935,14 @@ app.get('/kpis-semanais', async (req, res) => {
       const fr = firstReplyByAgent[agente] || {};
       return {
         agente,
-        volume:                   Number(r[1]) || 0,
-        tempo_resp_criacao_h:     fr.tempo_resp_criacao_h   ?? null,
-        mediana_resp_criacao_h:   fr.mediana_resp_criacao_h ?? null,
-        tempo_resp_atrib_h:       fr.tempo_resp_atrib_h     ?? null,
-        mediana_resp_atrib_h:     fr.mediana_resp_atrib_h   ?? null,
-        tempo_enc_h:              r[2] !== null && r[2] !== undefined ? Number(r[2]) : null,
+        volume:          Number(r[1]) || 0,
+        tempo_fila_h:    fr.tempo_fila_h    ?? null,
+        mediana_fila_h:  fr.mediana_fila_h  ?? null,
+        tempo_resp_h:    fr.tempo_resp_h    ?? null,
+        mediana_resp_h:  fr.mediana_resp_h  ?? null,
+        tempo_enc_h:     r[2] !== null && r[2] !== undefined ? Number(r[2]) : null,
         csat,
-        mediana_enc_h:            r[4] !== null && r[4] !== undefined ? Number(r[4]) : null,
+        mediana_enc_h:   r[4] !== null && r[4] !== undefined ? Number(r[4]) : null,
       };
     });
 
