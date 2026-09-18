@@ -765,12 +765,13 @@ app.get('/kpis-semanais', async (req, res) => {
 
     // Agrega CSAT por agente a partir dos csat_reports (mesma fonte do Painel CSAT — data de criação)
     const csatByAgentReports = {};
+    let reportsTemDados = false;
     try {
       const repRows = await pool.query(
         `SELECT date::text, data FROM support_bi.csat_reports WHERE date >= $1 AND date < $2`,
         [d0, d1]
       );
-      console.log(`[kpis-debug] csat_reports rows=${repRows.rows.length} para ${d0}..${d1}`);
+      reportsTemDados = repRows.rows.length > 0;
       for (const row of repRows.rows) {
         const rd = row.data;
         for (const [ag, neg] of Object.entries(rd.por_agente || {})) {
@@ -782,8 +783,7 @@ app.get('/kpis-semanais', async (req, res) => {
           csatByAgentReports[ag].pos += (pos || 0);
         }
       }
-    } catch (_e) { console.log('[kpis-debug] ERRO ao buscar csat_reports:', _e.message); }
-    console.log('[kpis-debug] csatByAgentReports Rafa=', JSON.stringify(csatByAgentReports['Rafa']));
+    } catch (_e) {}
 
     const token = await getMetabaseToken();
 
@@ -880,11 +880,10 @@ app.get('/kpis-semanais', async (req, res) => {
         const tot = rep.neg + rep.pos;
         if (tot > 0) csat = Math.round(rep.pos / tot * 1000) / 10;
       }
-      // Fallback para DW quando csat_reports ainda não tem dados
-      if (csat === null && r[4] !== null && r[4] !== undefined) {
+      // DW só é fallback quando csat_reports ainda não tem dados do período
+      if (csat === null && !reportsTemDados && r[4] !== null && r[4] !== undefined) {
         csat = Number(r[4]);
       }
-      if (agente === 'Rafa') console.log(`[kpis-debug] Rafa: rep=${JSON.stringify(rep)} dwCsat=${r[4]} csat_final=${csat}`);
       return {
         agente,
         volume:          Number(r[1]) || 0,
