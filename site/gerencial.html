@@ -728,7 +728,7 @@
             em_aberto: aberto,
             adiados_total: adi,
             ids_adiados: s.ids || [],
-            total: enc + adi,
+            total: enc,
             csat: p.csat ?? null, tempo_resp_h: p.tempo_resp_h ?? null, tempo_enc_h: p.tempo_enc_h ?? null, mediana_resp_h: p.mediana_resp_h ?? null, mediana_enc_h: p.mediana_enc_h ?? null,
           };
         });
@@ -943,7 +943,7 @@
         const r = resolv.find(x => x.agente === ag)  || { resolvidos: 0 };
         const s = snoozed.find(x => x.agente === ag) || { total: 0 };
         const p = porAg.find(x => x.agente === ag)   || {};
-        return [ag, (r.resolvidos||0)+(s.total||0), r.resolvidos, s.total,
+        return [ag, r.resolvidos, s.total,
           p.csat !== null && p.csat !== undefined ? p.csat + '%' : '—',
           fmtHora(p.tempo_resp_h), fmtHora(p.tempo_enc_h)];
       })

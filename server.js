@@ -799,10 +799,8 @@ app.get('/kpis-semanais', async (req, res) => {
           ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY t.first_agent_resolution_time_min) FILTER (WHERE t.first_agent_resolution_time_min IS NOT NULL AND t.first_agent_resolution_time_min > 0 AND t.first_agent_resolution_time_min < 2880 AND t.resolved_at_local IS NOT NULL))::numeric / 60.0, 1) AS mediana_enc_h
         FROM dw.fact_cloudchat_tickets t
         WHERE t.agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
-          AND (
-            (t.ticket_status = 'resolved' AND t.resolved_at_local >= '${d0}' AND t.resolved_at_local < '${d1}')
-            OR (t.ticket_status = 'snoozed' AND t.created_at_local >= '${d0}' AND t.created_at_local < '${d1}')
-          )
+          AND t.ticket_status = 'resolved'
+          AND t.resolved_at_local >= '${d0}' AND t.resolved_at_local < '${d1}'
         GROUP BY 1
         ORDER BY volume DESC
       `),
