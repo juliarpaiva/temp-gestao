@@ -761,8 +761,7 @@
           const adSub = '';
           return `<tr>
             <td class="ops-agente">${nome}</td>
-            <td class="r" style="font-weight:700;color:var(--rosa);cursor:pointer;text-decoration:none" onclick="abrirTicketsAgentePeriodo('${u.agente}')" title="Ver tickets">${u.total || '—'}</td>
-            <td class="r" style="font-weight:600">${u.encerrados || '—'}</td>
+            <td class="r" style="font-weight:700;color:var(--rosa);cursor:pointer;text-decoration:none" onclick="abrirTicketsAgentePeriodo('${u.agente}')" title="Ver tickets">${u.encerrados || '—'}</td>
             <td class="r" ${u.pendentes > 0 ? `style="font-weight:700;color:#92400e;cursor:pointer" onclick="abrirPendentesAgente('${u.agente}')" title="Ver tickets pendentes"` : `style="font-weight:600"`}>${u.pendentes || '—'}</td>
             <td class="r" ${u.em_aberto > 0 ? `style="font-weight:700;color:#1d4ed8;cursor:pointer" onclick="abrirAbertosAgente('${u.agente}')" title="Ver tickets em aberto"` : `style="font-weight:600"`}>${u.em_aberto || '—'}</td>
             <td class="r"><div style="font-weight:700">${adTotal}</div>${adSub}</td>
@@ -773,16 +772,15 @@
         }).join('');
         const claudiaRow = claudia ? `<tr style="color:var(--muted);font-style:italic;border-top:2px solid #e2e8f0">
           <td>Retenção N1 (Claudia)</td>
-          <td class="r">${claudia}</td><td class="r">${claudia}</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
+          <td class="r">${claudia}</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
         </tr>` : '';
         const emAbertoOutros = atual.em_aberto_outros || {};
         const outrosHeader = outros.length ? `<tr style="color:var(--muted);font-style:italic">
-          <td>Outras equipes</td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td>
+          <td>Outras equipes</td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td><td class="r"></td>
         </tr>${outros.map(x => {
           const ab = emAbertoOutros[x.agente] || 0;
           return `<tr style="color:var(--muted)">
             <td style="padding-left:20px;font-size:11px">${escHtml(x.agente)}</td>
-            <td class="r" style="font-size:11px">${x.resolvidos}</td>
             <td class="r" style="font-size:11px">${x.resolvidos}</td>
             <td class="r">—</td>
             <td class="r" style="font-size:11px">${ab > 0 ? `<span style="font-weight:700;color:#1d4ed8;cursor:pointer" onclick="abrirAbertosAgente('${escHtml(x.agente)}')" title="Ver tickets em aberto">${ab}</span>` : '—'}</td>
@@ -795,7 +793,6 @@
           <table class="ops-table">
             <thead><tr>
               ${th('agente','Agente','')}
-              ${th('total','Total','r')}
               ${th('encerrados','Encerrados','r')}
               ${th('pendentes','Pendentes','r')}
               ${th('em_aberto','Em aberto','r')}
