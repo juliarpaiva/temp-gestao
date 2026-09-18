@@ -807,6 +807,21 @@ app.get('/kpis-semanais', async (req, res) => {
       return data.data?.rows || [];
     }
 
+    // Query ticket-level de primeira resposta — roda em paralelo com o bloco principal
+    const ticketFirstReplyPromise = dwQuery(`
+      SELECT
+        display_ticket_id::text,
+        first_agent_reply_name,
+        EXTRACT(EPOCH FROM (first_agent_first_reply_at_local - created_at_local)) / 60.0 AS criacao_min,
+        EXTRACT(EPOCH FROM (first_agent_first_reply_at_local - first_agent_assignment_at_local)) / 60.0 AS atrib_min,
+        EXTRACT(EPOCH FROM created_at_local) AS created_epoch,
+        EXTRACT(EPOCH FROM first_agent_assignment_at_local) AS atrib_epoch
+      FROM dw.fact_cloudchat_tickets
+      WHERE first_agent_reply_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
+        AND first_agent_first_reply_at_local IS NOT NULL
+        AND first_agent_first_reply_at_local >= '${d0}' AND first_agent_first_reply_at_local < '${d1}'
+    `).catch(() => []);
+
     const [
       volume, respondidos, mediaDiaria, csatTimeDW, csatClaudia, retencaoN1,
       tempoResposta, tempoEncerramento, medResposta, medEncerramento,
@@ -831,39 +846,13 @@ app.get('/kpis-semanais', async (req, res) => {
       sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name ILIKE '%claudia%' AND agent_on_resolution_name NOT ILIKE '%projetos%' AND created_at_local >= '${pd0}' AND created_at_local < '${d0}'`),
       sqlScalar(`SELECT ROUND(100.0 * COUNT(CASE WHEN csat_score >= 4 THEN 1 END) / NULLIF(COUNT(*), 0), 1) FROM dw.fact_cloudchat_tickets WHERE csat_score IS NOT NULL AND created_at_local >= '${pd0}' AND created_at_local < '${d0}'`),
       sqlRows(`
-        WITH resp AS (
-          SELECT
-            first_agent_reply_name AS agente,
-            ROUND(AVG(CASE WHEN created_at_local IS NOT NULL AND first_agent_first_reply_at_local >= created_at_local
-              THEN EXTRACT(EPOCH FROM (first_agent_first_reply_at_local - created_at_local)) / 60.0 END) / 60.0, 1) AS tempo_resp_criacao_h,
-            ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY
-              CASE WHEN created_at_local IS NOT NULL AND first_agent_first_reply_at_local >= created_at_local
-              THEN EXTRACT(EPOCH FROM (first_agent_first_reply_at_local - created_at_local)) / 60.0 END
-            ) FILTER (WHERE created_at_local IS NOT NULL AND first_agent_first_reply_at_local >= created_at_local))::numeric / 60.0, 1) AS mediana_resp_criacao_h,
-            ROUND(AVG(CASE WHEN first_agent_assignment_at_local IS NOT NULL AND first_agent_first_reply_at_local >= first_agent_assignment_at_local
-              THEN EXTRACT(EPOCH FROM (first_agent_first_reply_at_local - first_agent_assignment_at_local)) / 60.0 END) / 60.0, 1) AS tempo_resp_atrib_h,
-            ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY
-              CASE WHEN first_agent_assignment_at_local IS NOT NULL AND first_agent_first_reply_at_local >= first_agent_assignment_at_local
-              THEN EXTRACT(EPOCH FROM (first_agent_first_reply_at_local - first_agent_assignment_at_local)) / 60.0 END
-            ) FILTER (WHERE first_agent_assignment_at_local IS NOT NULL AND first_agent_first_reply_at_local >= first_agent_assignment_at_local))::numeric / 60.0, 1) AS mediana_resp_atrib_h
-          FROM dw.fact_cloudchat_tickets
-          WHERE first_agent_reply_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
-            AND first_agent_first_reply_at_local IS NOT NULL
-            AND first_agent_first_reply_at_local >= '${d0}' AND first_agent_first_reply_at_local < '${d1}'
-          GROUP BY 1
-        )
         SELECT
           COALESCE(t.agent_on_resolution_name, '(sem agente)') AS agente,
           COUNT(*) AS volume,
-          MAX(resp.tempo_resp_criacao_h) AS tempo_resp_criacao_h,
-          MAX(resp.mediana_resp_criacao_h) AS mediana_resp_criacao_h,
-          MAX(resp.tempo_resp_atrib_h) AS tempo_resp_atrib_h,
-          MAX(resp.mediana_resp_atrib_h) AS mediana_resp_atrib_h,
-          ROUND(AVG(CASE WHEN t.first_agent_resolution_time_min IS NOT NULL AND t.first_agent_resolution_time_min > 0 AND t.first_agent_resolution_time_min < 2880 AND t.resolved_at_local IS NOT NULL THEN t.first_agent_resolution_time_min END) / 60.0, 1) AS tempo_enc_h,
+          ROUND(AVG(CASE WHEN t.first_agent_resolution_time_min > 0 AND t.first_agent_resolution_time_min < 2880 AND t.resolved_at_local IS NOT NULL THEN t.first_agent_resolution_time_min END) / 60.0, 1) AS tempo_enc_h,
           ROUND(COUNT(CASE WHEN t.csat_score >= 4 ${indevidasNotIn} THEN 1 END) * 100.0 / NULLIF(COUNT(CASE WHEN t.csat_score IS NOT NULL ${indevidasNotIn} THEN 1 END), 0), 1) AS csat,
-          ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY t.first_agent_resolution_time_min) FILTER (WHERE t.first_agent_resolution_time_min IS NOT NULL AND t.first_agent_resolution_time_min > 0 AND t.first_agent_resolution_time_min < 2880 AND t.resolved_at_local IS NOT NULL))::numeric / 60.0, 1) AS mediana_enc_h
+          ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY t.first_agent_resolution_time_min) FILTER (WHERE t.first_agent_resolution_time_min > 0 AND t.first_agent_resolution_time_min < 2880 AND t.resolved_at_local IS NOT NULL))::numeric / 60.0, 1) AS mediana_enc_h
         FROM dw.fact_cloudchat_tickets t
-        LEFT JOIN resp ON resp.agente = t.agent_on_resolution_name
         WHERE t.agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
           AND t.ticket_status = 'resolved'
           AND t.resolved_at_local >= '${d0}' AND t.resolved_at_local < '${d1}'
@@ -895,6 +884,71 @@ app.get('/kpis-semanais', async (req, res) => {
 
     const csatTime = csatTimeDW;
 
+    // ── Correção de primeira resposta via CloudChat ────────────────────────────
+    const ticketRows = await ticketFirstReplyPromise;
+    const OUTLIER_MIN = 240; // > 4h vira candidato à verificação no CloudChat
+    const ccToken = process.env.CLOUDCHAT_TOKEN;
+    const correctedFirst = {};
+
+    if (ccToken && ticketRows.length > 0) {
+      const outliers = ticketRows.filter(r => {
+        const cm = Number(r[2]); const am = Number(r[3]);
+        return (isFinite(cm) && cm > OUTLIER_MIN) || (isFinite(am) && am > OUTLIER_MIN);
+      });
+      const BATCH = 10;
+      for (let i = 0; i < outliers.length; i += BATCH) {
+        await Promise.all(outliers.slice(i, i + BATCH).map(async t => {
+          try {
+            const msgs = await fetchCloudChat(
+              `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${t[0]}/messages`, ccToken
+            );
+            const payload = Array.isArray(msgs.payload) ? msgs.payload : (Array.isArray(msgs) ? msgs : []);
+            const firstReal = payload
+              .filter(m => m.message_type === 1 && m.sender?.type === 'user' && !m.private)
+              .sort((a, b) => a.created_at - b.created_at)[0];
+            if (firstReal) {
+              const replyEpoch = firstReal.created_at;
+              const createdEpoch = Number(t[4]);
+              const atribEpoch  = Number(t[5]);
+              correctedFirst[t[0]] = {
+                criacao_min: isFinite(createdEpoch) && createdEpoch > 0 ? (replyEpoch - createdEpoch) / 60 : null,
+                atrib_min:   isFinite(atribEpoch)   && atribEpoch  > 0 ? (replyEpoch - atribEpoch)  / 60 : null,
+              };
+            }
+          } catch (_) {}
+        }));
+      }
+    }
+
+    // Agrega primeira resposta por agente com dados corrigidos
+    function calcAgg(arr) {
+      const v = arr.filter(x => x !== null && isFinite(x) && x >= 0);
+      if (!v.length) return { avg: null, median: null };
+      const avg = v.reduce((s, x) => s + x, 0) / v.length;
+      const sorted = [...v].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+      return { avg, median };
+    }
+    const frAgData = {};
+    for (const t of ticketRows) {
+      const ag = t[1]; if (!ag) continue;
+      if (!frAgData[ag]) frAgData[ag] = { criacao: [], atrib: [] };
+      const corr = correctedFirst[t[0]];
+      frAgData[ag].criacao.push(corr?.criacao_min ?? Number(t[2]));
+      frAgData[ag].atrib.push(corr?.atrib_min   ?? Number(t[3]));
+    }
+    const firstReplyByAgent = {};
+    for (const [ag, d] of Object.entries(frAgData)) {
+      const sc = calcAgg(d.criacao); const sa = calcAgg(d.atrib);
+      const r1 = v => v !== null ? Math.round(v / 60 * 10) / 10 : null;
+      firstReplyByAgent[ag] = {
+        tempo_resp_criacao_h:   r1(sc.avg),    mediana_resp_criacao_h: r1(sc.median),
+        tempo_resp_atrib_h:     r1(sa.avg),    mediana_resp_atrib_h:   r1(sa.median),
+      };
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     const porAgente = porAgenteRows.map(r => {
       const agente = r[0];
       const rep = csatByAgentReports[agente];
@@ -904,19 +958,20 @@ app.get('/kpis-semanais', async (req, res) => {
         if (tot > 0) csat = Math.round(rep.pos / tot * 1000) / 10;
       }
       // DW só é fallback quando csat_reports ainda não tem dados do período
-      if (csat === null && !reportsTemDados && r[7] !== null && r[7] !== undefined) {
-        csat = Number(r[7]);
+      if (csat === null && !reportsTemDados && r[3] !== null && r[3] !== undefined) {
+        csat = Number(r[3]);
       }
+      const fr = firstReplyByAgent[agente] || {};
       return {
         agente,
         volume:                   Number(r[1]) || 0,
-        tempo_resp_criacao_h:     r[2] !== null && r[2] !== undefined ? Number(r[2]) : null,
-        mediana_resp_criacao_h:   r[3] !== null && r[3] !== undefined ? Number(r[3]) : null,
-        tempo_resp_atrib_h:       r[4] !== null && r[4] !== undefined ? Number(r[4]) : null,
-        mediana_resp_atrib_h:     r[5] !== null && r[5] !== undefined ? Number(r[5]) : null,
-        tempo_enc_h:              r[6] !== null && r[6] !== undefined ? Number(r[6]) : null,
+        tempo_resp_criacao_h:     fr.tempo_resp_criacao_h   ?? null,
+        mediana_resp_criacao_h:   fr.mediana_resp_criacao_h ?? null,
+        tempo_resp_atrib_h:       fr.tempo_resp_atrib_h     ?? null,
+        mediana_resp_atrib_h:     fr.mediana_resp_atrib_h   ?? null,
+        tempo_enc_h:              r[2] !== null && r[2] !== undefined ? Number(r[2]) : null,
         csat,
-        mediana_enc_h:            r[8] !== null && r[8] !== undefined ? Number(r[8]) : null,
+        mediana_enc_h:            r[4] !== null && r[4] !== undefined ? Number(r[4]) : null,
       };
     });
 
