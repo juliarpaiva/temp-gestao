@@ -834,14 +834,18 @@ app.get('/kpis-semanais', async (req, res) => {
         WITH resp AS (
           SELECT
             first_agent_reply_name AS agente,
-            ROUND(AVG(
-              CASE WHEN first_agent_assignment_at_local IS NOT NULL AND first_agent_first_reply_at_local >= first_agent_assignment_at_local
-              THEN EXTRACT(EPOCH FROM (first_agent_first_reply_at_local - first_agent_assignment_at_local)) / 60.0 END
-            ) / 60.0, 1) AS tempo_resp_h,
+            ROUND(AVG(CASE WHEN created_at_local IS NOT NULL AND first_agent_first_reply_at_local >= created_at_local
+              THEN EXTRACT(EPOCH FROM (first_agent_first_reply_at_local - created_at_local)) / 60.0 END) / 60.0, 1) AS tempo_resp_criacao_h,
+            ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY
+              CASE WHEN created_at_local IS NOT NULL AND first_agent_first_reply_at_local >= created_at_local
+              THEN EXTRACT(EPOCH FROM (first_agent_first_reply_at_local - created_at_local)) / 60.0 END
+            ) FILTER (WHERE created_at_local IS NOT NULL AND first_agent_first_reply_at_local >= created_at_local))::numeric / 60.0, 1) AS mediana_resp_criacao_h,
+            ROUND(AVG(CASE WHEN first_agent_assignment_at_local IS NOT NULL AND first_agent_first_reply_at_local >= first_agent_assignment_at_local
+              THEN EXTRACT(EPOCH FROM (first_agent_first_reply_at_local - first_agent_assignment_at_local)) / 60.0 END) / 60.0, 1) AS tempo_resp_atrib_h,
             ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY
               CASE WHEN first_agent_assignment_at_local IS NOT NULL AND first_agent_first_reply_at_local >= first_agent_assignment_at_local
               THEN EXTRACT(EPOCH FROM (first_agent_first_reply_at_local - first_agent_assignment_at_local)) / 60.0 END
-            ) FILTER (WHERE first_agent_assignment_at_local IS NOT NULL AND first_agent_first_reply_at_local >= first_agent_assignment_at_local))::numeric / 60.0, 1) AS mediana_resp_h
+            ) FILTER (WHERE first_agent_assignment_at_local IS NOT NULL AND first_agent_first_reply_at_local >= first_agent_assignment_at_local))::numeric / 60.0, 1) AS mediana_resp_atrib_h
           FROM dw.fact_cloudchat_tickets
           WHERE first_agent_reply_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
             AND first_agent_first_reply_at_local IS NOT NULL
@@ -851,10 +855,12 @@ app.get('/kpis-semanais', async (req, res) => {
         SELECT
           COALESCE(t.agent_on_resolution_name, '(sem agente)') AS agente,
           COUNT(*) AS volume,
-          MAX(resp.tempo_resp_h) AS tempo_resp_h,
+          MAX(resp.tempo_resp_criacao_h) AS tempo_resp_criacao_h,
+          MAX(resp.mediana_resp_criacao_h) AS mediana_resp_criacao_h,
+          MAX(resp.tempo_resp_atrib_h) AS tempo_resp_atrib_h,
+          MAX(resp.mediana_resp_atrib_h) AS mediana_resp_atrib_h,
           ROUND(AVG(CASE WHEN t.first_agent_resolution_time_min IS NOT NULL AND t.first_agent_resolution_time_min > 0 AND t.first_agent_resolution_time_min < 2880 AND t.resolved_at_local IS NOT NULL THEN t.first_agent_resolution_time_min END) / 60.0, 1) AS tempo_enc_h,
           ROUND(COUNT(CASE WHEN t.csat_score >= 4 ${indevidasNotIn} THEN 1 END) * 100.0 / NULLIF(COUNT(CASE WHEN t.csat_score IS NOT NULL ${indevidasNotIn} THEN 1 END), 0), 1) AS csat,
-          MAX(resp.mediana_resp_h) AS mediana_resp_h,
           ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY t.first_agent_resolution_time_min) FILTER (WHERE t.first_agent_resolution_time_min IS NOT NULL AND t.first_agent_resolution_time_min > 0 AND t.first_agent_resolution_time_min < 2880 AND t.resolved_at_local IS NOT NULL))::numeric / 60.0, 1) AS mediana_enc_h
         FROM dw.fact_cloudchat_tickets t
         LEFT JOIN resp ON resp.agente = t.agent_on_resolution_name
@@ -898,17 +904,19 @@ app.get('/kpis-semanais', async (req, res) => {
         if (tot > 0) csat = Math.round(rep.pos / tot * 1000) / 10;
       }
       // DW só é fallback quando csat_reports ainda não tem dados do período
-      if (csat === null && !reportsTemDados && r[4] !== null && r[4] !== undefined) {
-        csat = Number(r[4]);
+      if (csat === null && !reportsTemDados && r[7] !== null && r[7] !== undefined) {
+        csat = Number(r[7]);
       }
       return {
         agente,
-        volume:          Number(r[1]) || 0,
-        tempo_resp_h:    r[2] !== null ? Number(r[2]) : null,
-        tempo_enc_h:     r[3] !== null ? Number(r[3]) : null,
+        volume:                   Number(r[1]) || 0,
+        tempo_resp_criacao_h:     r[2] !== null && r[2] !== undefined ? Number(r[2]) : null,
+        mediana_resp_criacao_h:   r[3] !== null && r[3] !== undefined ? Number(r[3]) : null,
+        tempo_resp_atrib_h:       r[4] !== null && r[4] !== undefined ? Number(r[4]) : null,
+        mediana_resp_atrib_h:     r[5] !== null && r[5] !== undefined ? Number(r[5]) : null,
+        tempo_enc_h:              r[6] !== null && r[6] !== undefined ? Number(r[6]) : null,
         csat,
-        mediana_resp_h:  r[5] !== null && r[5] !== undefined ? Number(r[5]) : null,
-        mediana_enc_h:   r[6] !== null && r[6] !== undefined ? Number(r[6]) : null,
+        mediana_enc_h:            r[8] !== null && r[8] !== undefined ? Number(r[8]) : null,
       };
     });
 
