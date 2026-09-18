@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat', '/admin/mark-indevida', '/admin/breakdown-recebidos', '/admin/setup-reply-times', '/admin/process-reply-times', '/admin/reply-times-status', '/admin/report-tag-times', '/admin/first-reply-outliers'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat', '/admin/mark-indevida', '/admin/breakdown-recebidos', '/admin/setup-reply-times', '/admin/process-reply-times', '/admin/reply-times-status', '/admin/report-tag-times', '/admin/first-reply-outliers', '/admin/snoozed-tickets'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -1358,6 +1358,53 @@ app.get('/admin/first-reply-outliers', async (req, res) => {
       csat: r[7],
     }));
     res.json({ inicio, fim, agente: agente || 'todos', total: result.length, rows: result });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Tickets snoozed por agente — diagnóstico de adiados com/sem flag
+app.get('/admin/snoozed-tickets', async (req, res) => {
+  const adminKey = req.query.key || req.headers['x-admin-key'];
+  if (!process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  const inicio = req.query.inicio || new Date().toISOString().slice(0, 10);
+  const fim    = req.query.fim    || inicio;
+  const agente = req.query.agente || null;
+  const d1 = new Date(fim + 'T12:00:00Z'); d1.setUTCDate(d1.getUTCDate() + 1);
+  const d1str = d1.toISOString().slice(0, 10);
+  const agenteFilter = agente ? `AND t.agent_on_resolution_name ILIKE '%${agente.replace(/'/g,"''")}%'` : '';
+  try {
+    const rows = await dwQuery(`
+      SELECT
+        t.display_ticket_id,
+        t.agent_on_resolution_name,
+        DATE(t.created_at_local)::text AS criado_em,
+        t.contact_name,
+        COALESCE(cf.field_value_bool, false) AS flag_seller
+      FROM dw.fact_cloudchat_tickets t
+      LEFT JOIN dw.fact_cloudchat_ticket_custom_fields cf
+        ON cf.ticket_id = t.ticket_id
+        AND cf.field_name = 'aguardando_confirmao_de_resoluo_lojista'
+      WHERE t.ticket_status = 'snoozed'
+        AND t.created_at_local >= '${inicio}'
+        AND t.created_at_local < '${d1str}'
+        ${agenteFilter}
+      ORDER BY t.agent_on_resolution_name, t.created_at_local DESC
+    `);
+    const result = rows.map(r => ({
+      ticket: r[0],
+      agente: r[1],
+      criado_em: r[2],
+      contato: r[3],
+      flag_seller: r[4],
+    }));
+    const resumo = {};
+    for (const r of result) {
+      if (!resumo[r.agente]) resumo[r.agente] = { com_flag: 0, sem_flag: 0, total: 0 };
+      resumo[r.agente].total++;
+      if (r.flag_seller) resumo[r.agente].com_flag++;
+      else resumo[r.agente].sem_flag++;
+    }
+    res.json({ inicio, fim, agente: agente || 'todos', total: result.length, resumo, tickets: result });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
