@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat', '/admin/mark-indevida', '/admin/breakdown-recebidos', '/admin/setup-reply-times', '/admin/process-reply-times', '/admin/reply-times-status', '/admin/report-tag-times', '/admin/first-reply-outliers', '/admin/snoozed-tickets', '/admin/reprocess-indevidas'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat', '/admin/mark-indevida', '/admin/breakdown-recebidos', '/admin/setup-reply-times', '/admin/process-reply-times', '/admin/reply-times-status', '/admin/report-tag-times', '/admin/first-reply-outliers', '/admin/snoozed-tickets', '/admin/reprocess-indevidas', '/admin/csat-debug'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -443,6 +443,35 @@ app.post('/indevida', express.json(), async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Diagnóstico de CSAT por agente — mostra o que está no banco para o período
+app.get('/admin/csat-debug', async (req, res) => {
+  const adminKey = req.query.key || req.headers['x-admin-key'];
+  if (!process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  const d0 = req.query.inicio || new Date().toISOString().slice(0, 10);
+  const d1 = req.query.fim   || d0;
+  const d1next = new Date(d1 + 'T12:00:00Z'); d1next.setUTCDate(d1next.getUTCDate() + 1);
+  const d1str = d1next.toISOString().slice(0, 10);
+  try {
+    const [repRows, indevRows] = await Promise.all([
+      pool.query(`SELECT date::text, data->>'por_agente' AS neg, data->>'por_agente_positivos' AS pos FROM support_bi.csat_reports WHERE date >= $1 AND date < $2 ORDER BY date`, [d0, d1str]),
+      pool.query(`SELECT ticket_id, date::text FROM support_bi.csat_indevidas WHERE date >= $1 AND date < $2 ORDER BY date`, [d0, d1str]),
+    ]);
+    const csatByAgent = {};
+    for (const row of repRows.rows) {
+      const neg = JSON.parse(row.neg || '{}');
+      const pos = JSON.parse(row.pos || '{}');
+      for (const [ag, n] of Object.entries(neg)) { if (!csatByAgent[ag]) csatByAgent[ag] = { neg: 0, pos: 0 }; csatByAgent[ag].neg += n; }
+      for (const [ag, p] of Object.entries(pos)) { if (!csatByAgent[ag]) csatByAgent[ag] = { neg: 0, pos: 0 }; csatByAgent[ag].pos += p; }
+    }
+    const csatCalc = {};
+    for (const [ag, d] of Object.entries(csatByAgent)) {
+      csatCalc[ag] = d.pos + d.neg > 0 ? Math.round(d.pos / (d.pos + d.neg) * 100) + '%' : 'null';
+    }
+    res.json({ periodo: { d0, d1: d1str }, dias: repRows.rows.length, indevidas: indevRows.rows, csat_por_agente: csatByAgent, csat_calculado: csatCalc });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 app.delete('/indevida/:ticket_id', async (req, res) => {
