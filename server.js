@@ -798,13 +798,10 @@ app.get('/kpis-semanais', async (req, res) => {
           ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY t.first_agent_reply_time_min) FILTER (WHERE t.first_agent_reply_time_min IS NOT NULL AND t.first_agent_reply_time_min >= 0 AND t.first_agent_first_reply_at_local IS NOT NULL))::numeric / 60.0, 1) AS mediana_resp_h,
           ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY t.first_agent_resolution_time_min) FILTER (WHERE t.first_agent_resolution_time_min IS NOT NULL AND t.first_agent_resolution_time_min > 0 AND t.first_agent_resolution_time_min < 2880 AND t.resolved_at_local IS NOT NULL))::numeric / 60.0, 1) AS mediana_enc_h
         FROM dw.fact_cloudchat_tickets t
-        LEFT JOIN dw.fact_cloudchat_ticket_custom_fields cf
-          ON cf.ticket_id = t.ticket_id
-          AND cf.field_name = 'aguardando_confirmao_de_resoluo_lojista'
         WHERE t.agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
           AND (
             (t.ticket_status = 'resolved' AND t.resolved_at_local >= '${d0}' AND t.resolved_at_local < '${d1}')
-            OR (cf.field_value_bool = true AND t.created_at_local >= '${d0}' AND t.created_at_local < '${d1}')
+            OR (t.ticket_status = 'snoozed' AND t.created_at_local >= '${d0}' AND t.created_at_local < '${d1}')
           )
         GROUP BY 1
         ORDER BY volume DESC
@@ -812,15 +809,9 @@ app.get('/kpis-semanais', async (req, res) => {
       sqlRows(`
         SELECT
           COALESCE(t.agent_on_resolution_name, '(sem agente)') AS agente,
-          COUNT(*) FILTER (WHERE cf.field_value_bool = true)   AS com_flag,
-          COUNT(*) FILTER (WHERE cf.field_value_bool IS NOT TRUE) AS sem_flag,
           COUNT(*) AS total,
-          ARRAY_AGG(t.display_ticket_id ORDER BY t.created_at_local DESC) FILTER (WHERE cf.field_value_bool = true) AS ids_com_flag,
-          ARRAY_AGG(t.display_ticket_id ORDER BY t.created_at_local DESC) FILTER (WHERE cf.field_value_bool IS NOT TRUE) AS ids_sem_flag
+          ARRAY_AGG(t.display_ticket_id ORDER BY t.created_at_local DESC) AS ids
         FROM dw.fact_cloudchat_tickets t
-        LEFT JOIN dw.fact_cloudchat_ticket_custom_fields cf
-          ON cf.ticket_id = t.ticket_id
-          AND cf.field_name = 'aguardando_confirmao_de_resoluo_lojista'
         WHERE t.ticket_status = 'snoozed'
           AND t.agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
           AND t.created_at_local >= '${d0}' AND t.created_at_local < '${d1}'
@@ -864,12 +855,9 @@ app.get('/kpis-semanais', async (req, res) => {
     });
 
     const snoozedPorAgente = snoozedRows.map(r => ({
-      agente:       r[0],
-      com_flag:     Number(r[1]) || 0,
-      sem_flag:     Number(r[2]) || 0,
-      total:        Number(r[3]) || 0,
-      ids_com_flag: Array.isArray(r[4]) ? r[4].map(String) : [],
-      ids_sem_flag: Array.isArray(r[5]) ? r[5].map(String) : [],
+      agente: r[0],
+      total:  Number(r[1]) || 0,
+      ids:    Array.isArray(r[2]) ? r[2].map(String) : [],
     }));
 
     const diasUteis = countBusinessDays(d0, d1);
@@ -1237,12 +1225,8 @@ app.get('/agent-tickets-op', async (req, res) => {
     const [rows, indevidasRes] = await Promise.all([
       dwQuery(`
         SELECT t.display_ticket_id, t.ticket_status, t.contact_name, t.csat_score,
-               CASE WHEN t.ticket_status = 'snoozed' AND cf.field_value_bool = true THEN 'seller'
-                    WHEN t.ticket_status = 'snoozed' THEN 'sem_flag'
-                    ELSE 'encerrado' END AS tipo
+               CASE WHEN t.ticket_status = 'snoozed' THEN 'snoozed' ELSE 'encerrado' END AS tipo
         FROM dw.fact_cloudchat_tickets t
-        LEFT JOIN dw.fact_cloudchat_ticket_custom_fields cf
-          ON cf.ticket_id = t.ticket_id AND cf.field_name = 'aguardando_confirmao_de_resoluo_lojista'
         WHERE t.agent_on_resolution_name = '${agente}'
           AND (
             (t.ticket_status = 'resolved' AND t.resolved_at_local >= '${d0}' AND t.resolved_at_local < '${d1}')
@@ -1378,12 +1362,8 @@ app.get('/admin/snoozed-tickets', async (req, res) => {
         t.display_ticket_id,
         t.agent_on_resolution_name,
         DATE(t.created_at_local)::text AS criado_em,
-        t.contact_name,
-        COALESCE(cf.field_value_bool, false) AS flag_seller
+        t.contact_name
       FROM dw.fact_cloudchat_tickets t
-      LEFT JOIN dw.fact_cloudchat_ticket_custom_fields cf
-        ON cf.ticket_id = t.ticket_id
-        AND cf.field_name = 'aguardando_confirmao_de_resoluo_lojista'
       WHERE t.ticket_status = 'snoozed'
         AND t.created_at_local >= '${inicio}'
         AND t.created_at_local < '${d1str}'
@@ -1395,14 +1375,11 @@ app.get('/admin/snoozed-tickets', async (req, res) => {
       agente: r[1],
       criado_em: r[2],
       contato: r[3],
-      flag_seller: r[4],
     }));
     const resumo = {};
     for (const r of result) {
-      if (!resumo[r.agente]) resumo[r.agente] = { com_flag: 0, sem_flag: 0, total: 0 };
+      if (!resumo[r.agente]) resumo[r.agente] = { total: 0 };
       resumo[r.agente].total++;
-      if (r.flag_seller) resumo[r.agente].com_flag++;
-      else resumo[r.agente].sem_flag++;
     }
     res.json({ inicio, fim, agente: agente || 'todos', total: result.length, resumo, tickets: result });
   } catch (err) { res.status(500).json({ error: err.message }); }
