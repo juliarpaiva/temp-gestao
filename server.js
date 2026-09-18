@@ -720,7 +720,7 @@ app.get('/kpis-semanais', async (req, res) => {
       );
       indevidasIds = indevRows.rows.map(r => parseInt(r.ticket_id, 10)).filter(n => !isNaN(n));
     } catch (_e) {}
-    const indevidasNotIn = indevidasIds.length ? `AND t.ticket_id NOT IN (${indevidasIds.join(',')})` : '';
+    const indevidasNotIn = indevidasIds.length ? `AND t.display_ticket_id NOT IN (${indevidasIds.join(',')})` : '';
 
     // Agrega CSAT por agente a partir dos csat_reports (mesma fonte do Painel CSAT — data de criação)
     const csatByAgentReports = {};
