@@ -834,12 +834,17 @@ app.get('/kpis-semanais', async (req, res) => {
         WITH resp AS (
           SELECT
             first_agent_reply_name AS agente,
-            ROUND(AVG(CASE WHEN first_agent_reply_time_min >= 0 THEN first_agent_reply_time_min END) / 60.0, 1) AS tempo_resp_h,
-            ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY first_agent_reply_time_min) FILTER (WHERE first_agent_reply_time_min >= 0))::numeric / 60.0, 1) AS mediana_resp_h
+            ROUND(AVG(
+              CASE WHEN first_agent_assignment_at_local IS NOT NULL AND first_agent_first_reply_at_local >= first_agent_assignment_at_local
+              THEN EXTRACT(EPOCH FROM (first_agent_first_reply_at_local - first_agent_assignment_at_local)) / 60.0 END
+            ) / 60.0, 1) AS tempo_resp_h,
+            ROUND((PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY
+              CASE WHEN first_agent_assignment_at_local IS NOT NULL AND first_agent_first_reply_at_local >= first_agent_assignment_at_local
+              THEN EXTRACT(EPOCH FROM (first_agent_first_reply_at_local - first_agent_assignment_at_local)) / 60.0 END
+            ) FILTER (WHERE first_agent_assignment_at_local IS NOT NULL AND first_agent_first_reply_at_local >= first_agent_assignment_at_local))::numeric / 60.0, 1) AS mediana_resp_h
           FROM dw.fact_cloudchat_tickets
           WHERE first_agent_reply_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
             AND first_agent_first_reply_at_local IS NOT NULL
-            AND first_agent_reply_time_min >= 0
             AND first_agent_first_reply_at_local >= '${d0}' AND first_agent_first_reply_at_local < '${d1}'
           GROUP BY 1
         )
