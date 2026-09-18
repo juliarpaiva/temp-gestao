@@ -63,7 +63,7 @@ function getSessionToken(req) {
     .map(c => c.trim()).find(c => c.startsWith('csat_sess='))?.slice('csat_sess='.length) || null;
 }
 
-const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat', '/admin/mark-indevida', '/admin/breakdown-recebidos', '/admin/setup-reply-times', '/admin/process-reply-times', '/admin/reply-times-status', '/admin/report-tag-times', '/admin/first-reply-outliers', '/admin/snoozed-tickets'];
+const AUTH_SKIP = ['/login', '/logout', '/register', '/forgot-password', '/reset-password', '/health', '/run', '/webhook/csat-invalida', '/admin/indevidas-junho', '/admin/importar-indevidas', '/admin/schema-invalida', '/admin/puxar-indevidas-cloudchat', '/admin/diagnostico-junho', '/admin/corrigir-datas-indevidas', '/admin/clear-ops-cache', '/admin/reprocess-all', '/backlog-tickets', '/admin/check-stale-csat', '/admin/mark-indevida', '/admin/breakdown-recebidos', '/admin/setup-reply-times', '/admin/process-reply-times', '/admin/reply-times-status', '/admin/report-tag-times', '/admin/first-reply-outliers', '/admin/snoozed-tickets', '/admin/reprocess-indevidas'];
 
 // ── Email / reset de senha ────────────────────────────────────────────────────
 
@@ -1463,6 +1463,28 @@ app.get('/admin/check-stale-csat', async (req, res) => {
     }
 
     res.json({ total_negativos: ids.length, stale_count: stale.length, stale });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Reprocessa apenas os dias que têm indevidas registradas
+app.get('/admin/reprocess-indevidas', async (req, res) => {
+  const adminKey = req.query.key || req.headers['x-admin-key'];
+  if (!process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY)
+    return res.status(403).json({ error: 'Forbidden' });
+  try {
+    const r = await pool.query(`SELECT DISTINCT date::text FROM support_bi.csat_indevidas ORDER BY date`);
+    const dates = r.rows.map(row => String(row.date).slice(0, 10));
+    res.json({ started: true, total: dates.length, dates });
+    (async () => {
+      let ok = 0, err = 0;
+      for (const date of dates) {
+        try { await runDailyReport(date, true); ok++; console.log(`[reprocess-indevidas] ${ok}/${dates.length} ${date} ok`); }
+        catch (e) { err++; console.error(`[reprocess-indevidas] ${date} ERRO: ${e.message}`); }
+        await new Promise(r => setTimeout(r, 300));
+      }
+      pool.query(`DELETE FROM support_bi.kpis_op_cache`).catch(() => {});
+      console.log(`[reprocess-indevidas] concluido: ${ok} ok, ${err} erros`);
+    })();
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
