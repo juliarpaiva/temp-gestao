@@ -1347,9 +1347,11 @@ app.get('/admin/first-reply-outliers', async (req, res) => {
   const fim    = req.query.fim    || '2026-07-10';
   const agente = req.query.agente || null; // ex: "Paty" ou "Lu Almeida"
   const limit  = Math.min(parseInt(req.query.limit || '20'), 100);
+  const porResolucao = req.query.por_resolucao === 'true'; // filtra por resolved_at em vez de created_at
   const d1 = new Date(fim + 'T12:00:00Z'); d1.setUTCDate(d1.getUTCDate() + 1);
   const d1str = d1.toISOString().slice(0, 10);
   const agenteFilter = agente ? `AND agent_on_resolution_name ILIKE '%${agente.replace(/'/g,"''")}%'` : '';
+  const dateCol = porResolucao ? 'resolved_at_local' : 'created_at_local';
   try {
     const rows = await dwQuery(`
       SELECT
@@ -1362,8 +1364,8 @@ app.get('/admin/first-reply-outliers', async (req, res) => {
         ticket_status,
         csat_score
       FROM dw.fact_cloudchat_tickets
-      WHERE created_at_local >= '${inicio}'
-        AND created_at_local < '${d1str}'
+      WHERE ${dateCol} >= '${inicio}'
+        AND ${dateCol} < '${d1str}'
         AND first_agent_reply_time_min IS NOT NULL
         AND first_agent_reply_time_min >= 0
         AND first_agent_first_reply_at_local IS NOT NULL
