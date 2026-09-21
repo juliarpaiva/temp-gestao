@@ -800,12 +800,12 @@
             <thead><tr>
               ${th('agente','Agente','')}
               ${th('encerrados','Encerrados','r','Tickets resolvidos no período')}
-              ${th('pendentes','Pendentes','r','Tickets aguardando resposta do cliente')}
-              ${th('em_aberto','Em aberto','r','Tickets sem resolução ainda em andamento')}
+              ${th('pendentes','Pendentes','r','Tickets aguardando resolução de terceiros')}
+              ${th('em_aberto','Em aberto','r','Tickets em andamento na caixa de entrada')}
               ${th('adiados_total','Adiados','r','Tickets em snooze — retornam automaticamente na data agendada')}
-              ${th('csat','CSAT','r','% de avaliações positivas (nota ≥ 4) no período')}
-              ${th('tempo_fila_h','Fila','r','Tempo médio que o cliente aguardou na fila humana após a Claudia (bot) transferir o ticket, até ser atribuído a uma agente. Fora do controle da agente.')}
-              ${th('tempo_resp_h','1ª Resposta','r','Tempo médio que a agente levou para responder após receber o ticket. Dentro do controle da agente.')}
+              ${th('csat','CSAT','r','Porcentagem de avaliações positivas do período')}
+              ${th('tempo_fila_h','Fila','r','Tempo médio que o cliente aguardou na fila após a Claudia transferir o ticket para atendente humano')}
+              ${th('tempo_resp_h','1ª Resposta','r','Tempo médio que a atendente levou para responder após receber o ticket')}
               ${th('tempo_enc_h','Encerramento','r','Tempo médio do ticket desde a abertura até o encerramento')}
             </tr></thead>
             <tbody>${agRows}${claudiaRow}${outrosHeader}${emAbertoRow}</tbody>
