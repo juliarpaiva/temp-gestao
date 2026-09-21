@@ -1013,7 +1013,11 @@
     const ini = new Date(hoje); ini.setDate(hoje.getDate() - n);
     opsPeriodoF = hoje.toISOString().slice(0, 10);
     opsPeriodoI = ini.toISOString().slice(0, 10);
-    opsAplicarPeriodo();
+    kpisOp = null;
+    renderKpisOp();
+    _fetchKpisOp(`inicio=${opsPeriodoI}&fim=${opsPeriodoF}`)
+      .then(data => { kpisOp = data; renderKpisOp(); })
+      .catch(e => _opsErro(e));
   }
 
   async function opsAplicarPeriodo() {
