@@ -243,6 +243,7 @@
     .btn-topo.visivel { opacity: 1; pointer-events: auto; }
     .btn-topo:hover { background: var(--rosa); transform: translateY(-2px); }
   </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -412,6 +413,8 @@
   let opsPeriodoI      = null;
   let opsPeriodoF      = null;
   let opsPeriodoPreset = null;
+  let kpisDiario       = null;
+  let _chartInstances  = {};
   let opsSortCol   = null;
   let opsSortDir   = 1;
   let _opsAgentes  = [];
@@ -591,6 +594,77 @@
     renderKpisOp();
   }
 
+  async function fetchKpisDiario(inicio, fim) {
+    try {
+      const r = await fetch(`${API}/kpis-op-diario?inicio=${inicio}&fim=${fim}`);
+      if (!r.ok) return null;
+      kpisDiario = await r.json();
+      renderChartsDiario();
+    } catch { kpisDiario = null; }
+  }
+
+  function addOneDay(d) {
+    const dt = new Date(d + 'T00:00:00');
+    dt.setDate(dt.getDate() + 1);
+    return dt.toISOString().slice(0, 10);
+  }
+
+  function renderChartsDiario() {
+    const el = document.getElementById('ops-charts-diario');
+    if (!el || !kpisDiario || kpisDiario.length === 0) { if (el) el.innerHTML = ''; return; }
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const gridColor = dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
+    const textColor = dark ? '#94a3b8' : '#64748b';
+    const labels = kpisDiario.map(d => {
+      const [,m,dia] = d.dia.split('-');
+      return `${dia}/${m}`;
+    });
+    const configs = [
+      { id:'chart-volume', label:'Volume (tickets)', data: kpisDiario.map(d=>d.volume), color:'#e91e8c', fill:true, type:'bar', yLabel:'tickets' },
+      { id:'chart-csat',   label:'CSAT %',           data: kpisDiario.map(d=>d.csat),   color:'#16a34a', fill:false, type:'line', yLabel:'%', yMax:100 },
+      { id:'chart-resp',   label:'1ª Resposta (h)',  data: kpisDiario.map(d=>d.resp_h), color:'#f59e0b', fill:false, type:'line', yLabel:'horas' },
+    ];
+    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:20px">
+      ${configs.map(c=>`<div style="background:var(--card);border:1px solid var(--borda);border-radius:12px;padding:16px">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">${c.label}</div>
+        <canvas id="${c.id}" height="140"></canvas>
+      </div>`).join('')}
+    </div>`;
+    for (const c of configs) {
+      const ctx = document.getElementById(c.id);
+      if (!ctx) continue;
+      if (_chartInstances[c.id]) { _chartInstances[c.id].destroy(); }
+      _chartInstances[c.id] = new Chart(ctx, {
+        type: c.type,
+        data: {
+          labels,
+          datasets: [{
+            label: c.label,
+            data: c.data,
+            borderColor: c.color,
+            backgroundColor: c.type === 'bar' ? c.color + 'cc' : (c.fill ? c.color + '22' : 'transparent'),
+            borderWidth: c.type === 'bar' ? 0 : 2,
+            pointRadius: kpisDiario.length > 30 ? 0 : 3,
+            pointHoverRadius: 5,
+            fill: c.fill,
+            tension: 0.3,
+            borderRadius: c.type === 'bar' ? 4 : 0,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: {
+            label: ctx => c.id === 'chart-csat' ? `${ctx.parsed.y}%` : c.id === 'chart-resp' ? `${ctx.parsed.y}h` : `${ctx.parsed.y} tickets`
+          }}},
+          scales: {
+            x: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 10 }, maxTicksLimit: 15 } },
+            y: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 10 } }, min: 0, ...(c.yMax ? { max: c.yMax } : {}) }
+          }
+        }
+      });
+    }
+  }
+
   function renderKpisOp() {
     const el = document.getElementById('secao-kpis-op');
     if (!el) return;
@@ -711,6 +785,7 @@
         </div>
       </div>
 
+      <div id="ops-charts-diario"></div>
 
       ${(() => {
         const resolv  = atual.resolvidos_por_agente || [];
@@ -979,6 +1054,7 @@
       kpisOp   = await _fetchKpisOp(`semana=${semana}`);
       semanaOp = kpisOp.semana;
       renderKpisOp();
+      fetchKpisDiario(kpisOp.semana, addOneDay(kpisOp.semana_fim));
     } catch (e) { _opsErro(e); }
   }
 
@@ -997,6 +1073,7 @@
     try {
       kpisOp = await _fetchKpisOp(`mes=${mes}`);
       renderKpisOp();
+      fetchKpisDiario(kpisOp.semana, addOneDay(kpisOp.semana_fim));
     } catch (e) { _opsErro(e); }
   }
 
@@ -1016,7 +1093,7 @@
     kpisOp = null;
     renderKpisOp();
     _fetchKpisOp(`inicio=${opsPeriodoI}&fim=${opsPeriodoF}`)
-      .then(data => { kpisOp = data; renderKpisOp(); })
+      .then(data => { kpisOp = data; renderKpisOp(); fetchKpisDiario(data.semana, addOneDay(data.semana_fim)); })
       .catch(e => _opsErro(e));
   }
 
@@ -1027,6 +1104,7 @@
     try {
       kpisOp = await _fetchKpisOp(`inicio=${opsPeriodoI}&fim=${opsPeriodoF}`);
       renderKpisOp();
+      fetchKpisDiario(kpisOp.semana, addOneDay(kpisOp.semana_fim));
     } catch (e) { _opsErro(e); }
   }
 
@@ -1046,6 +1124,7 @@
         kpisOp   = await _fetchKpisOp(`semana=${semanaOp}`);
         semanaOp = kpisOp.semana;
         renderKpisOp();
+        fetchKpisDiario(kpisOp.semana, addOneDay(kpisOp.semana_fim));
       } catch (e) { _opsErro(e); }
     } else if (modo === 'dia') {
       if (!opsDiaAtivo) opsDiaAtivo = gerarDiasOps(14)[0];
@@ -1062,6 +1141,7 @@
       try {
         kpisOp = await _fetchKpisOp(`mes=${opsMesAtivo}`);
         renderKpisOp();
+        fetchKpisDiario(kpisOp.semana, addOneDay(kpisOp.semana_fim));
       } catch (e) { _opsErro(e); }
     } else if (modo === 'periodo') {
       // limpa datas anteriores e mostra os inputs sem buscar ainda
@@ -1077,6 +1157,7 @@
       try {
         kpisOp = await _fetchKpisOp(`inicio=2026-02-01&fim=${hoje}`);
         renderKpisOp();
+        fetchKpisDiario(kpisOp.semana, addOneDay(kpisOp.semana_fim));
       } catch (e) { _opsErro(e); }
     }
   }

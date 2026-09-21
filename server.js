@@ -1807,6 +1807,33 @@ app.get('/admin/debug-msgs/:ticketId', async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/kpis-op-diario', async (req, res) => {
+  const { inicio, fim } = req.query;
+  if (!inicio || !fim) return res.status(400).json({ error: 'inicio e fim obrigatórios' });
+  try {
+    const indevidasRows = await pool.query(`SELECT ticket_id FROM support_bi.csat_indevidas`).catch(() => ({ rows: [] }));
+    const indevidas = indevidasRows.rows.map(r => String(r.ticket_id));
+    const indevidasNotIn = indevidas.length
+      ? `AND display_ticket_id::text NOT IN (${indevidas.map(i => `'${i}'`).join(',')})`
+      : '';
+    const rows = await dwQuery(`
+      SELECT
+        DATE(first_agent_first_reply_at_local)::text AS dia,
+        COUNT(*)::int AS volume,
+        ROUND(COUNT(CASE WHEN csat_score >= 4 ${indevidasNotIn} THEN 1 END) * 100.0
+          / NULLIF(COUNT(CASE WHEN csat_score IS NOT NULL ${indevidasNotIn} THEN 1 END), 0), 1) AS csat,
+        ROUND(AVG(CASE WHEN first_agent_reply_time_min >= 0 AND first_agent_reply_time_min <= 480 THEN first_agent_reply_time_min END) / 60.0, 1) AS resp_h
+      FROM dw.fact_cloudchat_tickets
+      WHERE first_agent_reply_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
+        AND first_agent_first_reply_at_local IS NOT NULL
+        AND first_agent_first_reply_at_local >= '${inicio}' AND first_agent_first_reply_at_local < '${fim}'
+      GROUP BY 1
+      ORDER BY 1
+    `);
+    res.json(rows.map(r => ({ dia: r[0], volume: Number(r[1])||0, csat: r[2]!==null?Number(r[2]):null, resp_h: r[3]!==null?Number(r[3]):null })));
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/admin/clear-ops-cache', async (req, res) => {
   if (!process.env.ADMIN_KEY || req.query.key !== process.env.ADMIN_KEY)
     return res.status(403).json({ error: 'Forbidden' });
