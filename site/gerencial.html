@@ -631,6 +631,7 @@
         <td class="ops-agente">${escHtml(ag.agente)}</td>
         <td class="r" style="color:${ag.volume >= metaVol ? '#16a34a' : ag.volume >= metaVol * 0.8 ? '#ca8a04' : '#dc2626'};font-weight:700">${ag.volume}</td>
         <td class="r">${!!atual.csat_cc_loading ? '<span style="color:#94a3b8;font-size:11px">...</span>' : opsCsatPill(ag.csat)}</td>
+        <td class="r">${fmtHora(ag.tempo_fila_h)}</td>
         <td class="r" style="color:${trCor};font-weight:700">${fmtHora(ag.tempo_resp_h)}</td>
         <td class="r">${fmtHora(ag.tempo_enc_h)}</td>
       </tr>`;
@@ -730,11 +731,12 @@
             ids_adiados: s.ids || [],
             total: enc,
             csat: p.csat ?? null,
+            tempo_fila_h: p.tempo_fila_h ?? null, mediana_fila_h: p.mediana_fila_h ?? null,
             tempo_resp_h: p.tempo_resp_h ?? null, mediana_resp_h: p.mediana_resp_h ?? null,
             tempo_enc_h: p.tempo_enc_h ?? null, mediana_enc_h: p.mediana_enc_h ?? null,
           };
         });
-        const validKeys = ['agente','encerrados','pendentes','em_aberto','adiados_total','total','csat','tempo_resp_h','tempo_enc_h'];
+        const validKeys = ['agente','encerrados','pendentes','em_aberto','adiados_total','total','csat','tempo_fila_h','tempo_resp_h','tempo_enc_h'];
         if (opsSortCol && validKeys.includes(opsSortCol)) {
           unified.sort((a, b) => {
             const av = a[opsSortCol], bv = b[opsSortCol];
@@ -768,6 +770,7 @@
             <td class="r" ${u.em_aberto > 0 ? `style="font-weight:700;color:#1d4ed8;cursor:pointer" onclick="abrirAbertosAgente('${u.agente}')" title="Ver tickets em aberto"` : `style="font-weight:600"`}>${u.em_aberto || '—'}</td>
             <td class="r"><div style="font-weight:700">${adTotal}</div>${adSub}</td>
             <td class="r">${csatLoading ? '<span style="color:#94a3b8;font-size:11px">...</span>' : opsCsatPill(u.csat)}</td>
+            <td class="r">${fmtHora(u.tempo_fila_h)}${u.mediana_fila_h !== null ? `<div style="font-size:10px;color:var(--muted);font-weight:400">${fmtHora(u.mediana_fila_h)} med</div>` : ''}</td>
             <td class="r" style="color:${trCor};font-weight:700">${fmtHora(u.tempo_resp_h)}${u.mediana_resp_h !== null ? `<div style="font-size:10px;color:var(--muted);font-weight:400">${fmtHora(u.mediana_resp_h)} med</div>` : ''}</td>
             <td class="r">${fmtHora(u.tempo_enc_h)}${u.mediana_enc_h !== null ? `<div style="font-size:10px;color:var(--muted);font-weight:400">${fmtHora(u.mediana_enc_h)} med</div>` : ''}</td>
           </tr>`;
@@ -800,6 +803,7 @@
               ${th('em_aberto','Em aberto','r')}
               ${th('adiados_total','Adiados','r')}
               ${th('csat','CSAT','r')}
+              ${th('tempo_fila_h','Fila','r')}
               ${th('tempo_resp_h','1ª Resposta','r')}
               ${th('tempo_enc_h','Encerramento','r')}
             </tr></thead>
@@ -937,14 +941,14 @@
     const porAg   = kpisOp.atual.por_agente            || [];
     const agOrder = ['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa'];
     const linhas = [
-      ['Agente','Total','Encerrados','Adiados','CSAT %','1ª Resposta','Encerramento'],
+      ['Agente','Total','Encerrados','Adiados','CSAT %','Fila','1ª Resposta','Encerramento'],
       ...agOrder.map(ag => {
         const r = resolv.find(x => x.agente === ag)  || { resolvidos: 0 };
         const s = snoozed.find(x => x.agente === ag) || { total: 0 };
         const p = porAg.find(x => x.agente === ag)   || {};
         return [ag, r.resolvidos, s.total,
           p.csat !== null && p.csat !== undefined ? p.csat + '%' : '—',
-          fmtHora(p.tempo_resp_h), fmtHora(p.tempo_enc_h)];
+          fmtHora(p.tempo_fila_h), fmtHora(p.tempo_resp_h), fmtHora(p.tempo_enc_h)];
       })
     ];
     const csv = linhas.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');

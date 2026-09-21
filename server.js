@@ -511,6 +511,29 @@ async function fetchCloudChat(path, token, method = 'GET', body = null) {
   return resp.json();
 }
 
+// Cache de bot handoff (última msg da Claudia bot antes de transferir para fila humana)
+const _botHandoffCache = new Map();
+async function getBotHandoffUnix(ticketId, token) {
+  const key = String(ticketId);
+  const hit = _botHandoffCache.get(key);
+  if (hit && hit.exp > Date.now()) return hit.v;
+  try {
+    const data = await fetchCloudChat(
+      `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${ticketId}/messages`, token
+    );
+    const msgs = Array.isArray(data.payload) ? data.payload : (Array.isArray(data) ? data : []);
+    // Última mensagem pública de saída de um agente IA = transferência para fila humana
+    const botMsgs = msgs.filter(m => m.sender?.is_ai_agent && m.message_type === 1 && !m.private);
+    botMsgs.sort((a, b) => b.created_at - a.created_at);
+    const v = botMsgs.length > 0 ? botMsgs[0].created_at : null;
+    _botHandoffCache.set(key, { v, exp: Date.now() + 3600000 });
+    return v;
+  } catch {
+    _botHandoffCache.set(key, { v: null, exp: Date.now() + 60000 });
+    return null;
+  }
+}
+
 function addOneDay(date) {
   const d = new Date(date + 'T12:00:00Z');
   d.setUTCDate(d.getUTCDate() + 1);
@@ -818,8 +841,10 @@ app.get('/kpis-semanais', async (req, res) => {
                AND first_agent_assignment_at_local >= created_at_local
           THEN EXTRACT(EPOCH FROM (first_agent_assignment_at_local - created_at_local)) / 60.0
           ELSE NULL
-        END AS fila_min,
-        CASE WHEN first_agent_reply_time_min >= 0 THEN first_agent_reply_time_min ELSE NULL END AS resp_min
+        END AS fila_min_fallback,
+        CASE WHEN first_agent_reply_time_min >= 0 THEN first_agent_reply_time_min ELSE NULL END AS resp_min,
+        display_ticket_id::text AS ticket_id,
+        EXTRACT(EPOCH FROM (first_agent_assignment_at_local AT TIME ZONE 'America/Sao_Paulo')) AS assignment_epoch
       FROM dw.fact_cloudchat_tickets
       WHERE first_agent_reply_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
         AND first_agent_first_reply_at_local IS NOT NULL
@@ -891,6 +916,20 @@ app.get('/kpis-semanais', async (req, res) => {
     // ── Agrega primeira resposta por agente ───────────────────────────────────
     const ticketRows = await ticketFirstReplyPromise;
     const MAX_MIN = 10080; // 7 dias — acima disso = ticket histórico reaberto, excluir da média
+
+    // Busca timestamps de handoff do bot para cada ticket (em paralelo, com cache)
+    const ccToken = process.env.CLOUDCHAT_TOKEN;
+    const uniqueIds = [...new Set(ticketRows.map(t => t[3]).filter(Boolean))];
+    const botMap = {};
+    if (ccToken && uniqueIds.length > 0) {
+      const results = await Promise.allSettled(
+        uniqueIds.map(id => getBotHandoffUnix(id, ccToken).then(v => ({ id, v })))
+      );
+      for (const r of results) {
+        if (r.status === 'fulfilled') botMap[r.value.id] = r.value.v;
+      }
+    }
+
     function calcAgg(arr) {
       const v = arr.filter(x => x !== null && isFinite(x) && x >= 0);
       if (!v.length) return { avg: null, median: null };
@@ -904,8 +943,21 @@ app.get('/kpis-semanais', async (req, res) => {
     for (const t of ticketRows) {
       const ag = t[0]; if (!ag) continue;
       if (!frAgData[ag]) frAgData[ag] = { fila: [], resp: [] };
-      const rawFila = t[1] !== null && t[1] !== undefined ? Number(t[1]) : null;
       const rawResp = t[2] !== null && t[2] !== undefined ? Number(t[2]) : null;
+      const ticketId = t[3];
+      const assignmentEpoch = t[4] !== null && t[4] !== undefined ? Number(t[4]) : null;
+      const botUnix = ticketId ? (botMap[ticketId] ?? null) : null;
+
+      // Fila real = atribuição ao agente humano − última msg da Claudia (bot)
+      // Fallback: criação → atribuição (inclui tempo do bot, menos preciso)
+      let rawFila;
+      if (botUnix !== null && assignmentEpoch !== null) {
+        rawFila = (assignmentEpoch - botUnix) / 60.0;
+        if (rawFila < 0) rawFila = null; // sanity check
+      } else {
+        rawFila = t[1] !== null && t[1] !== undefined ? Number(t[1]) : null;
+      }
+
       frAgData[ag].fila.push(rawFila !== null && rawFila <= MAX_MIN ? rawFila : null);
       frAgData[ag].resp.push(rawResp !== null && rawResp <= MAX_MIN ? rawResp : null);
     }
