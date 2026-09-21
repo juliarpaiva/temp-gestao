@@ -746,10 +746,11 @@
             return (av - bv) * opsSortDir;
           });
         }
-        function th(key, label, align) {
+        function th(key, label, align, tip) {
           const active = opsSortCol === key;
           const arr = active ? (opsSortDir > 0 ? ' ▲' : ' ▼') : ' <span style="opacity:.35">⇅</span>';
-          return `<th class="${align||''}" onclick="sortOps('${key}')" style="cursor:pointer;user-select:none;color:${active?'var(--preto)':'var(--muted)'}">${label}${arr}</th>`;
+          const tipHtml = tip ? ` <span title="${tip}" style="cursor:help;opacity:.5;font-size:11px;font-weight:400">ⓘ</span>` : '';
+          return `<th class="${align||''}" onclick="sortOps('${key}')" style="cursor:pointer;user-select:none;color:${active?'var(--preto)':'var(--muted)'}">${label}${tipHtml}${arr}</th>`;
         }
         function snCnt(ids, label, cor) {
           if (!ids || !ids.length) return `<span style="color:var(--muted)">0</span>`;
@@ -798,14 +799,14 @@
           <table class="ops-table">
             <thead><tr>
               ${th('agente','Agente','')}
-              ${th('encerrados','Encerrados','r')}
-              ${th('pendentes','Pendentes','r')}
-              ${th('em_aberto','Em aberto','r')}
-              ${th('adiados_total','Adiados','r')}
-              ${th('csat','CSAT','r')}
-              ${th('tempo_fila_h','Fila','r')}
-              ${th('tempo_resp_h','1ª Resposta','r')}
-              ${th('tempo_enc_h','Encerramento','r')}
+              ${th('encerrados','Encerrados','r','Tickets resolvidos no período')}
+              ${th('pendentes','Pendentes','r','Tickets aguardando resposta do cliente')}
+              ${th('em_aberto','Em aberto','r','Tickets sem resolução ainda em andamento')}
+              ${th('adiados_total','Adiados','r','Tickets em snooze — retornam automaticamente na data agendada')}
+              ${th('csat','CSAT','r','% de avaliações positivas (nota ≥ 4) no período')}
+              ${th('tempo_fila_h','Fila','r','Tempo médio que o cliente esperou na fila humana após a Claudia (bot) transferir, até a agente pegar o ticket. Fora do controle da agente.')}
+              ${th('tempo_resp_h','1ª Resposta','r','Tempo médio da agente responder após receber o ticket. Dentro do controle da agente.')}
+              ${th('tempo_enc_h','Encerramento','r','Tempo médio do ticket ficar aberto até ser encerrado')}
             </tr></thead>
             <tbody>${agRows}${claudiaRow}${outrosHeader}${emAbertoRow}</tbody>
           </table>
