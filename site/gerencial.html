@@ -409,8 +409,9 @@
   let filterModeOp = 'dia'; // 'dia' | 'semana' | 'mes' | 'periodo' | 'acumulado'
   let opsDiaAtivo  = null;
   let opsMesAtivo  = null;
-  let opsPeriodoI  = null;
-  let opsPeriodoF  = null;
+  let opsPeriodoI      = null;
+  let opsPeriodoF      = null;
+  let opsPeriodoPreset = null;
   let opsSortCol   = null;
   let opsSortDir   = 1;
   let _opsAgentes  = [];
@@ -496,11 +497,16 @@
     }
     if (filterModeOp === 'periodo') {
       return `
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <input type="date" id="ops-periodo-inicio" value="${opsPeriodoI || ''}" style="border:1px solid var(--borda);border-radius:8px;padding:5px 10px;font-size:12px;font-family:inherit;outline:none" onchange="opsAtualizarPeriodo()">
-          <span style="font-size:12px;color:var(--muted);font-weight:600">até</span>
-          <input type="date" id="ops-periodo-fim" value="${opsPeriodoF || ''}" style="border:1px solid var(--borda);border-radius:8px;padding:5px 10px;font-size:12px;font-family:inherit;outline:none" onchange="opsAtualizarPeriodo()">
-          <button class="ops-week-btn ativo" onclick="opsAplicarPeriodo()" style="padding:5px 18px">Aplicar</button>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${[7,15,30,90].map(n => `<button class="ops-week-btn${opsPeriodoPreset===n?' ativo':''}" onclick="opsSetUltimosDias(${n})">Últimos ${n} dias</button>`).join('')}
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <input type="date" id="ops-periodo-inicio" value="${opsPeriodoI || ''}" style="border:1px solid var(--borda);border-radius:8px;padding:5px 10px;font-size:12px;font-family:inherit;outline:none" onchange="opsPeriodoPreset=null;opsAtualizarPeriodo()">
+            <span style="font-size:12px;color:var(--muted);font-weight:600">até</span>
+            <input type="date" id="ops-periodo-fim" value="${opsPeriodoF || ''}" style="border:1px solid var(--borda);border-radius:8px;padding:5px 10px;font-size:12px;font-family:inherit;outline:none" onchange="opsPeriodoPreset=null;opsAtualizarPeriodo()">
+            <button class="ops-week-btn ativo" onclick="opsAplicarPeriodo()" style="padding:5px 18px">Aplicar</button>
+          </div>
         </div>`;
     }
     if (filterModeOp === 'acumulado') {
@@ -999,6 +1005,15 @@
     const fim = document.getElementById('ops-periodo-fim');
     if (ini) opsPeriodoI = ini.value;
     if (fim) opsPeriodoF = fim.value;
+  }
+
+  function opsSetUltimosDias(n) {
+    opsPeriodoPreset = n;
+    const hoje = new Date();
+    const ini = new Date(hoje); ini.setDate(hoje.getDate() - n);
+    opsPeriodoF = hoje.toISOString().slice(0, 10);
+    opsPeriodoI = ini.toISOString().slice(0, 10);
+    opsAplicarPeriodo();
   }
 
   async function opsAplicarPeriodo() {
