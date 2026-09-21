@@ -637,7 +637,7 @@
     el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:20px">
       ${configs.map(c=>`<div style="background:var(--card);border:1px solid var(--borda);border-radius:12px;padding:16px">
         <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">${c.label}</div>
-        <canvas id="${c.id}" height="140"></canvas>
+        <div style="position:relative;height:140px"><canvas id="${c.id}"></canvas></div>
       </div>`).join('')}
     </div>`;
     for (const c of configs) {
