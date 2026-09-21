@@ -623,52 +623,77 @@
     if (!el) return;
     if (!kpisDiario || kpisDiario.length === 0) { el.innerHTML = '<p style="color:var(--muted);font-size:12px;padding:8px 0">Sem dados para o período.</p>'; return; }
     const dark = document.documentElement.getAttribute('data-theme') === 'dark';
-    const gridColor = dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
+    const gridColor = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
     const textColor = dark ? '#94a3b8' : '#64748b';
+    const cardBg    = dark ? 'rgba(255,255,255,0.04)' : '#ffffff';
     const labels = kpisDiario.map(d => {
       const [,m,dia] = d.dia.split('-');
       return `${dia}/${m}`;
     });
     const configs = [
-      { id:'chart-volume', label:'Volume (tickets)', data: kpisDiario.map(d=>d.volume), color:'#e91e8c', fill:true, type:'bar', yLabel:'tickets' },
-      { id:'chart-csat',   label:'CSAT %',           data: kpisDiario.map(d=>d.csat),   color:'#16a34a', fill:false, type:'line', yLabel:'%', yMax:100 },
-      { id:'chart-resp',   label:'1ª Resposta (h)',  data: kpisDiario.map(d=>d.resp_h), color:'#f59e0b', fill:false, type:'line', yLabel:'horas' },
+      { id:'chart-volume', title:'Volume de tickets', sub:'Tickets respondidos por dia',  data: kpisDiario.map(d=>d.volume), color:'#e91e8c', type:'bar' },
+      { id:'chart-csat',   title:'CSAT %',            sub:'Satisfação diária das avaliadas', data: kpisDiario.map(d=>d.csat),   color:'#6366f1', type:'line', yMax:100, fmt: v=>`${v}%` },
+      { id:'chart-resp',   title:'1ª Resposta',        sub:'Tempo médio de resposta (horas)', data: kpisDiario.map(d=>d.resp_h), color:'#f59e0b', type:'line', fmt: v=>`${v}h` },
     ];
-    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:20px">
-      ${configs.map(c=>`<div style="background:var(--card);border:1px solid var(--borda);border-radius:12px;padding:16px">
-        <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">${c.label}</div>
-        <div style="position:relative;height:140px"><canvas id="${c.id}"></canvas></div>
-      </div>`).join('')}
+    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:24px">
+      ${configs.map(c=>`
+        <div style="background:${cardBg};border:1px solid var(--borda);border-radius:16px;padding:20px 20px 16px">
+          <div style="font-size:14px;font-weight:700;color:var(--preto);margin-bottom:2px">${c.title}</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:14px">${c.sub}</div>
+          <div style="position:relative;height:180px"><canvas id="${c.id}"></canvas></div>
+        </div>`).join('')}
     </div>`;
     for (const c of configs) {
-      const ctx = document.getElementById(c.id);
-      if (!ctx) continue;
+      const canvas = document.getElementById(c.id);
+      if (!canvas) continue;
       if (_chartInstances[c.id]) { _chartInstances[c.id].destroy(); }
-      _chartInstances[c.id] = new Chart(ctx, {
+      const ctx2d = canvas.getContext('2d');
+      let bg;
+      if (c.type === 'bar') {
+        const g = ctx2d.createLinearGradient(0, 0, 0, 180);
+        g.addColorStop(0, c.color + 'dd'); g.addColorStop(1, c.color + '44');
+        bg = g;
+      } else {
+        const g = ctx2d.createLinearGradient(0, 0, 0, 180);
+        g.addColorStop(0, c.color + '55'); g.addColorStop(1, c.color + '00');
+        bg = g;
+      }
+      _chartInstances[c.id] = new Chart(canvas, {
         type: c.type,
         data: {
           labels,
           datasets: [{
-            label: c.label,
+            label: c.title,
             data: c.data,
             borderColor: c.color,
-            backgroundColor: c.type === 'bar' ? c.color + 'cc' : (c.fill ? c.color + '22' : 'transparent'),
-            borderWidth: c.type === 'bar' ? 0 : 2,
-            pointRadius: kpisDiario.length > 30 ? 0 : 3,
-            pointHoverRadius: 5,
-            fill: c.fill,
-            tension: 0.3,
-            borderRadius: c.type === 'bar' ? 4 : 0,
+            backgroundColor: bg,
+            borderWidth: c.type === 'bar' ? 0 : 2.5,
+            pointRadius: kpisDiario.length > 30 ? 0 : 4,
+            pointBackgroundColor: c.color,
+            pointHoverRadius: 6,
+            fill: c.type !== 'bar',
+            tension: 0.4,
+            borderRadius: c.type === 'bar' ? 6 : 0,
+            borderSkipped: false,
           }]
         },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false }, tooltip: { callbacks: {
-            label: ctx => c.id === 'chart-csat' ? `${ctx.parsed.y}%` : c.id === 'chart-resp' ? `${ctx.parsed.y}h` : `${ctx.parsed.y} tickets`
-          }}},
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: dark ? '#1e293b' : '#fff',
+              titleColor: dark ? '#e2e8f0' : '#1e293b',
+              bodyColor: dark ? '#94a3b8' : '#64748b',
+              borderColor: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+              borderWidth: 1,
+              padding: 10,
+              callbacks: { label: t => c.fmt ? c.fmt(t.parsed.y) : `${t.parsed.y} tickets` }
+            }
+          },
           scales: {
-            x: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 10 }, maxTicksLimit: 15 } },
-            y: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 10 } }, min: 0, ...(c.yMax ? { max: c.yMax } : {}) }
+            x: { grid: { color: gridColor, drawBorder: false }, ticks: { color: textColor, font: { size: 10 }, maxTicksLimit: 12 }, border: { display: false } },
+            y: { grid: { color: gridColor, drawBorder: false }, ticks: { color: textColor, font: { size: 10 }, callback: c.fmt || (v=>v) }, min: 0, ...(c.yMax ? { max: c.yMax } : {}), border: { display: false } }
           }
         }
       });
