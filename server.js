@@ -958,7 +958,8 @@ app.get('/kpis-semanais', async (req, res) => {
         rawFila = t[1] !== null && t[1] !== undefined ? Number(t[1]) : null;
       }
 
-      frAgData[ag].fila.push(rawFila !== null && rawFila <= MAX_MIN ? rawFila : null);
+      // Cap de 8h para fila — exclui tickets de fds/madrugada que distorcem a média
+      frAgData[ag].fila.push(rawFila !== null && rawFila <= 480 ? rawFila : null);
       frAgData[ag].resp.push(rawResp !== null && rawResp <= MAX_MIN ? rawResp : null);
     }
     const firstReplyByAgent = {};
