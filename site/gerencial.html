@@ -804,9 +804,9 @@
               ${th('em_aberto','Em aberto','r','Tickets sem resolução ainda em andamento')}
               ${th('adiados_total','Adiados','r','Tickets em snooze — retornam automaticamente na data agendada')}
               ${th('csat','CSAT','r','% de avaliações positivas (nota ≥ 4) no período')}
-              ${th('tempo_fila_h','Fila','r','Tempo médio que o cliente esperou na fila humana após a Claudia (bot) transferir, até a agente pegar o ticket. Fora do controle da agente.')}
-              ${th('tempo_resp_h','1ª Resposta','r','Tempo médio da agente responder após receber o ticket. Dentro do controle da agente.')}
-              ${th('tempo_enc_h','Encerramento','r','Tempo médio do ticket ficar aberto até ser encerrado')}
+              ${th('tempo_fila_h','Fila','r','Tempo médio que o cliente aguardou na fila humana após a Claudia (bot) transferir o ticket, até ser atribuído a uma agente. Fora do controle da agente.')}
+              ${th('tempo_resp_h','1ª Resposta','r','Tempo médio que a agente levou para responder após receber o ticket. Dentro do controle da agente.')}
+              ${th('tempo_enc_h','Encerramento','r','Tempo médio do ticket desde a abertura até o encerramento')}
             </tr></thead>
             <tbody>${agRows}${claudiaRow}${outrosHeader}${emAbertoRow}</tbody>
           </table>
