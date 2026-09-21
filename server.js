@@ -1845,16 +1845,16 @@ app.get('/kpis-op-diario-agente', async (req, res) => {
       : '';
     const rows = await dwQuery(`
       SELECT
-        DATE(first_agent_first_reply_at_local)::text AS dia,
-        first_agent_reply_name AS agente,
+        DATE(resolved_at_local)::text AS dia,
+        agent_on_resolution_name AS agente,
         COUNT(*)::int AS volume,
         ROUND(COUNT(CASE WHEN csat_score >= 4 ${indevidasNotIn} THEN 1 END) * 100.0
           / NULLIF(COUNT(CASE WHEN csat_score IS NOT NULL ${indevidasNotIn} THEN 1 END), 0), 1) AS csat,
         ROUND(AVG(CASE WHEN first_agent_reply_time_min >= 0 AND first_agent_reply_time_min <= 480 THEN first_agent_reply_time_min END) / 60.0, 1) AS resp_h
       FROM dw.fact_cloudchat_tickets
-      WHERE first_agent_reply_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
-        AND first_agent_first_reply_at_local IS NOT NULL
-        AND first_agent_first_reply_at_local >= '${inicio}' AND first_agent_first_reply_at_local < '${fim}'
+      WHERE agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
+        AND ticket_status = 'resolved'
+        AND resolved_at_local >= '${inicio}' AND resolved_at_local < '${fim}'
       GROUP BY 1, 2 ORDER BY 1, 2
     `);
     const byAgent = {};
