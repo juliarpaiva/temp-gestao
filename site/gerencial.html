@@ -702,7 +702,7 @@
         const cor  = _AGENTE_COR[ag] || '#94a3b8';
         const nome = _AGENTE_DISPLAY[ag] || ag;
         const map  = Object.fromEntries((kpisDiarioAgente[ag]||[]).map(d=>[d.dia,d]));
-        const data = dias.map(d => map[d]?.[mc.metric] ?? null);
+        const data = dias.map(d => map[d]?.[mc.metric] ?? 0);
         const g = ctx2d.createLinearGradient(0, 0, 0, H);
         g.addColorStop(0, cor + '40'); g.addColorStop(1, cor + '00');
         return { label: nome, data, borderColor: cor, backgroundColor: g, borderWidth: 2, fill: true, tension: 0.4, pointRadius: dias.length > 30 ? 0 : 3, pointBackgroundColor: cor, pointHoverRadius: 5, spanGaps: true };
