@@ -243,7 +243,6 @@
     .btn-topo.visivel { opacity: 1; pointer-events: auto; }
     .btn-topo:hover { background: var(--rosa); transform: translateY(-2px); }
   </style>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -853,8 +852,6 @@
         </div>
       </div>
 
-      <div id="ops-charts-diario"></div>
-      <div id="ops-charts-agente"></div>
 
       ${(() => {
         const resolv  = atual.resolvidos_por_agente || [];
@@ -1123,7 +1120,6 @@
       kpisOp   = await _fetchKpisOp(`semana=${semana}`);
       semanaOp = kpisOp.semana;
       renderKpisOp();
-      fetchKpisDiarioAgente(kpisOp.semana, addOneDay(kpisOp.semana_fim));
     } catch (e) { _opsErro(e); }
   }
 
@@ -1142,7 +1138,6 @@
     try {
       kpisOp = await _fetchKpisOp(`mes=${mes}`);
       renderKpisOp();
-      fetchKpisDiarioAgente(kpisOp.semana, addOneDay(kpisOp.semana_fim));
     } catch (e) { _opsErro(e); }
   }
 
@@ -1162,7 +1157,7 @@
     kpisOp = null;
     renderKpisOp();
     _fetchKpisOp(`inicio=${opsPeriodoI}&fim=${opsPeriodoF}`)
-      .then(data => { kpisOp = data; renderKpisOp(); fetchKpisDiarioAgente(data.semana, addOneDay(data.semana_fim)); })
+      .then(data => { kpisOp = data; renderKpisOp(); })
       .catch(e => _opsErro(e));
   }
 
@@ -1173,7 +1168,6 @@
     try {
       kpisOp = await _fetchKpisOp(`inicio=${opsPeriodoI}&fim=${opsPeriodoF}`);
       renderKpisOp();
-      fetchKpisDiarioAgente(kpisOp.semana, addOneDay(kpisOp.semana_fim));
     } catch (e) { _opsErro(e); }
   }
 
@@ -1193,8 +1187,7 @@
         kpisOp   = await _fetchKpisOp(`semana=${semanaOp}`);
         semanaOp = kpisOp.semana;
         renderKpisOp();
-        fetchKpisDiarioAgente(kpisOp.semana, addOneDay(kpisOp.semana_fim));
-      } catch (e) { _opsErro(e); }
+        } catch (e) { _opsErro(e); }
     } else if (modo === 'dia') {
       if (!opsDiaAtivo) opsDiaAtivo = gerarDiasOps(14)[0];
       kpisOp = null;
@@ -1210,8 +1203,7 @@
       try {
         kpisOp = await _fetchKpisOp(`mes=${opsMesAtivo}`);
         renderKpisOp();
-        fetchKpisDiarioAgente(kpisOp.semana, addOneDay(kpisOp.semana_fim));
-      } catch (e) { _opsErro(e); }
+        } catch (e) { _opsErro(e); }
     } else if (modo === 'periodo') {
       // limpa datas anteriores e mostra os inputs sem buscar ainda
       opsPeriodoI = null; opsPeriodoF = null; opsPeriodoPreset = null;
@@ -1226,8 +1218,7 @@
       try {
         kpisOp = await _fetchKpisOp(`inicio=2026-02-01&fim=${hoje}`);
         renderKpisOp();
-        fetchKpisDiarioAgente(kpisOp.semana, addOneDay(kpisOp.semana_fim));
-      } catch (e) { _opsErro(e); }
+        } catch (e) { _opsErro(e); }
     }
   }
 
