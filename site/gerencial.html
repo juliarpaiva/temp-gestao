@@ -1003,8 +1003,8 @@
   function opsAtualizarPeriodo() {
     const ini = document.getElementById('ops-periodo-inicio');
     const fim = document.getElementById('ops-periodo-fim');
-    if (ini) opsPeriodoI = ini.value;
-    if (fim) opsPeriodoF = fim.value;
+    if (ini?.value) opsPeriodoI = ini.value;
+    if (fim?.value) opsPeriodoF = fim.value;
   }
 
   function opsSetUltimosDias(n) {
