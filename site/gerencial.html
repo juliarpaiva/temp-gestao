@@ -1060,7 +1060,8 @@
         renderKpisOp();
       } catch (e) { _opsErro(e); }
     } else if (modo === 'periodo') {
-      // mostra os inputs sem buscar ainda
+      // limpa datas anteriores e mostra os inputs sem buscar ainda
+      opsPeriodoI = null; opsPeriodoF = null; opsPeriodoPreset = null;
       kpisOp = null;
       renderKpisOp();
     } else if (modo === 'acumulado') {
