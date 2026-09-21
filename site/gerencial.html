@@ -595,12 +595,21 @@
   }
 
   async function fetchKpisDiario(inicio, fim) {
+    const el = document.getElementById('ops-charts-diario');
+    if (el) el.innerHTML = `<p style="color:var(--muted);font-size:12px;padding:8px 0">Carregando gráficos…</p>`;
     try {
       const r = await fetch(`${API}/kpis-op-diario?inicio=${inicio}&fim=${fim}`);
-      if (!r.ok) return null;
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        if (el) el.innerHTML = `<p style="color:#dc2626;font-size:12px;padding:8px 0">Erro ao carregar gráficos: HTTP ${r.status}${err.error ? ' — ' + err.error : ''}</p>`;
+        return;
+      }
       kpisDiario = await r.json();
       renderChartsDiario();
-    } catch { kpisDiario = null; }
+    } catch (e) {
+      if (el) el.innerHTML = `<p style="color:#dc2626;font-size:12px;padding:8px 0">Erro ao carregar gráficos: ${e.message}</p>`;
+      kpisDiario = null;
+    }
   }
 
   function addOneDay(d) {
@@ -611,7 +620,8 @@
 
   function renderChartsDiario() {
     const el = document.getElementById('ops-charts-diario');
-    if (!el || !kpisDiario || kpisDiario.length === 0) { if (el) el.innerHTML = ''; return; }
+    if (!el) return;
+    if (!kpisDiario || kpisDiario.length === 0) { el.innerHTML = '<p style="color:var(--muted);font-size:12px;padding:8px 0">Sem dados para o período.</p>'; return; }
     const dark = document.documentElement.getAttribute('data-theme') === 'dark';
     const gridColor = dark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
     const textColor = dark ? '#94a3b8' : '#64748b';
