@@ -625,7 +625,7 @@
 
   async function fetchKpisDiarioAgente(inicio, fim) {
     const el = document.getElementById('ops-charts-agente');
-    if (el) el.innerHTML = '<p style="color:var(--muted);font-size:12px;padding:4px 0">Carregando gráficos por agente…</p>';
+    if (el) el.innerHTML = '<p style="color:var(--muted);font-size:12px;padding:8px 0">Carregando gráficos por agente…</p>';
     try {
       const r = await fetch(`${API}/kpis-op-diario-agente?inicio=${inicio}&fim=${fim}`);
       if (!r.ok) { if (el) el.innerHTML = ''; return; }
@@ -634,81 +634,105 @@
     } catch { kpisDiarioAgente = null; }
   }
 
+  window._toggleAgente = function(ag, pill) {
+    const nome = _AGENTE_DISPLAY[ag] || ag;
+    const oculto = pill.dataset.hidden === '1';
+    ['agchart-vol','agchart-csat','agchart-resp'].forEach(id => {
+      const ch = _chartInstances[id]; if (!ch) return;
+      const i = ch.data.datasets.findIndex(d => d.label === nome);
+      if (i >= 0) { ch.setDatasetVisibility(i, oculto); ch.update(); }
+    });
+    pill.dataset.hidden = oculto ? '0' : '1';
+    pill.style.opacity  = oculto ? '1' : '0.4';
+  };
+
   function renderChartsDiarioAgente() {
     const el = document.getElementById('ops-charts-agente');
     if (!el || !kpisDiarioAgente) return;
     const agentes = _AGENTE_ORDER.filter(a => kpisDiarioAgente[a]?.length);
     if (!agentes.length) { el.innerHTML = ''; return; }
+
     const dark      = document.documentElement.getAttribute('data-theme') === 'dark';
     const gridColor = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
     const textColor = dark ? '#94a3b8' : '#64748b';
     const cardBg    = dark ? 'rgba(255,255,255,0.04)' : '#ffffff';
+    const H = 200;
 
-    // Conjunto de dias do período (union de todos os agentes)
     const diasSet = new Set();
     for (const a of agentes) kpisDiarioAgente[a].forEach(d => diasSet.add(d.dia));
-    const dias = [...diasSet].sort();
+    const dias   = [...diasSet].sort();
     const labels = dias.map(d => { const [,m,dd] = d.split('-'); return `${dd}/${m}`; });
 
-    el.innerHTML = `
-      <div style="margin-bottom:8px;display:flex;gap:24px;align-items:center">
-        <span style="font-size:13px;font-weight:700;color:var(--preto)">Por agente</span>
-        <span style="font-size:11px;color:var(--muted)">Volume · CSAT % · 1ª Resposta (h)</span>
-      </div>
-      ${agentes.map(ag => {
+    const legendHtml = agentes.map(ag => {
+      const cor  = _AGENTE_COR[ag] || '#94a3b8';
+      const nome = _AGENTE_DISPLAY[ag] || ag;
+      return `<span onclick="_toggleAgente('${ag}',this)" data-hidden="0"
+        style="cursor:pointer;display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;
+               background:${cor}18;border:1px solid ${cor}55;font-size:11px;font-weight:600;color:${cor}">
+        <span style="width:8px;height:8px;border-radius:50%;background:${cor};flex-shrink:0"></span>${nome}
+      </span>`;
+    }).join('');
+
+    const metaConfigs = [
+      { id:'agchart-vol',  title:'Volume de tickets',  sub:'Tickets respondidos por dia',           metric:'volume', fmt: v=>`${v} tickets` },
+      { id:'agchart-csat', title:'CSAT %',              sub:'Satisfação diária por agente',           metric:'csat',   fmt: v=>`${v}%`, yMax:100 },
+      { id:'agchart-resp', title:'1ª Resposta',          sub:'Tempo médio de resposta por agente (h)', metric:'resp_h', fmt: v=>`${v}h` },
+    ];
+
+    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:16px;margin-bottom:24px">
+      ${metaConfigs.map(mc => `
+        <div style="background:${cardBg};border:1px solid var(--borda);border-radius:16px;padding:20px 20px 16px">
+          <div style="font-size:14px;font-weight:700;color:var(--preto);margin-bottom:2px">${mc.title}</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:14px">Clique na legenda para ligar ou desligar cada série</div>
+          <div style="position:relative;height:${H}px"><canvas id="${mc.id}"></canvas></div>
+          <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px">${legendHtml}</div>
+        </div>`).join('')}
+    </div>`;
+
+    for (const mc of metaConfigs) {
+      const canvas = document.getElementById(mc.id);
+      if (!canvas) continue;
+      if (_chartInstances[mc.id]) _chartInstances[mc.id].destroy();
+      const ctx2d = canvas.getContext('2d');
+
+      const datasets = agentes.map(ag => {
         const cor  = _AGENTE_COR[ag] || '#94a3b8';
         const nome = _AGENTE_DISPLAY[ag] || ag;
-        const map  = Object.fromEntries((kpisDiarioAgente[ag] || []).map(d => [d.dia, d]));
-        const vol  = dias.map(d => map[d]?.volume ?? null);
-        const csat = dias.map(d => map[d]?.csat   ?? null);
-        const resp = dias.map(d => map[d]?.resp_h  ?? null);
-        return `
-          <div style="display:grid;grid-template-columns:56px 1fr 1fr 1fr;gap:8px;align-items:center;background:${cardBg};border:1px solid var(--borda);border-left:3px solid ${cor};border-radius:10px;padding:10px 14px;margin-bottom:8px">
-            <div style="font-size:12px;font-weight:700;color:${cor}">${nome}</div>
-            <div style="position:relative;height:64px"><canvas id="ag-vol-${ag.replace(/ /g,'_')}"></canvas></div>
-            <div style="position:relative;height:64px"><canvas id="ag-csat-${ag.replace(/ /g,'_')}"></canvas></div>
-            <div style="position:relative;height:64px"><canvas id="ag-resp-${ag.replace(/ /g,'_')}"></canvas></div>
-          </div>`;
-      }).join('')}`;
+        const map  = Object.fromEntries((kpisDiarioAgente[ag]||[]).map(d=>[d.dia,d]));
+        const data = dias.map(d => map[d]?.[mc.metric] ?? null);
+        const g = ctx2d.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, cor + '40'); g.addColorStop(1, cor + '00');
+        return { label: nome, data, borderColor: cor, backgroundColor: g, borderWidth: 2, fill: true, tension: 0.4, pointRadius: dias.length > 30 ? 0 : 3, pointBackgroundColor: cor, pointHoverRadius: 5, spanGaps: true };
+      });
 
-    const mkSparkline = (canvasId, data, cor, yMax, fmt) => {
-      const canvas = document.getElementById(canvasId);
-      if (!canvas) return;
-      if (_chartInstances[canvasId]) _chartInstances[canvasId].destroy();
-      const ctx2d = canvas.getContext('2d');
-      const g = ctx2d.createLinearGradient(0, 0, 0, 64);
-      g.addColorStop(0, cor + '55'); g.addColorStop(1, cor + '00');
-      _chartInstances[canvasId] = new Chart(canvas, {
+      _chartInstances[mc.id] = new Chart(canvas, {
         type: 'line',
-        data: { labels, datasets: [{ data, borderColor: cor, backgroundColor: g, borderWidth: 1.5, fill: true, tension: 0.4, pointRadius: 0, pointHoverRadius: 4, spanGaps: true }] },
+        data: { labels, datasets },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false }, tooltip: { callbacks: { label: t => fmt ? fmt(t.parsed.y) : `${t.parsed.y}` }, backgroundColor: dark?'#1e293b':'#fff', bodyColor: dark?'#94a3b8':'#64748b', borderColor: dark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.08)', borderWidth:1 } },
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: dark?'#1e293b':'#fff', titleColor: dark?'#e2e8f0':'#1e293b',
+              bodyColor: dark?'#94a3b8':'#64748b', borderColor: dark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.08)', borderWidth:1, padding:10,
+              callbacks: { label: t => `${t.dataset.label}: ${mc.fmt ? mc.fmt(t.parsed.y) : t.parsed.y}` }
+            }
+          },
           scales: {
-            x: { display: false },
-            y: { display: false, min: 0, ...(yMax ? { max: yMax } : {}) }
+            x: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 10 }, maxTicksLimit: 12 }, border: { display: false } },
+            y: { grid: { color: gridColor }, ticks: { color: textColor, font: { size: 10 }, callback: mc.fmt || (v=>v) }, min: 0, ...(mc.yMax ? { max: mc.yMax } : {}), border: { display: false } }
           }
         }
       });
-    };
-
-    for (const ag of agentes) {
-      const cor = _AGENTE_COR[ag] || '#94a3b8';
-      const map = Object.fromEntries((kpisDiarioAgente[ag] || []).map(d => [d.dia, d]));
-      const vol  = dias.map(d => map[d]?.volume ?? null);
-      const csat = dias.map(d => map[d]?.csat   ?? null);
-      const resp = dias.map(d => map[d]?.resp_h  ?? null);
-      const k    = ag.replace(/ /g,'_');
-      mkSparkline(`ag-vol-${k}`,  vol,  cor, null, null);
-      mkSparkline(`ag-csat-${k}`, csat, cor, 100,  v=>`${v}%`);
-      mkSparkline(`ag-resp-${k}`, resp, cor, null,  v=>`${v}h`);
     }
   }
 
   function renderChartsDiario() {
     const el = document.getElementById('ops-charts-diario');
     if (!el) return;
-    if (!kpisDiario || kpisDiario.length === 0) { el.innerHTML = '<p style="color:var(--muted);font-size:12px;padding:8px 0">Sem dados para o período.</p>'; return; }
+    el.innerHTML = '';
+    if (!kpisDiario || kpisDiario.length === 0) { return; }
     const dark = document.documentElement.getAttribute('data-theme') === 'dark';
     const gridColor = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
     const textColor = dark ? '#94a3b8' : '#64748b';
