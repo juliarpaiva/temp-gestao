@@ -243,6 +243,7 @@
     .btn-topo.visivel { opacity: 1; pointer-events: auto; }
     .btn-topo:hover { background: var(--rosa); transform: translateY(-2px); }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -624,7 +625,7 @@
 
   async function fetchKpisDiarioAgente(inicio, fim) {
     const el = document.getElementById('ops-charts-agente');
-    if (el) el.innerHTML = '<p style="color:var(--muted);font-size:12px;padding:8px 0">Carregando gráficos por agente…</p>';
+    if (el) el.innerHTML = '<p style="color:var(--muted);font-size:12px;padding:8px 0">Carregando…</p>';
     try {
       const r = await fetch(`${API}/kpis-op-diario-agente?inicio=${inicio}&fim=${fim}`);
       if (!r.ok) { if (el) el.innerHTML = ''; return; }
@@ -636,7 +637,7 @@
   window._toggleAgente = function(ag, pill) {
     const nome = _AGENTE_DISPLAY[ag] || ag;
     const oculto = pill.dataset.hidden === '1';
-    ['agchart-vol','agchart-csat','agchart-resp'].forEach(id => {
+    ['agchart-vol'].forEach(id => {
       const ch = _chartInstances[id]; if (!ch) return;
       const i = ch.data.datasets.findIndex(d => d.label === nome);
       if (i >= 0) { ch.setDatasetVisibility(i, oculto); ch.update(); }
@@ -673,9 +674,7 @@
     }).join('');
 
     const metaConfigs = [
-      { id:'agchart-vol',  title:'Volume de tickets',  sub:'Tickets respondidos por dia',           metric:'volume', fmt: v=>`${v} tickets` },
-      { id:'agchart-csat', title:'CSAT %',              sub:'Satisfação diária por agente',           metric:'csat',   fmt: v=>`${v}%`, yMax:100 },
-      { id:'agchart-resp', title:'1ª Resposta',          sub:'Tempo médio de resposta por agente (h)', metric:'resp_h', fmt: v=>`${v}h` },
+      { id:'agchart-vol', title:'Volume de tickets', sub:'Tickets respondidos por dia por agente', metric:'volume', fmt: v=>`${v} tickets` },
     ];
 
     el.innerHTML = `<div style="display:flex;flex-direction:column;gap:16px;margin-bottom:24px">
@@ -852,6 +851,7 @@
         </div>
       </div>
 
+      <div id="ops-charts-agente"></div>
 
       ${(() => {
         const resolv  = atual.resolvidos_por_agente || [];
@@ -1120,6 +1120,7 @@
       kpisOp   = await _fetchKpisOp(`semana=${semana}`);
       semanaOp = kpisOp.semana;
       renderKpisOp();
+      fetchKpisDiarioAgente(kpisOp.semana, addOneDay(kpisOp.semana_fim));
     } catch (e) { _opsErro(e); }
   }
 
@@ -1138,6 +1139,7 @@
     try {
       kpisOp = await _fetchKpisOp(`mes=${mes}`);
       renderKpisOp();
+      fetchKpisDiarioAgente(kpisOp.semana, addOneDay(kpisOp.semana_fim));
     } catch (e) { _opsErro(e); }
   }
 
@@ -1157,7 +1159,7 @@
     kpisOp = null;
     renderKpisOp();
     _fetchKpisOp(`inicio=${opsPeriodoI}&fim=${opsPeriodoF}`)
-      .then(data => { kpisOp = data; renderKpisOp(); })
+      .then(data => { kpisOp = data; renderKpisOp(); fetchKpisDiarioAgente(data.semana, addOneDay(data.semana_fim)); })
       .catch(e => _opsErro(e));
   }
 
@@ -1168,6 +1170,7 @@
     try {
       kpisOp = await _fetchKpisOp(`inicio=${opsPeriodoI}&fim=${opsPeriodoF}`);
       renderKpisOp();
+      fetchKpisDiarioAgente(kpisOp.semana, addOneDay(kpisOp.semana_fim));
     } catch (e) { _opsErro(e); }
   }
 
@@ -1187,7 +1190,8 @@
         kpisOp   = await _fetchKpisOp(`semana=${semanaOp}`);
         semanaOp = kpisOp.semana;
         renderKpisOp();
-        } catch (e) { _opsErro(e); }
+        fetchKpisDiarioAgente(kpisOp.semana, addOneDay(kpisOp.semana_fim));
+      } catch (e) { _opsErro(e); }
     } else if (modo === 'dia') {
       if (!opsDiaAtivo) opsDiaAtivo = gerarDiasOps(14)[0];
       kpisOp = null;
@@ -1203,7 +1207,8 @@
       try {
         kpisOp = await _fetchKpisOp(`mes=${opsMesAtivo}`);
         renderKpisOp();
-        } catch (e) { _opsErro(e); }
+        fetchKpisDiarioAgente(kpisOp.semana, addOneDay(kpisOp.semana_fim));
+      } catch (e) { _opsErro(e); }
     } else if (modo === 'periodo') {
       // limpa datas anteriores e mostra os inputs sem buscar ainda
       opsPeriodoI = null; opsPeriodoF = null; opsPeriodoPreset = null;
@@ -1218,7 +1223,8 @@
       try {
         kpisOp = await _fetchKpisOp(`inicio=2026-02-01&fim=${hoje}`);
         renderKpisOp();
-        } catch (e) { _opsErro(e); }
+        fetchKpisDiarioAgente(kpisOp.semana, addOneDay(kpisOp.semana_fim));
+      } catch (e) { _opsErro(e); }
     }
   }
 
