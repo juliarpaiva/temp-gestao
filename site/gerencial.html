@@ -524,9 +524,14 @@
     const dow  = hoje.getUTCDay(); // 0=domingo
     const lastSun = new Date(hoje);
     lastSun.setUTCDate(lastSun.getUTCDate() - dow);
+    // Se a semana atual ainda não terminou (sábado não passou), começa da semana anterior
+    const thisSat = new Date(lastSun);
+    thisSat.setUTCDate(thisSat.getUTCDate() + 6);
+    const startSun = new Date(lastSun);
+    if (hoje <= thisSat) startSun.setUTCDate(startSun.getUTCDate() - 7);
     const semanas = [];
     for (let i = 0; i < n; i++) {
-      const sun = new Date(lastSun);
+      const sun = new Date(startSun);
       sun.setUTCDate(sun.getUTCDate() - i * 7);
       semanas.push(sun.toISOString().slice(0, 10));
     }
