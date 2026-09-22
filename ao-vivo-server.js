@@ -253,7 +253,10 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           vazao: {
             entram_hoje:     entramHoje,
             resolvidos_hoje: resolvidosHoje,      // DW — bate com "encerrados hoje" da tabela
-            backlog:         openConvs.length,    // todos os abertos com especialista (= em_andamento)
+            // Backlog: specialist-assigned OU com alguma label (tickets bot da Claudia têm labels:[])
+            backlog: allOpenConvs.filter(c =>
+              CFG.AGENTES.includes(c.meta?.assignee?.name) || (c.labels?.length > 0)
+            ).length,
           },
           fila: {
             total:            pendingInfo.total,
