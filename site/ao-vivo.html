@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ao vivo — INK</title>
+  <style>
+    :root {
+      --rosa:  #e91e8c;
+      --preto: #0f0f0f;
+      --bg:    #f0f2f5;
+      --card:  #ffffff;
+      --borda: #e2e8f0;
+      --muted: #64748b;
+      --r:     12px;
+      --sh:    0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06);
+      --verde: #16a34a;
+      --amber: #ca8a04;
+      --red:   #dc2626;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--preto); min-height: 100vh; }
+
+    /* ── Header ─────────────────────────────────────────────────── */
+    .header { background: var(--preto); color: #fff; border-bottom: 3px solid var(--rosa); position: sticky; top: 0; z-index: 100; height: 56px; }
+    .header-inner { max-width: 1400px; margin: 0 auto; padding: 0 24px; height: 100%; display: flex; align-items: center; gap: 14px; }
+    .logo { font-size: 18px; font-weight: 900; letter-spacing: -1px; flex-shrink: 0; }
+    .logo b { color: var(--rosa); font-weight: 900; }
+    .hdr-sep { width: 1px; height: 20px; background: rgba(255,255,255,.15); flex-shrink: 0; }
+    .hdr-title { font-size: 13px; font-weight: 600; color: rgba(255,255,255,.7); }
+    .hdr-spacer { flex: 1; }
+    .live-badge { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; letter-spacing: .5px; color: #4ade80; flex-shrink: 0; }
+    .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; animation: pulse 1.5s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.25} }
+    .hdr-update { font-size: 11px; color: rgba(255,255,255,.45); white-space: nowrap; }
+    .hdr-nav { font-size: 12px; font-weight: 700; color: rgba(255,255,255,.65); text-decoration: none; padding: 5px 11px; border: 1px solid rgba(255,255,255,.2); border-radius: 8px; white-space: nowrap; flex-shrink: 0; transition: color .15s, border-color .15s; }
+    .hdr-nav:hover { color: #fff; border-color: rgba(255,255,255,.45); }
+
+    /* ── Layout ──────────────────────────────────────────────────── */
+    .page { max-width: 1400px; margin: 0 auto; padding: 24px 24px 40px; }
+
+    /* ── Error bar ───────────────────────────────────────────────── */
+    .error-bar { background: #fee2e2; color: var(--red); border: 1px solid #fca5a5; border-radius: var(--r); padding: 10px 16px; font-size: 13px; font-weight: 600; margin-bottom: 18px; display: none; }
+    .stale-bar { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: var(--r); padding: 8px 16px; font-size: 12px; font-weight: 600; margin-bottom: 18px; display: none; }
+
+    /* ── Freshness pills ─────────────────────────────────────────── */
+    .fresh-row { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .fresh-pill { font-size: 11px; font-weight: 600; color: var(--muted); background: var(--card); border: 1px solid var(--borda); border-radius: 20px; padding: 4px 12px; display: flex; align-items: center; gap: 5px; }
+    .fresh-pill .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .fresh-pill .dot.verde { background: #4ade80; animation: pulse 1.5s ease-in-out infinite; }
+    .fresh-pill .dot.amber { background: var(--amber); }
+    .fresh-pill strong { color: var(--preto); }
+
+    /* ── TOP BLOCK: agora (3 cards grandes) ─────────────────────── */
+    .agora-grid { display: grid; grid-template-columns: 1fr 1fr 1.6fr; gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 900px) { .agora-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 600px) { .agora-grid { grid-template-columns: 1fr; } }
+
+    .agora-card { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); padding: 24px 26px; }
+    .agora-card.destaque { border-left: 4px solid var(--rosa); }
+    .agora-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 10px; }
+    .agora-num { font-size: 64px; font-weight: 900; letter-spacing: -3px; line-height: 1; }
+    .agora-card.destaque .agora-num { color: var(--rosa); }
+    .agora-sub { font-size: 13px; font-weight: 600; color: var(--muted); margin-top: 8px; }
+    .agora-sub.amber { color: var(--amber); }
+    .agora-sub.red   { color: var(--red); }
+
+    /* SLA card layout */
+    .sla-counts { display: flex; gap: 24px; margin-top: 8px; }
+    .sla-count-item { text-align: center; }
+    .sla-count-num { font-size: 40px; font-weight: 900; letter-spacing: -2px; line-height: 1; }
+    .sla-count-num.red   { color: var(--red); }
+    .sla-count-num.amber { color: var(--amber); }
+    .sla-count-num.verde { color: var(--verde); }
+    .sla-count-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-top: 4px; }
+    .sla-ok { font-size: 15px; font-weight: 700; color: var(--verde); margin-top: 10px; }
+
+    /* ── Agent section ───────────────────────────────────────────── */
+    .section { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); margin-bottom: 20px; overflow: hidden; }
+    .sec-hdr { padding: 14px 22px; border-bottom: 1px solid var(--borda); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .sec-hdr-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+    .sec-badge { font-size: 10px; font-weight: 800; letter-spacing: .5px; background: var(--rosa); color: #fff; padding: 2px 8px; border-radius: 20px; }
+    .sec-date { font-size: 11px; font-weight: 700; color: var(--preto); }
+    .sec-live-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; animation: pulse 1.5s ease-in-out infinite; }
+    .sec-hdr-right { margin-left: auto; font-size: 11px; color: var(--muted); font-weight: 600; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); padding: 10px 22px; text-align: left; background: #f8fafc; border-bottom: 1px solid var(--borda); white-space: nowrap; }
+    td { padding: 14px 22px; font-size: 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafbfc; }
+    .td-nome { font-weight: 800; font-size: 15px; }
+    .td-live { font-size: 24px; font-weight: 900; letter-spacing: -1px; }
+    .td-live.rosa  { color: var(--rosa); }
+    .td-live.muted { color: #c8d4e0; }
+    .td-acum { font-size: 15px; font-weight: 700; color: var(--muted); }
+    .td-acum.verde { color: var(--verde); }
+
+    /* status dot */
+    .status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .status::before { content:''; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .status-online::before   { background: #4ade80; }
+    .status-busy::before     { background: #f59e0b; }
+    .status-offline::before  { background: #94a3b8; }
+    .status-na               { color: #c8d4e0; font-size: 11px; }
+
+    /* DW freshness note under table */
+    .dw-note { padding: 8px 22px; font-size: 11px; color: var(--muted); font-weight: 600; border-top: 1px solid #f1f5f9; background: #fafbfc; }
+
+    /* ── SLA detail section ──────────────────────────────────────── */
+    .sla-empty { padding: 16px 22px; font-size: 13px; font-weight: 600; color: var(--verde); }
+    .sla-item { display: flex; align-items: center; gap: 14px; padding: 14px 22px; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap; }
+    .sla-item:last-child { border-bottom: none; }
+    .sla-badge { font-size: 9px; font-weight: 800; letter-spacing: .8px; padding: 3px 9px; border-radius: 20px; flex-shrink: 0; }
+    .sla-badge.critico { background: #fee2e2; color: var(--red); }
+    .sla-badge.atencao { background: #fef3c7; color: #854d0e; }
+    .sla-id { font-size: 12px; font-weight: 700; color: var(--muted); }
+    .sla-agent { font-weight: 700; font-size: 14px; }
+    .sla-time { font-size: 22px; font-weight: 900; letter-spacing: -1px; }
+    .sla-time.critico { color: var(--red); }
+    .sla-time.atencao { color: var(--amber); }
+    .sla-note { font-size: 11px; color: var(--muted); }
+    .sla-link { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--rosa); text-decoration: none; padding: 5px 10px; border: 1px solid #fce7f3; border-radius: 8px; flex-shrink: 0; }
+    .sla-link:hover { background: #fce7f3; }
+    .sla-scope-note { padding: 8px 22px; font-size: 11px; color: var(--muted); border-top: 1px solid #f1f5f9; background: #fafbfc; }
+
+    /* ── Skeleton ────────────────────────────────────────────────── */
+    @keyframes shimmer { 0%{background-position:-700px 0} 100%{background-position:700px 0} }
+    .sk { background: linear-gradient(90deg,#edf0f4 25%,#dde2e8 50%,#edf0f4 75%); background-size:700px 100%; animation:shimmer 1.4s ease-in-out infinite; border-radius: 6px; display: inline-block; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-inner">
+    <div class="logo">INK<b>.</b></div>
+    <div class="hdr-sep"></div>
+    <div class="hdr-title">Atendimento ao vivo</div>
+    <div class="hdr-spacer"></div>
+    <div class="live-badge"><div class="live-dot"></div>AO VIVO</div>
+    <div class="hdr-update" id="hdr-update">—</div>
+    <a href="/gerencial.html" class="hdr-nav">← D-1</a>
+  </div>
+</header>
+
+<div class="page">
+
+  <div class="error-bar" id="error-bar"></div>
+  <div class="stale-bar" id="stale-bar">⚠ Usando dados em cache — última atualização pode estar desatualizada.</div>
+
+  <!-- Freshness pills -->
+  <div class="fresh-row">
+    <div class="fresh-pill"><div class="dot verde"></div>Ao vivo: <strong id="fresh-live">carregando…</strong></div>
+    <div class="fresh-pill"><div class="dot amber"></div>Acumulados DW: <strong id="fresh-dw">carregando…</strong></div>
+  </div>
+
+  <!-- BLOCO 1: AGORA -->
+  <div class="agora-grid" id="agora-grid">
+    <div class="agora-card destaque">
+      <div class="agora-label">Fila agora</div>
+      <div class="agora-num sk" style="height:64px;width:80px">&nbsp;</div>
+      <div class="agora-sub sk" style="height:16px;width:160px;margin-top:10px">&nbsp;</div>
+    </div>
+    <div class="agora-card">
+      <div class="agora-label">Em andamento</div>
+      <div class="agora-num sk" style="height:64px;width:60px">&nbsp;</div>
+      <div class="agora-sub sk" style="height:16px;width:100px;margin-top:10px">&nbsp;</div>
+    </div>
+    <div class="agora-card">
+      <div class="agora-label">SLA em risco — 1ª resposta</div>
+      <div class="sk" style="height:48px;width:120px;margin-top:10px">&nbsp;</div>
+    </div>
+  </div>
+
+  <!-- BLOCO 2: POR AGENTE -->
+  <div class="section" id="agent-section">
+    <div class="sec-hdr">
+      <span class="sec-hdr-title">Por agente</span>
+      <span class="sec-badge">AO VIVO</span>
+      <span class="sec-date" id="sec-date">hoje</span>
+      <div class="sec-live-dot"></div>
+      <span class="sec-hdr-right" id="sec-update">—</span>
+    </div>
+    <table>
+      <thead>
+        <tr id="agent-thead">
+          <th>Atendente</th>
+          <th id="th-status">Status</th>
+          <th>Em andamento</th>
+          <th>Encerrados hoje</th>
+          <th>1ª Resposta</th>
+          <th>TMA</th>
+        </tr>
+      </thead>
+      <tbody id="agent-tbody">
+        <tr><td colspan="6" style="padding:20px;color:var(--muted);font-size:13px">Carregando…</td></tr>
+      </tbody>
+    </table>
+    <div class="dw-note" id="dw-note">Acumulados: carregando…</div>
+  </div>
+
+  <!-- BLOCO 3: SLA detalhe -->
+  <div class="section">
+    <div class="sec-hdr">
+      <span class="sec-hdr-title" id="sla-title">SLA em risco</span>
+    </div>
+    <div id="sla-list"><div class="sla-empty">Carregando…</div></div>
+    <div class="sla-scope-note">v1: apenas risco de 1ª resposta (ticket aberto sem resposta dentro do horário comercial). Risco de resolução a implementar.</div>
+  </div>
+
+</div><!-- /page -->
+
+<script>
+// ── Config frontend (ajuste aqui) ─────────────────────────────────────────────
+const POLL_MS         = 30_000;   // intervalo de polling (ms)
+const SLA_ATENCAO_MIN = 45;       // espelhado da config do servidor (só para exibição de cor)
+const SLA_CRITICO_MIN = 60;
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ORDEM = ['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz'];
+const DISP  = { 'Mari':'Mari','Fernanda Cavalcante':'Fer','Paty':'Paty','Lu Almeida':'Lu','Rafa':'Rafa','Natchely Ortiz':'Natchely' };
+const MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const DIAS_SEM = ['dom','seg','ter','qua','qui','sex','sáb'];
+
+let lastData     = null;
+let _countdown   = POLL_MS / 1000;
+let _polling     = null;
+let _hasOverview = false;
+
+function fmtMin(m) {
+  if (m == null || isNaN(m)) return '—';
+  m = Math.round(m);
+  return m < 60 ? `${m}min` : `${Math.floor(m/60)}h ${m%60 > 0 ? m%60+'min' : ''}`.trim();
+}
+
+function fmtHora(isoOrPg) {
+  if (!isoOrPg) return '—';
+  const s = String(isoOrPg).replace(' ','T');
+  const d = new Date(s);
+  if (isNaN(d)) return '—';
+  const h = String(d.getHours()).padStart(2,'0');
+  const mi = String(d.getMinutes()).padStart(2,'0');
+  return `${h}h${mi}`;
+}
+
+function todayLabel() {
+  const d = new Date();
+  return `${DIAS_SEM[d.getDay()]} ${d.getDate()}/${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function statusHtml(status) {
+  if (!status) return '<span class="status-na">—</span>';
+  const MAP = { online:['Online','status-online'], busy:['Em atend.','status-busy'], offline:['Ausente','status-offline'] };
+  const [label, cls] = MAP[status] || [status, 'status-offline'];
+  return `<span class="status ${cls}">${label}</span>`;
+}
+
+function renderAgoraGrid(av, _ac) {
+  const fila = av.fila;
+  const sla  = av.sla_risco || [];
+  const nCrit = sla.filter(s => s.nivel === 'critico').length;
+  const nAtenc = sla.filter(s => s.nivel === 'atencao').length;
+
+  let filaSubCls = '';
+  if (fila.mais_antigo_min >= SLA_CRITICO_MIN) filaSubCls = 'red';
+  else if (fila.mais_antigo_min >= SLA_ATENCAO_MIN) filaSubCls = 'amber';
+
+  const slaCls  = nCrit > 0 ? 'red' : nAtenc > 0 ? 'amber' : 'verde';
+  const slaNum  = nCrit + nAtenc;
+
+  document.getElementById('agora-grid').innerHTML = `
+    <div class="agora-card destaque">
+      <div class="agora-label">Fila agora</div>
+      <div class="agora-num">${fila.total}</div>
+      <div class="agora-sub ${filaSubCls}">
+        ${fila.mais_antigo_min != null
+          ? `+${fmtMin(fila.mais_antigo_min)} o mais antigo`
+          : fila.total > 0 ? 'aguardando' : 'fila vazia'}
+      </div>
+    </div>
+    <div class="agora-card">
+      <div class="agora-label">Em andamento</div>
+      <div class="agora-num" style="color:var(--rosa)">${av.em_andamento}</div>
+      <div class="agora-sub">atendimentos abertos</div>
+    </div>
+    <div class="agora-card">
+      <div class="agora-label">SLA em risco — 1ª resposta</div>
+      ${slaNum === 0
+        ? `<div class="sla-ok">✓ Tudo dentro do prazo</div>`
+        : `<div class="sla-counts">
+            ${nCrit > 0 ? `<div class="sla-count-item">
+              <div class="sla-count-num red">${nCrit}</div>
+              <div class="sla-count-label">Crítico</div>
+            </div>` : ''}
+            ${nAtenc > 0 ? `<div class="sla-count-item">
+              <div class="sla-count-num amber">${nAtenc}</div>
+              <div class="sla-count-label">Atenção</div>
+            </div>` : ''}
+          </div>`
+      }
+    </div>
+  `;
+}
+
+function renderAgentTable(av, ac) {
+  _hasOverview = av.has_overview;
+
+  // Cabeçalho: mostra/oculta coluna Status
+  document.getElementById('th-status').style.display = _hasOverview ? '' : 'none';
+  document.getElementById('sec-date').textContent = todayLabel();
+  document.getElementById('sec-update').textContent = `atualizado ${fmtHora(av.updated_at)}`;
+
+  const rows = ORDEM.map(ag => {
+    const vivo = av.por_agente?.[ag] || {};
+    const acum = ac.por_agente?.[ag] || {};
+    const emAnd   = vivo.em_andamento ?? 0;
+    const resolv  = acum.resolvidos ?? 0;
+    const tma     = acum.tma_min;
+    const resp    = acum.resp_min;
+
+    const tdStatus = _hasOverview
+      ? `<td style="${!_hasOverview?'display:none':''}">${statusHtml(vivo.status)}</td>`
+      : `<td style="display:none"></td>`;
+
+    return `<tr>
+      <td class="td-nome">${DISP[ag] || ag}</td>
+      ${tdStatus}
+      <td><span class="td-live ${emAnd > 0 ? 'rosa' : 'muted'}">${emAnd}</span></td>
+      <td><span class="td-acum ${resolv > 0 ? 'verde' : ''}">${resolv}</span></td>
+      <td class="td-acum">${fmtMin(resp)}</td>
+      <td class="td-acum">${fmtMin(tma)}</td>
+    </tr>`;
+  });
+  document.getElementById('agent-tbody').innerHTML = rows.join('');
+
+  const dwAt = ac.dw_updated_at ? fmtHora(ac.dw_updated_at) : '—';
+  document.getElementById('dw-note').textContent =
+    `Encerrados / 1ª Resp. / TMA: dados do dia via DW (última carga: ${dwAt})`;
+}
+
+function renderSlaDetail(av) {
+  const sla = av.sla_risco || [];
+  document.getElementById('sla-title').textContent = `SLA em risco — 1ª resposta (${sla.length})`;
+  if (sla.length === 0) {
+    document.getElementById('sla-list').innerHTML =
+      '<div class="sla-empty">✓ Nenhum ticket em risco de 1ª resposta no momento</div>';
+    return;
+  }
+  document.getElementById('sla-list').innerHTML = sla.map(r => `
+    <div class="sla-item">
+      <span class="sla-badge ${r.nivel}">${r.nivel === 'critico' ? 'CRÍTICO' : 'ATENÇÃO'}</span>
+      <span class="sla-id">#${r.id}</span>
+      <span class="sla-agent">${r.agente}</span>
+      <span class="sla-time ${r.nivel}">${fmtMin(r.minutos)}</span>
+      <span class="sla-note">sem 1ª resposta (h. comercial)</span>
+      <a class="sla-link" href="${r.link}" target="_blank" rel="noreferrer">Abrir →</a>
+    </div>
+  `).join('');
+}
+
+function render(data) {
+  const av = data.ao_vivo;
+  const ac = data.acumulados;
+  const isStale = !!data._stale;
+
+  document.getElementById('stale-bar').style.display = isStale ? 'block' : 'none';
+  document.getElementById('fresh-live').textContent = fmtHora(av.updated_at);
+  document.getElementById('fresh-dw').textContent   =
+    ac.dw_updated_at ? `dados até ${fmtHora(ac.dw_updated_at)}` : '—';
+
+  renderAgoraGrid(av, ac);
+  renderAgentTable(av, ac);
+  renderSlaDetail(av);
+}
+
+function updateHdrCountdown() {
+  if (!lastData) return;
+  const av  = lastData.ao_vivo;
+  const secs = Math.max(0, _countdown);
+  document.getElementById('hdr-update').textContent =
+    `atualizado ${fmtHora(av.updated_at)} · próx. em ${secs}s`;
+}
+
+async function fetchStatus() {
+  try {
+    const r = await fetch('/ao-vivo/status');
+    if (r.status === 401) { window.location.href = '/login?r=' + encodeURIComponent(window.location.pathname); return; }
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    lastData = data;
+    document.getElementById('error-bar').style.display = 'none';
+    render(data);
+  } catch (e) {
+    const bar = document.getElementById('error-bar');
+    bar.textContent = `Erro ao atualizar: ${e.message}`;
+    bar.style.display = 'block';
+  }
+  _countdown = POLL_MS / 1000;
+}
+
+// Inicializa
+fetchStatus();
+setInterval(fetchStatus, POLL_MS);
+setInterval(() => { _countdown = Math.max(0, _countdown - 1); updateHdrCountdown(); }, 1000);
+</script>
+</body>
+</html>

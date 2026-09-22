@@ -2363,6 +2363,8 @@ async function initDb() {
   console.log('Banco de dados pronto.');
 }
 
+app.use(require('./ao-vivo-server')({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, dwQuery }));
+
 const PORT = process.env.PORT || 3000;
 initDb()
   .then(() => app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`)))
