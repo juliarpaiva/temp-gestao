@@ -290,5 +290,75 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     }
   });
 
+  // ── Rota de investigação temporária — remover após decisão ────────────────
+  router.get('/ao-vivo/debug-resolvidos', async (req, res) => {
+    try {
+      const off = CFG.BRT_OFFSET_H * 3600000;
+      const _d  = new Date(Date.now() + off);
+      _d.setUTCHours(0, 0, 0, 0);
+      const todayStartISO = new Date(_d.getTime() - off).toISOString(); // 00:00 BRT em UTC
+      const token = process.env.CLOUDCHAT_TOKEN;
+
+      const postF = async (payload) => {
+        try {
+          const r = await fetchCloudChat(
+            `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=1`,
+            token, 'POST', { payload }
+          );
+          const meta  = r?.meta || r?.data?.meta || {};
+          const items = r?.payload || r?.data?.payload || [];
+          return { count: meta.all_count ?? 0, sample: items.slice(0, 2) };
+        } catch (e) { return { count: null, error: e.message }; }
+      };
+
+      // 1. Amostra de tickets resolvidos para inspecionar campos de data
+      const restSample = await fetchCloudChat(
+        `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations?status=resolved&page=1`,
+        token
+      );
+      const sample = (restSample?.data?.payload || []).slice(0, 3).map(c => {
+        const camposData = {};
+        for (const [k, v] of Object.entries(c)) {
+          if (typeof v === 'number' && v > 1_000_000_000 && v < 9_999_999_999) {
+            camposData[k] = { unix: v, iso: new Date(v * 1000).toISOString() };
+          }
+        }
+        return { id: c.id, status: c.status, labels: c.labels, campos_data: camposData };
+      });
+
+      // 2. CloudChat — status=resolved AND updated_at >= hoje BRT (proxy de resolved_at)
+      const ccTodos = await postF([
+        { attribute_key: 'status',     filter_operator: 'equal_to',       values: ['resolved'],      query_operator: 'AND' },
+        { attribute_key: 'updated_at', filter_operator: 'is_greater_than', values: [todayStartISO],  query_operator: null  },
+      ]);
+
+      // 3. CloudChat — mesmo mas só n2_ticket
+      const ccN2 = await postF([
+        { attribute_key: 'labels',     filter_operator: 'equal_to',       values: ['n2_ticket'],     query_operator: 'AND' },
+        { attribute_key: 'status',     filter_operator: 'equal_to',       values: ['resolved'],      query_operator: 'AND' },
+        { attribute_key: 'updated_at', filter_operator: 'is_greater_than', values: [todayStartISO],  query_operator: null  },
+      ]);
+
+      // 4. DW (fonte atual do painel)
+      const dw = await _fetchDwResolvidos();
+
+      res.json({
+        hoje_brt_inicio: todayStartISO,
+        cloudchat: {
+          todos_resolved_updated_hoje: ccTodos.count,
+          n2_resolved_updated_hoje:    ccN2.count,
+          nota_campo: 'usa updated_at como proxy — resolved_at nao suportado no filter API',
+          sample_campos_data: sample,
+        },
+        dw: {
+          resolvidos_hoje: dw.resolvidos,
+          ultima_carga:    dw.dw_updated_at,
+        },
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   return router;
 };
