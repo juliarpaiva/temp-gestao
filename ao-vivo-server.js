@@ -183,11 +183,14 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       _d.setUTCHours(0, 0, 0, 0);
       const todayStartS = (_d.getTime() - _off) / 1000;
 
-      // Subconjunto 1: atribuídos a especialistas → tabela por agente e SLA
-      const openConvs = allOpenConvs.filter(c => {
-        const name = c.meta?.assignee?.name;
-        return name && CFG.AGENTES.includes(name);
-      });
+      // "Na caixa das atendentes": N2 aberto COM especialista responsável
+      // (intersecção n2_ticket + specialist → deve bater com soma da tabela por agente)
+      const openConvs = allOpenConvs.filter(c =>
+        c.labels?.includes('n2_ticket') && CFG.AGENTES.includes(c.meta?.assignee?.name)
+      );
+      // Pool N2 total: todos os n2_ticket abertos (com ou sem especialista) → backlog
+      const openN2All = allOpenConvs.filter(c => c.labels?.includes('n2_ticket'));
+
       // Inicializa todos os agentes monitorados
       const porAgente = {};
       for (const ag of CFG.AGENTES) porAgente[ag] = { em_andamento: 0, status: null, tickets: [] };
@@ -236,10 +239,10 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       slaRisco.sort((a, b) => b.minutos - a.minutos);
 
       // Vazão do dia
-      // entram_hoje: tickets com especialista criados hoje (ainda abertos — os resolvidos já saíram)
-      const entramHoje = openConvs.filter(c => c.created_at >= todayStartS).length;
-      // resolvidos_hoje: total do DW (bate com a coluna "encerrados hoje" da tabela)
+      const entramHoje    = openN2All.filter(c => c.created_at >= todayStartS).length;
       const resolvidosHoje = dwHoje.totais.resolvidos ?? 0;
+      const backlogAtrib   = openConvs.length;                  // N2 com especialista
+      const backlogSemRes  = openN2All.length - backlogAtrib;   // N2 sem responsável
 
       const maisAntigoMin = pendingInfo.oldest
         ? Math.round(_bhMins(pendingInfo.oldest.created_at, now_s))
@@ -252,11 +255,10 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           em_andamento_truncated: truncated,
           vazao: {
             entram_hoje:     entramHoje,
-            resolvidos_hoje: resolvidosHoje,      // DW — bate com "encerrados hoje" da tabela
-            // Backlog: specialist-assigned OU com alguma label (tickets bot da Claudia têm labels:[])
-            backlog: allOpenConvs.filter(c =>
-              CFG.AGENTES.includes(c.meta?.assignee?.name) || (c.labels?.length > 0)
-            ).length,
+            resolvidos_hoje: resolvidosHoje,  // DW — bate com "encerrados hoje" da tabela
+            backlog:         openN2All.length, // total N2 aberto
+            atribuidos:      backlogAtrib,     // N2 com especialista (= Na caixa)
+            sem_responsavel: backlogSemRes,    // N2 sem responsável
           },
           fila: {
             total:            pendingInfo.total,
@@ -266,7 +268,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
               : null,
             tickets:          pendingInfo.tickets,
           },
-          em_andamento:    openConvs.length, // já filtrado para N2; truncated=true sinaliza possível subcontagem
+          em_andamento:    openConvs.length, // N2 com especialista = "Na caixa das atendentes"
           por_agente:      porAgente,
           sla_risco:       slaRisco,
         },

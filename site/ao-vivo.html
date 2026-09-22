@@ -52,16 +52,27 @@
     .fresh-pill strong { color: var(--preto); }
 
     /* ── TOP BLOCK: agora (3 cards grandes) ─────────────────────── */
-    .agora-grid { display: grid; grid-template-columns: 1fr 1fr 1.6fr; gap: 16px; margin-bottom: 24px; }
+    /* ── Grupos de cards (AGORA / HOJE / ACUMULADO) ─────────────── */
+    .grupo { margin-bottom: 28px; }
+    .grupo-hdr { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: #94a3b8; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+    .grupo-hdr::after { content: ''; flex: 1; height: 1px; background: var(--borda); }
+
+    .agora-grid { display: grid; grid-template-columns: 1fr 1fr 1.6fr; gap: 16px; }
     @media (max-width: 900px) { .agora-grid { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 600px) { .agora-grid { grid-template-columns: 1fr; } }
+
+    .hoje-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 600px) { .hoje-grid { grid-template-columns: 1fr; } }
 
     .agora-card { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); padding: 24px 26px; }
     .agora-card.destaque { border-left: 4px solid var(--rosa); }
     .agora-card.alerta   { border-left: 4px solid var(--amber); }
-    .vazao-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }
-    @media (max-width: 900px) { .vazao-grid { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 600px) { .vazao-grid { grid-template-columns: 1fr; } }
+
+    /* Breakdown do card acumulado */
+    .bd-row { display: flex; align-items: flex-start; gap: 20px; margin-top: 14px; flex-wrap: wrap; }
+    .bd-item { min-width: 80px; }
+    .bd-num  { font-size: 36px; font-weight: 900; letter-spacing: -2px; line-height: 1; }
+    .bd-lbl  { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-top: 4px; }
     .agora-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 10px; }
     .agora-num { font-size: 64px; font-weight: 900; letter-spacing: -3px; line-height: 1; }
     .agora-card.destaque .agora-num { color: var(--rosa); }
@@ -171,29 +182,43 @@
     <div class="fresh-pill"><div class="dot amber"></div>Acumulados DW: <strong id="fresh-dw">carregando…</strong></div>
   </div>
 
-  <!-- BLOCO 1: AGORA -->
-  <div class="agora-grid" id="agora-grid">
-    <div class="agora-card destaque">
-      <div class="agora-label">Fila agora</div>
-      <div class="agora-num sk" style="height:64px;width:80px">&nbsp;</div>
-      <div class="agora-sub sk" style="height:16px;width:160px;margin-top:10px">&nbsp;</div>
-    </div>
-    <div class="agora-card">
-      <div class="agora-label">Em andamento</div>
-      <div class="agora-num sk" style="height:64px;width:60px">&nbsp;</div>
-      <div class="agora-sub sk" style="height:16px;width:100px;margin-top:10px">&nbsp;</div>
-    </div>
-    <div class="agora-card">
-      <div class="agora-label">SLA em risco — 1ª resposta</div>
-      <div class="sk" style="height:48px;width:120px;margin-top:10px">&nbsp;</div>
+  <!-- GRUPO: AGORA (estado atual) -->
+  <div class="grupo">
+    <div class="grupo-hdr">Agora</div>
+    <div class="agora-grid" id="agora-grid">
+      <div class="agora-card destaque">
+        <div class="agora-label">Fila aguardando</div>
+        <div class="agora-num sk" style="height:64px;width:80px">&nbsp;</div>
+        <div class="agora-sub sk" style="height:16px;width:160px;margin-top:10px">&nbsp;</div>
+      </div>
+      <div class="agora-card">
+        <div class="agora-label">Na caixa das atendentes</div>
+        <div class="agora-num sk" style="height:64px;width:60px">&nbsp;</div>
+        <div class="agora-sub sk" style="height:16px;width:100px;margin-top:10px">&nbsp;</div>
+      </div>
+      <div class="agora-card">
+        <div class="agora-label">SLA em risco — 1ª resposta</div>
+        <div class="sk" style="height:48px;width:120px;margin-top:10px">&nbsp;</div>
+      </div>
     </div>
   </div>
 
-  <!-- BLOCO 1.5: VAZÃO DO DIA -->
-  <div class="vazao-grid" id="vazao-grid">
-    <div class="agora-card"><div class="agora-label">Entraram hoje</div><div class="agora-num sk" style="height:56px;width:60px">&nbsp;</div></div>
-    <div class="agora-card"><div class="agora-label">Resolvidos hoje</div><div class="agora-num sk" style="height:56px;width:60px">&nbsp;</div></div>
-    <div class="agora-card"><div class="agora-label">Em aberto (acumulado)</div><div class="agora-num sk" style="height:56px;width:60px">&nbsp;</div></div>
+  <!-- GRUPO: HOJE (fluxo do dia) -->
+  <div class="grupo">
+    <div class="grupo-hdr">Hoje</div>
+    <div class="hoje-grid" id="hoje-grid">
+      <div class="agora-card"><div class="agora-label">Novos hoje</div><div class="agora-num sk" style="height:56px;width:60px">&nbsp;</div></div>
+      <div class="agora-card"><div class="agora-label">Resolvidos hoje</div><div class="agora-num sk" style="height:56px;width:60px">&nbsp;</div></div>
+    </div>
+  </div>
+
+  <!-- GRUPO: ACUMULADO (estoque) -->
+  <div class="grupo">
+    <div class="grupo-hdr">Acumulado</div>
+    <div class="agora-card" id="acumulado-card">
+      <div class="agora-label">Em aberto (N2 total)</div>
+      <div class="agora-num sk" style="height:56px;width:60px">&nbsp;</div>
+    </div>
   </div>
 
   <!-- BLOCO 2: POR AGENTE -->
@@ -293,7 +318,7 @@ function renderAgoraGrid(av, _ac) {
 
   document.getElementById('agora-grid').innerHTML = `
     <div class="agora-card destaque">
-      <div class="agora-label">Fila agora</div>
+      <div class="agora-label">Fila aguardando</div>
       <div class="agora-num">${fila.total}</div>
       <div class="agora-sub ${filaSubCls}">
         ${fila.mais_antigo_min != null
@@ -311,10 +336,10 @@ function renderAgoraGrid(av, _ac) {
       </details>` : ''}
     </div>
     <div class="agora-card">
-      <div class="agora-label">Em andamento</div>
+      <div class="agora-label">Na caixa das atendentes</div>
       <div class="agora-num" style="color:var(--rosa)">${av.em_andamento}</div>
       <div class="agora-sub ${av.em_andamento_truncated ? 'amber' : ''}">
-        ${av.em_andamento_truncated ? 'contagem parcial (>20 pág.)' : 'atendimentos abertos'}
+        ${av.em_andamento_truncated ? 'contagem parcial (>20 pág.)' : 'tickets N2 com responsável'}
       </div>
     </div>
     <div class="agora-card">
@@ -382,24 +407,44 @@ function renderAgentTable(av, ac) {
 function renderVazao(av) {
   const vz = av.vazao;
   if (!vz) return;
+
+  // HOJE — Novos x Resolvidos
   const alerta = vz.entram_hoje > vz.resolvidos_hoje;
-  document.getElementById('vazao-grid').innerHTML = `
+  document.getElementById('hoje-grid').innerHTML = `
     <div class="agora-card ${alerta ? 'alerta' : ''}">
-      <div class="agora-label">Entraram hoje</div>
+      <div class="agora-label">Novos hoje</div>
       <div class="agora-num" style="color:${alerta ? 'var(--amber)' : 'var(--preto)'}">${vz.entram_hoje}</div>
-      <div class="agora-sub">tickets em andamento criados hoje</div>
+      <div class="agora-sub">tickets N2 criados hoje</div>
     </div>
     <div class="agora-card ${alerta ? 'alerta' : ''}">
       <div class="agora-label">Resolvidos hoje</div>
       <div class="agora-num" style="color:var(--verde)">${vz.resolvidos_hoje}</div>
       <div class="agora-sub${alerta ? ' amber' : ''}">
-        ${alerta ? '⚠ fila crescendo no dia' : 'ritmo ok'}
+        ${alerta ? '⚠ fila crescendo' : 'ritmo ok'}
       </div>
     </div>
-    <div class="agora-card">
-      <div class="agora-label">Em aberto (acumulado)</div>
-      <div class="agora-num" style="color:var(--rosa)">${vz.backlog}</div>
-      <div class="agora-sub" style="color:var(--muted)">tickets com especialista — inclui dias anteriores</div>
+  `;
+
+  // ACUMULADO — total N2 com quebra atribuídos / sem responsável
+  const hasBreak = vz.atribuidos != null;
+  const alertaSem = (vz.sem_responsavel ?? 0) > 0;
+  document.getElementById('acumulado-card').innerHTML = `
+    <div class="agora-label">Em aberto (N2 total)</div>
+    <div class="agora-num" style="color:var(--rosa)">${vz.backlog}</div>
+    ${hasBreak ? `
+    <div class="bd-row">
+      <div class="bd-item">
+        <div class="bd-num" style="color:var(--rosa)">${vz.atribuidos}</div>
+        <div class="bd-lbl">com responsável</div>
+      </div>
+      <div style="font-size:20px;color:var(--borda);align-self:center">·</div>
+      <div class="bd-item">
+        <div class="bd-num" style="color:${alertaSem ? 'var(--amber)' : 'var(--muted)'}">${vz.sem_responsavel}</div>
+        <div class="bd-lbl">${alertaSem ? '⚠ sem responsável' : 'sem responsável'}</div>
+      </div>
+    </div>` : `<div class="agora-sub" style="color:var(--muted)">inclui dias anteriores</div>`}
+    <div class="agora-sub" style="margin-top:10px;color:var(--muted);font-size:11px">
+      "com responsável" deve bater com a soma da tabela abaixo
     </div>
   `;
 }
