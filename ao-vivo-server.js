@@ -122,13 +122,16 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     // Sem assignee (intermediário → AND)
     const NA  = { attribute_key: 'assignee_id', filter_operator: 'is_not_present', values: [], query_operator: 'AND' };
 
+    // Não atribuído: todas as conversas abertas sem assignee, sem filtro de label
+    // (espelha o que CloudChat exibe na aba "Não atribuída")
+    const NAL = { attribute_key: 'assignee_id', filter_operator: 'is_not_present', values: [], query_operator: 'AND' };
     const [open, pending, snoozed, novos, resolvCriados, naoAtrib] = await Promise.all([
       postFilter([N2A, ST('open')]),
       postFilter([N2A, ST('pending')]),
       postFilter([N2A, ST('snoozed')]),
       postFilter([{ ...N2A, query_operator: 'AND' }, { ...CA(todayStartISO), query_operator: null }]),
       postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
-      postFilter([N2A, { ...NA }, ST('open')]),
+      postFilter([{ ...NAL }, ST('open')]),  // sem n2_ticket — espelha CloudChat
     ]);
 
     return {
@@ -198,9 +201,14 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       ]);
       const now_s = Math.floor(Date.now() / 1000);
 
-      // "Na caixa": N2 aberto (status=open) COM atendente monitorada como responsável
-      // → base para tabela por atendente e SLA (deve bater com soma da coluna "Na caixa")
+      // "Na caixa": qualquer ticket aberto COM atendente monitorada como responsável
+      // Sem filtro de label → espelha o número que a atendente vê no CloudChat
       const openConvs = allOpenConvs.filter(c =>
+        CFG.AGENTES.includes(c.meta?.assignee?.name)
+      );
+
+      // Subconjunto N2 com atendente — usado apenas para SLA (que é N2-específico)
+      const openN2Convs = allOpenConvs.filter(c =>
         c.labels?.includes('n2_ticket') && CFG.AGENTES.includes(c.meta?.assignee?.name)
       );
 
@@ -229,7 +237,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
 
       // SLA em risco: tickets open N2 com atendente, sem 1ª resposta, dentro do h. comercial
       const slaRisco = [];
-      for (const conv of openConvs) {
+      for (const conv of openN2Convs) {
         if (conv.first_reply_created_at) continue;
         const mins = _bhMins(conv.created_at, now_s);
         if (mins < CFG.SLA_ATENCAO_MIN) continue;
