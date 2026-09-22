@@ -256,6 +256,11 @@
       border-top: 1px solid var(--sep); background: rgba(0,0,0,.1);
     }
 
+    /* SLA inline no card AGORA */
+    .sla-inline-list { margin-top: 12px; display: flex; flex-direction: column; gap: 7px; }
+    .sla-inline-row  { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .sla-agent-sm    { font-size: 12px; font-weight: 700; color: var(--text); flex: 1; min-width: 30px; }
+
     /* ── Ticket pills / dropdown ─────────────────────────────────── */
     .ticket-dropdown { display: inline-block; position: relative; }
     .ticket-dropdown summary { list-style: none; cursor: pointer; }
@@ -335,7 +340,7 @@
         <div class="agora-num sk" style="height:68px;width:60px">&nbsp;</div>
       </div>
       <div class="agora-card">
-        <div class="agora-label">SLA em risco — 1ª resposta</div>
+        <div class="agora-label">SLA · 1ª resposta &gt; 1h</div>
         <div class="sk" style="height:48px;width:120px;margin-top:10px">&nbsp;</div>
       </div>
     </div>
@@ -382,15 +387,6 @@
         <tr><td colspan="3" style="padding:20px;color:var(--label);font-size:13px">Carregando…</td></tr>
       </tbody>
     </table>
-  </div>
-
-  <!-- SLA detalhe -->
-  <div class="section">
-    <div class="sec-hdr">
-      <span class="sec-hdr-title" id="sla-title">SLA em risco</span>
-    </div>
-    <div id="sla-list"><div class="sla-empty">Carregando…</div></div>
-    <div class="sla-scope-note">Risco de 1ª resposta: tickets N2 abertos sem resposta dentro do horário comercial (seg–sex 9h–18h30).</div>
   </div>
 
 </div><!-- /page -->
@@ -483,8 +479,8 @@ function renderAgoraGrid(av) {
       ${ticketDropdown(naoAtrib.tickets)}
     </div>
 
-    <div class="agora-card">
-      <div class="agora-label">SLA em risco — 1ª resposta</div>
+    <div class="agora-card ${nCrit > 0 ? 'critico' : nAtenc > 0 ? 'alerta' : ''}">
+      <div class="agora-label">SLA · 1ª resposta &gt; 1h</div>
       ${slaNum === 0
         ? `<div class="sla-ok">✓ Tudo dentro do prazo</div>`
         : `<div class="sla-counts">
@@ -496,6 +492,14 @@ function renderAgoraGrid(av) {
               <div class="sla-count-num amber">${nAtenc}</div>
               <div class="sla-count-label">Atenção</div>
             </div>` : ''}
+          </div>
+          <div class="sla-inline-list">
+            ${sla.map(r => `<div class="sla-inline-row">
+              <span class="sla-badge ${r.nivel}">${r.nivel === 'critico' ? 'CRÍTICO' : 'ATENÇÃO'}</span>
+              <span class="sla-agent-sm">${r.atendente}</span>
+              <span class="sla-time ${r.nivel}">${fmtMin(r.minutos)}</span>
+              <a class="sla-link" href="${r.link}" target="_blank" rel="noreferrer">→</a>
+            </div>`).join('')}
           </div>`}
     </div>
   `;
@@ -566,27 +570,6 @@ function renderAgentTable(av) {
   document.getElementById('agent-tbody').innerHTML = rows.join('');
 }
 
-// ── SLA detalhe ───────────────────────────────────────────────────────────────
-function renderSlaDetail(av) {
-  const sla = av.sla_risco || [];
-  document.getElementById('sla-title').textContent = `SLA em risco — 1ª resposta (${sla.length})`;
-  if (sla.length === 0) {
-    document.getElementById('sla-list').innerHTML =
-      '<div class="sla-empty">✓ Nenhum ticket em risco de 1ª resposta no momento</div>';
-    return;
-  }
-  document.getElementById('sla-list').innerHTML = sla.map(r => `
-    <div class="sla-item">
-      <span class="sla-badge ${r.nivel}">${r.nivel === 'critico' ? 'CRÍTICO' : 'ATENÇÃO'}</span>
-      <a class="sla-id" href="${r.link}" target="_blank" rel="noreferrer">#${r.id}</a>
-      <span class="sla-agent">${r.agente}</span>
-      <span class="sla-time ${r.nivel}">${fmtMin(r.minutos)}</span>
-      <span class="sla-note">sem 1ª resposta (h. comercial)</span>
-      <a class="sla-link" href="${r.link}" target="_blank" rel="noreferrer">Abrir →</a>
-    </div>
-  `).join('');
-}
-
 // ── Render principal ──────────────────────────────────────────────────────────
 function render(data) {
   const av = data.ao_vivo;
@@ -596,7 +579,6 @@ function render(data) {
   renderAgoraGrid(av);
   renderHojeGrid(av);
   renderAgentTable(av);
-  renderSlaDetail(av);
 }
 
 function updateHdrCountdown() {
