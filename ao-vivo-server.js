@@ -96,9 +96,10 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     );
     const p1   = r1?.data?.payload || [];
     const n2p1 = p1.filter(c => c.labels?.includes('n2_ticket'));
-    // oldest: já em ASC, mas reduce garante o mínimo mesmo se sort falhar
-    const oldest = n2p1.length > 0
-      ? n2p1.reduce((acc, c) => c.created_at < acc.created_at ? c : acc)
+    // "mais antigo" = ticket sem primeira resposta ainda (verdadeiramente aguardando)
+    const waiting = n2p1.filter(c => !c.first_reply_created_at);
+    const oldest = waiting.length > 0
+      ? waiting.reduce((acc, c) => c.created_at < acc.created_at ? c : acc)
       : null;
     return {
       total:   n2p1.length,
@@ -108,47 +109,6 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}`,
       })),
     };
-  }
-
-  // Tickets N2 resolvidos hoje, ao vivo do CloudChat.
-  // sort=-updated_at → mais recentes na pág 1; para quando nenhum da página é de hoje.
-  async function _fetchResolvedHoje() {
-    const token = process.env.CLOUDCHAT_TOKEN;
-    const off = CFG.BRT_OFFSET_H * 3600000;
-    const todayBRT = new Date(Date.now() + off);
-    todayBRT.setUTCHours(0, 0, 0, 0);
-    const todayStartS = (todayBRT.getTime() - off) / 1000;
-
-    // Tenta dois sort DESC para achar resolvidos de hoje na página 1.
-    // sort=latest = last_activity_at DESC (Chatwoot padrão para recentes).
-    // Se ambos retornarem ASC (API ignora o parâmetro), o contagem fica 0 — nenhum crash.
-    const sorts = ['latest', '-updated_at'];
-    const todays = [];
-    outer: for (const sort of sorts) {
-      for (let page = 1; page <= 5; page++) {
-        let r;
-        try {
-          r = await fetchCloudChat(
-            `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations?status=resolved&sort=${sort}&page=${page}`,
-            token
-          );
-        } catch { break; }
-        const payload = r?.data?.payload || [];
-        if (!payload.length) break;
-        for (const c of payload) {
-          if (c.updated_at >= todayStartS && c.labels?.includes('n2_ticket')) todays.push(c);
-        }
-        const anyToday = payload.some(c => c.updated_at >= todayStartS);
-        if (!anyToday) {
-          // sort funcionou (DESC) mas esta pág já é anterior a hoje → para; ou sort é ASC → tenta próximo
-          if (todays.length > 0) break outer; // DESC funcionou, temos resultados
-          break; // sem resultados nesta estratégia de sort, tenta a próxima
-        }
-        if (payload.length < 25) break;
-      }
-      if (todays.length > 0) break; // já achou, não precisa tentar outro sort
-    }
-    return { convs: todays, todayStartS };
   }
 
   // Dados DW: encerrados/TMA/1ª resposta de hoje por agente + timestamp de frescor real
@@ -209,23 +169,25 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     if (_cache && (nowS - _cacheTs) < CFG.POLL_TTL_S) return res.json(_cache);
 
     try {
-      const [overview, { convs: allOpenConvs, truncated }, pendingInfo, dwHoje, { convs: resolvedHoje, todayStartS }] = await Promise.all([
+      const [overview, { convs: allOpenConvs, truncated }, pendingInfo, dwHoje] = await Promise.all([
         _fetchOverview(),
         _fetchAllOpen(),        // TODOS os abertos (sem filtro) — handler separa os dois subconjuntos
         _fetchPendingInfo(),
         _fetchDwHoje(),
-        _fetchResolvedHoje(),   // N2 resolvidos hoje, ao vivo
       ]);
       const now_s = Math.floor(Date.now() / 1000);
+
+      // Início do dia em BRT como Unix segundos (para "entraram hoje")
+      const _off = CFG.BRT_OFFSET_H * 3600000;
+      const _d   = new Date(Date.now() + _off);
+      _d.setUTCHours(0, 0, 0, 0);
+      const todayStartS = (_d.getTime() - _off) / 1000;
 
       // Subconjunto 1: atribuídos a especialistas → tabela por agente e SLA
       const openConvs = allOpenConvs.filter(c => {
         const name = c.meta?.assignee?.name;
         return name && CFG.AGENTES.includes(name);
       });
-      // Subconjunto 2: label n2_ticket → backlog e entram_hoje
-      const openN2All = allOpenConvs.filter(c => c.labels?.includes('n2_ticket'));
-
       // Inicializa todos os agentes monitorados
       const porAgente = {};
       for (const ag of CFG.AGENTES) porAgente[ag] = { em_andamento: 0, status: null, tickets: [] };
@@ -273,11 +235,11 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       }
       slaRisco.sort((a, b) => b.minutos - a.minutos);
 
-      // Vazão do dia (ao vivo, só CloudChat)
-      const entramHoje = openN2All.filter(c => c.created_at >= todayStartS).length
-                       + resolvedHoje.filter(c => c.created_at >= todayStartS).length;
-      // N2 abertos sem especialista = n2_ticket não atribuído a agente monitorada
-      const naoAtribuidos = openN2All.filter(c => !CFG.AGENTES.includes(c.meta?.assignee?.name)).length;
+      // Vazão do dia
+      // entram_hoje: tickets com especialista criados hoje (ainda abertos — os resolvidos já saíram)
+      const entramHoje = openConvs.filter(c => c.created_at >= todayStartS).length;
+      // resolvidos_hoje: total do DW (bate com a coluna "encerrados hoje" da tabela)
+      const resolvidosHoje = dwHoje.totais.resolvidos ?? 0;
 
       const maisAntigoMin = pendingInfo.oldest
         ? Math.round(_bhMins(pendingInfo.oldest.created_at, now_s))
@@ -290,9 +252,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           em_andamento_truncated: truncated,
           vazao: {
             entram_hoje:     entramHoje,
-            resolvidos_hoje: resolvedHoje.length,
-            backlog:         openN2All.length,   // todos N2 abertos, inclusive sem assignee
-            nao_atribuidos:  naoAtribuidos,       // N2 abertos sem especialista (visibilidade)
+            resolvidos_hoje: resolvidosHoje,      // DW — bate com "encerrados hoje" da tabela
+            backlog:         openConvs.length,    // todos os abertos com especialista (= em_andamento)
           },
           fila: {
             total:            pendingInfo.total,
