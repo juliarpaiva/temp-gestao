@@ -85,6 +85,33 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     return { convs: all, total: total ?? all.length, truncated };
   }
 
+  // Busca N2 em status pending e snoozed para compor o backlog total.
+  // Retorna array concatenado filtrado por n2_ticket.
+  async function _fetchN2ExtraStatuses() {
+    const token = process.env.CLOUDCHAT_TOKEN;
+    async function paginateN2(status) {
+      const acc = [];
+      let page = 1, total = null;
+      while (true) {
+        const r = await fetchCloudChat(
+          `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations?status=${status}&page=${page}`,
+          token
+        );
+        const payload = r?.data?.payload || [];
+        if (total === null) total = r?.data?.meta?.all_count ?? payload.length;
+        acc.push(...payload.filter(c => c.labels?.includes('n2_ticket')));
+        if (payload.length < 25 || page * 25 >= total || page >= 20) break;
+        page++;
+      }
+      return acc;
+    }
+    const [pending, snoozed] = await Promise.all([
+      paginateN2('pending'),
+      paginateN2('snoozed'),
+    ]);
+    return [...pending, ...snoozed];
+  }
+
   // Total pendente N2 + ticket mais antigo.
   // sort=created_at pede ordenação ASC explícita → página 1 contém os mais antigos.
   // Filtra por n2_ticket: tickets da Claudia sem escalonamento ficam de fora.
@@ -169,11 +196,12 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     if (_cache && (nowS - _cacheTs) < CFG.POLL_TTL_S) return res.json(_cache);
 
     try {
-      const [overview, { convs: allOpenConvs, truncated }, pendingInfo, dwHoje] = await Promise.all([
+      const [overview, { convs: allOpenConvs, truncated }, pendingInfo, dwHoje, n2Extra] = await Promise.all([
         _fetchOverview(),
         _fetchAllOpen(),        // TODOS os abertos (sem filtro) — handler separa os dois subconjuntos
         _fetchPendingInfo(),
         _fetchDwHoje(),
+        _fetchN2ExtraStatuses(), // pending + snoozed N2 → compõe backlog total
       ]);
       const now_s = Math.floor(Date.now() / 1000);
 
@@ -188,8 +216,12 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       const openConvs = allOpenConvs.filter(c =>
         c.labels?.includes('n2_ticket') && CFG.AGENTES.includes(c.meta?.assignee?.name)
       );
-      // Pool N2 total: todos os n2_ticket abertos (com ou sem especialista) → backlog
+      // Pool N2 open: apenas status=open
       const openN2All = allOpenConvs.filter(c => c.labels?.includes('n2_ticket'));
+      // Backlog real: open + pending + snoozed (todos os N2 ainda não resolvidos)
+      const allActiveN2 = [...openN2All, ...n2Extra];
+      // Não atribuídos: sem qualquer assignee across todos os status
+      const naoAtribConvs = allActiveN2.filter(c => !c.meta?.assignee);
 
       // Inicializa todos os agentes monitorados
       const porAgente = {};
@@ -239,10 +271,10 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       slaRisco.sort((a, b) => b.minutos - a.minutos);
 
       // Vazão do dia
-      const entramHoje    = openN2All.filter(c => c.created_at >= todayStartS).length;
+      const entramHoje     = allActiveN2.filter(c => c.created_at >= todayStartS).length;
       const resolvidosHoje = dwHoje.totais.resolvidos ?? 0;
-      const backlogAtrib   = openConvs.length;                  // N2 com especialista
-      const backlogSemRes  = openN2All.length - backlogAtrib;   // N2 sem responsável
+      const backlogSemRes  = naoAtribConvs.length;                   // N2 sem responsável (qualquer status)
+      const backlogAtrib   = allActiveN2.length - backlogSemRes;     // N2 com qualquer assignee
 
       const maisAntigoMin = pendingInfo.oldest
         ? Math.round(_bhMins(pendingInfo.oldest.created_at, now_s))
@@ -255,10 +287,17 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           em_andamento_truncated: truncated,
           vazao: {
             entram_hoje:     entramHoje,
-            resolvidos_hoje: resolvidosHoje,  // DW — bate com "encerrados hoje" da tabela
-            backlog:         openN2All.length, // total N2 aberto
-            atribuidos:      backlogAtrib,     // N2 com especialista (= Na caixa)
-            sem_responsavel: backlogSemRes,    // N2 sem responsável
+            resolvidos_hoje: resolvidosHoje,    // DW — bate com "encerrados hoje" da tabela
+            backlog:         allActiveN2.length, // total N2 (open + pending + snoozed)
+            atribuidos:      backlogAtrib,       // N2 com qualquer assignee
+            sem_responsavel: backlogSemRes,      // N2 sem responsável (= nao_atribuidos.total)
+          },
+          nao_atribuidos: {
+            total:   naoAtribConvs.length,
+            tickets: naoAtribConvs.map(c => ({
+              id:   c.id,
+              link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}`,
+            })),
           },
           fila: {
             total:            pendingInfo.total,

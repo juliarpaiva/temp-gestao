@@ -57,8 +57,8 @@
     .grupo-hdr { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: #94a3b8; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
     .grupo-hdr::after { content: ''; flex: 1; height: 1px; background: var(--borda); }
 
-    .agora-grid { display: grid; grid-template-columns: 1fr 1fr 1.6fr; gap: 16px; }
-    @media (max-width: 900px) { .agora-grid { grid-template-columns: 1fr 1fr; } }
+    .agora-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1.6fr; gap: 16px; }
+    @media (max-width: 1100px) { .agora-grid { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 600px) { .agora-grid { grid-template-columns: 1fr; } }
 
     .hoje-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -192,6 +192,11 @@
         <div class="agora-sub sk" style="height:16px;width:160px;margin-top:10px">&nbsp;</div>
       </div>
       <div class="agora-card">
+        <div class="agora-label">Não atribuído</div>
+        <div class="agora-num sk" style="height:64px;width:60px">&nbsp;</div>
+        <div class="agora-sub sk" style="height:16px;width:140px;margin-top:10px">&nbsp;</div>
+      </div>
+      <div class="agora-card">
         <div class="agora-label">Na caixa das atendentes</div>
         <div class="agora-num sk" style="height:64px;width:60px">&nbsp;</div>
         <div class="agora-sub sk" style="height:16px;width:100px;margin-top:10px">&nbsp;</div>
@@ -224,7 +229,7 @@
   <!-- BLOCO 2: POR AGENTE -->
   <div class="section" id="agent-section">
     <div class="sec-hdr">
-      <span class="sec-hdr-title">Por agente</span>
+      <span class="sec-hdr-title">Por atendente</span>
       <span class="sec-badge">AO VIVO</span>
       <span class="sec-date" id="sec-date">hoje</span>
       <div class="sec-live-dot"></div>
@@ -235,7 +240,7 @@
         <tr id="agent-thead">
           <th>Atendente</th>
           <th id="th-status">Status</th>
-          <th>Em andamento</th>
+          <th>Na caixa</th>
           <th>Encerrados hoje</th>
           <th>1ª Resposta</th>
         </tr>
@@ -316,6 +321,7 @@ function renderAgoraGrid(av, _ac) {
   const slaCls  = nCrit > 0 ? 'red' : nAtenc > 0 ? 'amber' : 'verde';
   const slaNum  = nCrit + nAtenc;
 
+  const naoAtrib = av.nao_atribuidos || { total: 0, tickets: [] };
   document.getElementById('agora-grid').innerHTML = `
     <div class="agora-card destaque">
       <div class="agora-label">Fila aguardando</div>
@@ -332,6 +338,20 @@ function renderAgoraGrid(av, _ac) {
         <summary class="ver-tickets-btn">ver ${fila.tickets.length} ticket${fila.tickets.length !== 1 ? 's' : ''}</summary>
         <div class="ticket-pills">
           ${fila.tickets.map(t => `<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}
+        </div>
+      </details>` : ''}
+    </div>
+    <div class="agora-card ${naoAtrib.total > 0 ? 'alerta' : ''}">
+      <div class="agora-label">Não atribuído</div>
+      <div class="agora-num" style="color:${naoAtrib.total > 0 ? 'var(--amber)' : 'var(--verde)'}">${naoAtrib.total}</div>
+      <div class="agora-sub ${naoAtrib.total > 0 ? 'amber' : ''}">
+        ${naoAtrib.total > 0 ? 'tickets N2 sem responsável' : 'todos atribuídos ✓'}
+      </div>
+      ${naoAtrib.tickets?.length > 0 ? `
+      <details class="ticket-dropdown">
+        <summary class="ver-tickets-btn">ver ${naoAtrib.tickets.length} ticket${naoAtrib.tickets.length !== 1 ? 's' : ''}</summary>
+        <div class="ticket-pills">
+          ${naoAtrib.tickets.map(t => `<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}
         </div>
       </details>` : ''}
     </div>
