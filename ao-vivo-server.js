@@ -268,7 +268,9 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
 
           // Métricas AGORA (fotografia do estoque atual)
           agora: {
-            open:           n2Counts.open_count,     // Em aberto agora
+            // Em aberto: soma dos tickets abertos atribuídos às atendentes monitoradas
+            // (sem filtro de label — mesma base da tabela, para bater com a planilha)
+            open:           openConvs.length,
             pending:        n2Counts.pending_count,  // Pendentes agora
             snoozed:        n2Counts.snoozed_count,  // Adiados agora
             nao_atribuidos: n2Counts.nao_atribuidos, // open N2 sem assignee
