@@ -80,8 +80,12 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       if (page >= 20) { truncated = true; break; }
       page++;
     }
-    // Escopo: apenas tickets escalados para N2 (label confirmado em produção: n2_ticket)
-    const convs = all.filter(c => c.labels?.includes('n2_ticket'));
+    // Escopo: tickets atribuídos a especialistas monitoradas (exclui Claudia/bot e sem assignee).
+    // n2_ticket filtra a FILA (pending); aqui o critério é o assignee, não a label.
+    const convs = all.filter(c => {
+      const name = c.meta?.assignee?.name;
+      return name && CFG.AGENTES.includes(name);
+    });
     return { convs, total: convs.length, truncated };
   }
 
