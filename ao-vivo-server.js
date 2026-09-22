@@ -150,35 +150,6 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     };
   }
 
-  // Resolvidos hoje via DW (único ponto onde DW ainda é necessário).
-  // Motivo: CloudChat API não tem filtro por resolved_at; DW tem latência de ~30min.
-  // Fonte: dw.fact_cloudchat_tickets — campo resolved_at_local (BRT).
-  async function _fetchDwResolvidos() {
-    try {
-      const off    = CFG.BRT_OFFSET_H * 3600000;
-      const nowBRT = new Date(Date.now() + off);
-      const hoje   = nowBRT.toISOString().slice(0, 10);
-      const amanha = new Date(nowBRT.getTime() + 86400000).toISOString().slice(0, 10);
-      const [rows, fresh] = await Promise.all([
-        dwQuery(`
-          SELECT COUNT(*)::int
-          FROM dw.fact_cloudchat_tickets
-          WHERE ticket_status = 'resolved'
-            AND resolved_at_local >= '${hoje}'
-            AND resolved_at_local <  '${amanha}'
-        `),
-        dwQuery(`
-          SELECT MAX(resolved_at_local)::text
-          FROM dw.fact_cloudchat_tickets
-          WHERE resolved_at_local IS NOT NULL
-        `),
-      ]);
-      return {
-        resolvidos:    rows?.[0]?.[0] ?? 0,
-        dw_updated_at: fresh?.[0]?.[0] || null,
-      };
-    } catch { return { resolvidos: null, dw_updated_at: null }; }
-  }
 
   // ── Rota principal ──────────────────────────────────────────────────────────
 
@@ -193,11 +164,10 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       _d.setUTCHours(0, 0, 0, 0);
       const todayStartISO = new Date(_d.getTime() - _off).toISOString(); // 00:00 BRT → UTC ISO
 
-      const [overview, { convs: allOpenConvs, truncated }, n2Counts, dwResolvidos] = await Promise.all([
+      const [overview, { convs: allOpenConvs, truncated }, n2Counts] = await Promise.all([
         _fetchOverview(),
         _fetchAllOpen(),
         _fetchN2Counts(todayStartISO),
-        _fetchDwResolvidos(),
       ]);
       const now_s = Math.floor(Date.now() / 1000);
 
@@ -258,12 +228,10 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           has_overview: !!oAgents,
           truncated,
 
-          // Métricas HOJE (acumulam ao longo do dia, desde 00:00 BRT)
+          // Métricas HOJE — 100% CloudChat ao vivo (25s cache)
           hoje: {
-            novos:               n2Counts.novos_hoje,           // CloudChat — tempo real
-            resolv_criados_hoje: n2Counts.resolv_criados_hoje,  // CloudChat — tempo real
-            resolvidos:          dwResolvidos.resolvidos,        // DW — até ~30min de atraso
-            dw_updated_at:       dwResolvidos.dw_updated_at,
+            novos:               n2Counts.novos_hoje,           // CloudChat filter API
+            resolv_criados_hoje: n2Counts.resolv_criados_hoje,  // CloudChat filter API
           },
 
           // Métricas AGORA (fotografia do estoque atual)

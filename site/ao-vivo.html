@@ -113,8 +113,8 @@
     @media (max-width: 1200px) { .agora-grid { grid-template-columns: repeat(2, 1fr) 1.5fr; } }
     @media (max-width: 700px)  { .agora-grid { grid-template-columns: 1fr; } }
 
-    /* HOJE: 3 iguais */
-    .hoje-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    /* HOJE: 2 cards ao vivo */
+    .hoje-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
     @media (max-width: 700px) { .hoje-grid { grid-template-columns: 1fr; } }
 
     /* ── Card base ───────────────────────────────────────────────── */
@@ -513,29 +513,15 @@ function renderAgoraGrid(av) {
 
 // ── HOJE ──────────────────────────────────────────────────────────────────────
 function renderHojeGrid(av) {
-  const hoje  = av.hoje || {};
-  const novos  = hoje.novos   ?? '—';
-  const resolv = hoje.resolvidos;
+  const hoje   = av.hoje || {};
+  const novos  = hoje.novos              ?? '—';
   const rcHoje = hoje.resolv_criados_hoje ?? '—';
-  const dwAt   = hoje.dw_updated_at
-    ? `resolvidos até ${fmtHora(hoje.dw_updated_at)}`
-    : 'aguardando atualização';
-  const alerta = typeof novos === 'number' && typeof resolv === 'number' && novos > resolv;
 
   document.getElementById('hoje-grid').innerHTML = `
-    <div class="agora-card ${alerta ? 'alerta' : ''}">
-      <div class="agora-label">Novos hoje</div>
-      <div class="agora-num" style="color:${alerta ? 'var(--amber)' : 'var(--text)'}">${novos}</div>
-      <div class="agora-sub">criados desde 00:00 BRT</div>
-    </div>
-
     <div class="agora-card">
-      <div class="agora-label">Resolvidos hoje</div>
-      <div class="agora-num" style="color:var(--verde)">${resolv ?? '—'}</div>
-      <div class="agora-sub${alerta ? ' amber' : ''}">
-        ${resolv == null ? 'sem dados DW ainda' : alerta ? '⚠ fila crescendo' : 'qualquer criação'}
-      </div>
-      <div class="dw-inline">${dwAt}</div>
+      <div class="agora-label">Novos hoje</div>
+      <div class="agora-num">${novos}</div>
+      <div class="agora-sub">criados desde 00:00 BRT</div>
     </div>
 
     <div class="agora-card">
