@@ -5,151 +5,290 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ao vivo — INK</title>
   <style>
+    /* ── Tokens ──────────────────────────────────────────────────── */
     :root {
-      --rosa:  #e91e8c;
-      --preto: #0f0f0f;
-      --bg:    #f0f2f5;
-      --card:  #ffffff;
-      --borda: #e2e8f0;
-      --muted: #64748b;
-      --r:     12px;
-      --sh:    0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06);
-      --verde: #16a34a;
-      --amber: #ca8a04;
-      --red:   #dc2626;
-      --azul:  #2563eb;
+      --bg:      #14151a;
+      --surface: #1d1e25;
+      --borda:   rgba(255,255,255,0.07);
+      --sep:     #2a2c36;
+      --text:    #e2e4ec;
+      --muted:   #6b7280;
+      --label:   #4a5060;
+      --rosa:    #e91e8c;
+      --verde:   #22c55e;
+      --amber:   #f59e0b;
+      --red:     #ef4444;
+      --azul:    #60a5fa;
+      --r:       10px;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--preto); min-height: 100vh; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
 
     /* ── Header ─────────────────────────────────────────────────── */
-    .header { background: var(--preto); color: #fff; border-bottom: 3px solid var(--rosa); position: sticky; top: 0; z-index: 100; height: 56px; }
-    .header-inner { max-width: 1400px; margin: 0 auto; padding: 0 24px; height: 100%; display: flex; align-items: center; gap: 14px; }
-    .logo { font-size: 18px; font-weight: 900; letter-spacing: -1px; flex-shrink: 0; }
-    .logo b { color: var(--rosa); font-weight: 900; }
-    .hdr-sep { width: 1px; height: 20px; background: rgba(255,255,255,.15); flex-shrink: 0; }
-    .hdr-title { font-size: 13px; font-weight: 600; color: rgba(255,255,255,.7); }
+    .header {
+      background: #0e0f13;
+      border-bottom: 2px solid var(--rosa);
+      position: sticky; top: 0; z-index: 100; height: 52px;
+    }
+    .header-inner {
+      max-width: 1400px; margin: 0 auto; padding: 0 24px;
+      height: 100%; display: flex; align-items: center; gap: 14px;
+    }
+    .logo { font-size: 17px; font-weight: 900; letter-spacing: -1px; flex-shrink: 0; color: var(--text); }
+    .logo b { color: var(--rosa); }
+    .hdr-sep { width: 1px; height: 18px; background: var(--sep); flex-shrink: 0; }
+    .hdr-title { font-size: 12px; font-weight: 600; color: var(--muted); }
     .hdr-spacer { flex: 1; }
-    .live-badge { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; letter-spacing: .5px; color: #4ade80; flex-shrink: 0; }
-    .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; animation: pulse 1.5s ease-in-out infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.25} }
-    .hdr-update { font-size: 11px; color: rgba(255,255,255,.45); white-space: nowrap; }
-    .hdr-nav { font-size: 12px; font-weight: 700; color: rgba(255,255,255,.65); text-decoration: none; padding: 5px 11px; border: 1px solid rgba(255,255,255,.2); border-radius: 8px; white-space: nowrap; flex-shrink: 0; transition: color .15s, border-color .15s; }
-    .hdr-nav:hover { color: #fff; border-color: rgba(255,255,255,.45); }
+    .live-badge {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 10px; font-weight: 800; letter-spacing: .8px;
+      color: var(--verde); flex-shrink: 0;
+    }
+    .live-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--verde);
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.2} }
+    .hdr-update { font-size: 11px; color: var(--label); white-space: nowrap; }
+    .hdr-nav {
+      font-size: 11px; font-weight: 700; color: var(--muted);
+      text-decoration: none; padding: 4px 10px;
+      border: 1px solid var(--sep); border-radius: 6px;
+      white-space: nowrap; flex-shrink: 0;
+      transition: color .15s, border-color .15s;
+    }
+    .hdr-nav:hover { color: var(--text); border-color: var(--muted); }
 
     /* ── Layout ──────────────────────────────────────────────────── */
-    .page { max-width: 1400px; margin: 0 auto; padding: 24px 24px 40px; }
+    .page { max-width: 1400px; margin: 0 auto; padding: 24px 24px 48px; }
 
-    /* ── Error / stale bars ──────────────────────────────────────── */
-    .error-bar { background: #fee2e2; color: var(--red); border: 1px solid #fca5a5; border-radius: var(--r); padding: 10px 16px; font-size: 13px; font-weight: 600; margin-bottom: 18px; display: none; }
-    .stale-bar { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: var(--r); padding: 8px 16px; font-size: 12px; font-weight: 600; margin-bottom: 18px; display: none; }
+    /* ── Barras de status ────────────────────────────────────────── */
+    .error-bar {
+      background: rgba(239,68,68,.12); color: var(--red);
+      border: 1px solid rgba(239,68,68,.3);
+      border-radius: var(--r); padding: 10px 16px;
+      font-size: 13px; font-weight: 600; margin-bottom: 18px; display: none;
+    }
+    .stale-bar {
+      background: rgba(245,158,11,.1); color: var(--amber);
+      border: 1px solid rgba(245,158,11,.25);
+      border-radius: var(--r); padding: 8px 16px;
+      font-size: 12px; font-weight: 600; margin-bottom: 18px; display: none;
+    }
 
     /* ── Freshness pill ──────────────────────────────────────────── */
-    .fresh-row { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-    .fresh-pill { font-size: 11px; font-weight: 600; color: var(--muted); background: var(--card); border: 1px solid var(--borda); border-radius: 20px; padding: 4px 12px; display: flex; align-items: center; gap: 5px; }
+    .fresh-row { display: flex; gap: 10px; margin-bottom: 22px; flex-wrap: wrap; }
+    .fresh-pill {
+      font-size: 11px; font-weight: 600; color: var(--muted);
+      background: var(--surface); border: 1px solid var(--sep);
+      border-radius: 20px; padding: 4px 12px;
+      display: flex; align-items: center; gap: 6px;
+    }
     .fresh-pill .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-    .fresh-pill .dot.verde { background: #4ade80; animation: pulse 1.5s ease-in-out infinite; }
-    .fresh-pill strong { color: var(--preto); }
+    .fresh-pill .dot.verde { background: var(--verde); animation: pulse 1.8s ease-in-out infinite; }
+    .fresh-pill strong { color: var(--text); }
 
     /* ── Grupos de cards ─────────────────────────────────────────── */
     .grupo { margin-bottom: 28px; }
-    .grupo-hdr { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; color: #94a3b8; margin-bottom: 10px; display: flex; align-items: center; gap: 10px; }
-    .grupo-hdr::after { content: ''; flex: 1; height: 1px; background: var(--borda); }
-    .grupo-hdr .grupo-desc { font-size: 10px; font-weight: 500; text-transform: none; letter-spacing: 0; color: #b0bec5; }
+    .grupo-hdr {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 2px; color: var(--label);
+      margin-bottom: 12px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .grupo-hdr::after { content: ''; flex: 1; height: 1px; background: var(--sep); }
+    .grupo-hdr .grupo-desc {
+      font-size: 10px; font-weight: 400; text-transform: none;
+      letter-spacing: 0; color: #2e3240;
+    }
 
-    /* AGORA: 4 cards métricas + 1 SLA (mais largo) */
-    .agora-grid { display: grid; grid-template-columns: repeat(4, 1fr) 1.5fr; gap: 16px; }
+    /* AGORA: 4 métricas + 1 SLA (mais largo) */
+    .agora-grid { display: grid; grid-template-columns: repeat(4, 1fr) 1.5fr; gap: 14px; }
     @media (max-width: 1200px) { .agora-grid { grid-template-columns: repeat(2, 1fr) 1.5fr; } }
     @media (max-width: 700px)  { .agora-grid { grid-template-columns: 1fr; } }
 
-    /* HOJE: 3 cards iguais */
-    .hoje-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    /* HOJE: 3 iguais */
+    .hoje-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
     @media (max-width: 700px) { .hoje-grid { grid-template-columns: 1fr; } }
 
-    /* Cards base */
-    .agora-card { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); padding: 22px 24px; }
-    .agora-card.alerta  { border-left: 4px solid var(--amber); }
-    .agora-card.critico { border-left: 4px solid var(--red); }
+    /* ── Card base ───────────────────────────────────────────────── */
+    .agora-card {
+      background: var(--surface);
+      border: 1px solid var(--borda);
+      border-radius: var(--r);
+      padding: 20px 22px 18px;
+    }
+    /* Alertas: faixa lateral — cor com propósito, sem fill */
+    .agora-card.alerta  { border-left: 3px solid var(--amber); }
+    .agora-card.critico { border-left: 3px solid var(--red); }
 
-    .agora-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 10px; }
-    .agora-num { font-size: 64px; font-weight: 900; letter-spacing: -3px; line-height: 1; }
-    .agora-sub { font-size: 13px; font-weight: 600; color: var(--muted); margin-top: 8px; }
+    .agora-label {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1.5px; color: var(--label); margin-bottom: 12px;
+    }
+    .agora-num {
+      font-size: 68px; font-weight: 900; letter-spacing: -4px;
+      line-height: 1; font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
+    .agora-sub {
+      font-size: 12px; font-weight: 500; color: var(--muted);
+      margin-top: 9px; line-height: 1.4;
+    }
     .agora-sub.amber { color: var(--amber); }
     .agora-sub.red   { color: var(--red); }
     .agora-sub.verde { color: var(--verde); }
 
     /* DW note small */
-    .dw-inline { font-size: 11px; font-weight: 600; color: #b0bec5; margin-top: 6px; }
+    .dw-inline { font-size: 11px; font-weight: 500; color: var(--label); margin-top: 6px; }
 
-    /* SLA card layout */
-    .sla-counts { display: flex; gap: 24px; margin-top: 8px; }
+    /* ── SLA card ────────────────────────────────────────────────── */
+    .sla-counts { display: flex; gap: 24px; margin-top: 10px; }
     .sla-count-item { text-align: center; }
-    .sla-count-num { font-size: 40px; font-weight: 900; letter-spacing: -2px; line-height: 1; }
+    .sla-count-num {
+      font-size: 40px; font-weight: 900; letter-spacing: -2px;
+      line-height: 1; font-variant-numeric: tabular-nums;
+    }
     .sla-count-num.red   { color: var(--red); }
     .sla-count-num.amber { color: var(--amber); }
-    .sla-ok { font-size: 15px; font-weight: 700; color: var(--verde); margin-top: 10px; }
-    .sla-count-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-top: 4px; }
+    .sla-count-label {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .8px; color: var(--label); margin-top: 4px;
+    }
+    .sla-ok { font-size: 14px; font-weight: 600; color: var(--verde); margin-top: 10px; }
 
     /* ── Tabela por atendente ────────────────────────────────────── */
-    .section { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); margin-bottom: 20px; overflow: hidden; }
-    .sec-hdr { padding: 14px 22px; border-bottom: 1px solid var(--borda); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .sec-hdr-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
-    .sec-badge { font-size: 10px; font-weight: 800; letter-spacing: .5px; background: var(--rosa); color: #fff; padding: 2px 8px; border-radius: 20px; }
-    .sec-date { font-size: 11px; font-weight: 700; color: var(--preto); }
-    .sec-live-dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; animation: pulse 1.5s ease-in-out infinite; }
-    .sec-hdr-right { margin-left: auto; font-size: 11px; color: var(--muted); font-weight: 600; }
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--borda);
+      border-radius: var(--r);
+      margin-bottom: 16px; overflow: hidden;
+    }
+    .sec-hdr {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--sep);
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+    .sec-hdr-title {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1.5px; color: var(--label);
+    }
+    .sec-badge {
+      font-size: 9px; font-weight: 800; letter-spacing: .8px;
+      background: rgba(233,30,140,.15); color: var(--rosa);
+      padding: 2px 8px; border-radius: 20px;
+      border: 1px solid rgba(233,30,140,.25);
+    }
+    .sec-date { font-size: 11px; font-weight: 700; color: var(--text); }
+    .sec-live-dot {
+      width: 5px; height: 5px; border-radius: 50%;
+      background: var(--verde); animation: pulse 1.8s ease-in-out infinite;
+    }
+    .sec-hdr-right { margin-left: auto; font-size: 11px; color: var(--label); font-weight: 500; }
 
     table { width: 100%; border-collapse: collapse; }
-    th { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); padding: 10px 22px; text-align: left; background: #f8fafc; border-bottom: 1px solid var(--borda); white-space: nowrap; }
-    td { padding: 14px 22px; font-size: 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    th {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .8px; color: var(--label);
+      padding: 9px 20px; text-align: left;
+      background: rgba(0,0,0,.15);
+      border-bottom: 1px solid var(--sep); white-space: nowrap;
+    }
+    td {
+      padding: 13px 20px; font-size: 14px;
+      border-bottom: 1px solid var(--sep); vertical-align: middle;
+    }
     tr:last-child td { border-bottom: none; }
-    tr:hover td { background: #fafbfc; }
-    .td-nome { font-weight: 800; font-size: 15px; }
-    .td-live { font-size: 24px; font-weight: 900; letter-spacing: -1px; }
+    tr:hover td { background: rgba(255,255,255,.02); }
+    .td-nome { font-weight: 700; font-size: 14px; color: var(--text); }
+    .td-live {
+      font-size: 22px; font-weight: 900; letter-spacing: -1px;
+      font-variant-numeric: tabular-nums;
+    }
     .td-live.rosa  { color: var(--rosa); }
-    .td-live.muted { color: #c8d4e0; }
+    .td-live.muted { color: var(--sep); }
 
-    /* status dot */
-    .status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; white-space: nowrap; }
-    .status::before { content:''; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .status-online::before  { background: #4ade80; }
-    .status-busy::before    { background: #f59e0b; }
-    .status-offline::before { background: #94a3b8; }
-    .status-na              { color: #c8d4e0; font-size: 11px; }
+    /* Status dot */
+    .status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .status::before { content:''; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .status-online::before  { background: var(--verde); }
+    .status-busy::before    { background: var(--amber); }
+    .status-offline::before { background: var(--sep); }
+    .status-online  { color: var(--verde); }
+    .status-busy    { color: var(--amber); }
+    .status-offline { color: var(--muted); }
+    .status-na      { color: var(--label); font-size: 11px; }
 
     /* ── SLA detalhe ─────────────────────────────────────────────── */
-    .sla-empty { padding: 16px 22px; font-size: 13px; font-weight: 600; color: var(--verde); }
-    .sla-item { display: flex; align-items: center; gap: 14px; padding: 14px 22px; border-bottom: 1px solid #f1f5f9; flex-wrap: wrap; }
+    .sla-empty { padding: 16px 20px; font-size: 13px; font-weight: 600; color: var(--verde); }
+    .sla-item {
+      display: flex; align-items: center; gap: 14px;
+      padding: 13px 20px; border-bottom: 1px solid var(--sep); flex-wrap: wrap;
+    }
     .sla-item:last-child { border-bottom: none; }
-    .sla-badge { font-size: 9px; font-weight: 800; letter-spacing: .8px; padding: 3px 9px; border-radius: 20px; flex-shrink: 0; }
-    .sla-badge.critico { background: #fee2e2; color: var(--red); }
-    .sla-badge.atencao { background: #fef3c7; color: #854d0e; }
-    .sla-id { font-size: 12px; font-weight: 700; color: var(--muted); text-decoration: none; }
-    .sla-id:hover { color: var(--rosa); text-decoration: underline; }
-    .sla-agent { font-weight: 700; font-size: 14px; }
-    .sla-time { font-size: 22px; font-weight: 900; letter-spacing: -1px; }
+    .sla-badge {
+      font-size: 9px; font-weight: 800; letter-spacing: .8px;
+      padding: 2px 8px; border-radius: 4px; flex-shrink: 0;
+    }
+    .sla-badge.critico { background: rgba(239,68,68,.15); color: var(--red); border: 1px solid rgba(239,68,68,.3); }
+    .sla-badge.atencao { background: rgba(245,158,11,.12); color: var(--amber); border: 1px solid rgba(245,158,11,.25); }
+    .sla-id { font-size: 12px; font-weight: 600; color: var(--muted); text-decoration: none; }
+    .sla-id:hover { color: var(--rosa); }
+    .sla-agent { font-weight: 700; font-size: 14px; color: var(--text); }
+    .sla-time { font-size: 20px; font-weight: 900; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
     .sla-time.critico { color: var(--red); }
     .sla-time.atencao { color: var(--amber); }
-    .sla-note { font-size: 11px; color: var(--muted); }
-    .sla-link { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--rosa); text-decoration: none; padding: 5px 10px; border: 1px solid #fce7f3; border-radius: 8px; flex-shrink: 0; }
-    .sla-link:hover { background: #fce7f3; }
-    .sla-scope-note { padding: 8px 22px; font-size: 11px; color: var(--muted); border-top: 1px solid #f1f5f9; background: #fafbfc; }
+    .sla-note { font-size: 11px; color: var(--label); }
+    .sla-link {
+      margin-left: auto; font-size: 11px; font-weight: 700; color: var(--rosa);
+      text-decoration: none; padding: 4px 10px;
+      border: 1px solid rgba(233,30,140,.25); border-radius: 6px; flex-shrink: 0;
+    }
+    .sla-link:hover { background: rgba(233,30,140,.1); }
+    .sla-scope-note {
+      padding: 8px 20px; font-size: 11px; color: var(--label);
+      border-top: 1px solid var(--sep); background: rgba(0,0,0,.1);
+    }
 
     /* ── Ticket pills / dropdown ─────────────────────────────────── */
     .ticket-dropdown { display: inline-block; position: relative; }
     .ticket-dropdown summary { list-style: none; cursor: pointer; }
     .ticket-dropdown summary::-webkit-details-marker { display: none; }
-    .ticket-pills { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 10px; background: var(--card); border: 1px solid var(--borda); border-radius: 8px; position: absolute; z-index: 30; box-shadow: var(--sh); min-width: 140px; left: 0; top: calc(100% + 4px); }
-    .ticket-pill { font-size: 11px; font-weight: 700; color: var(--rosa); text-decoration: none; padding: 2px 8px; background: #fce7f3; border-radius: 20px; white-space: nowrap; }
-    .ticket-pill:hover { background: var(--rosa); color: #fff; }
-    .ver-tickets-btn { font-size: 11px; font-weight: 700; color: var(--muted); margin-top: 6px; display: inline-block; }
-    .ver-tickets-btn:hover { color: var(--rosa); }
-    .sub-link { color: inherit; font-weight: 800; text-decoration: none; border-bottom: 1px dashed currentColor; }
+    .ticket-pills {
+      display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 10px;
+      background: #13141a; border: 1px solid var(--sep);
+      border-radius: 8px; position: absolute; z-index: 30;
+      box-shadow: 0 8px 24px rgba(0,0,0,.5);
+      min-width: 140px; left: 0; top: calc(100% + 4px);
+    }
+    .ticket-pill {
+      font-size: 11px; font-weight: 700; color: var(--rosa);
+      text-decoration: none; padding: 2px 8px;
+      background: rgba(233,30,140,.12); border-radius: 4px; white-space: nowrap;
+    }
+    .ticket-pill:hover { background: rgba(233,30,140,.22); }
+    .ver-tickets-btn {
+      font-size: 11px; font-weight: 600; color: var(--label);
+      margin-top: 8px; display: inline-block;
+      border-bottom: 1px dashed var(--sep);
+    }
+    .ver-tickets-btn:hover { color: var(--muted); }
+    .sub-link { color: inherit; font-weight: 700; text-decoration: none; border-bottom: 1px dashed currentColor; }
     .sub-link:hover { opacity: .75; }
 
     /* ── Skeleton ────────────────────────────────────────────────── */
-    @keyframes shimmer { 0%{background-position:-700px 0} 100%{background-position:700px 0} }
-    .sk { background: linear-gradient(90deg,#edf0f4 25%,#dde2e8 50%,#edf0f4 75%); background-size:700px 100%; animation:shimmer 1.4s ease-in-out infinite; border-radius: 6px; display: inline-block; }
+    @keyframes sk-pulse { 0%,100%{opacity:.45} 50%{opacity:.2} }
+    .sk {
+      background: var(--sep);
+      animation: sk-pulse 1.6s ease-in-out infinite;
+      border-radius: 4px; display: inline-block;
+    }
   </style>
 </head>
 <body>
@@ -171,30 +310,29 @@
   <div class="error-bar" id="error-bar"></div>
   <div class="stale-bar" id="stale-bar">⚠ Usando dados em cache — última atualização pode estar desatualizada.</div>
 
-  <!-- Freshness pill (apenas CloudChat, tempo real) -->
   <div class="fresh-row">
     <div class="fresh-pill"><div class="dot verde"></div>Ao vivo: <strong id="fresh-live">carregando…</strong></div>
   </div>
 
-  <!-- GRUPO: AGORA (fotografia atual do estoque) -->
+  <!-- GRUPO: AGORA -->
   <div class="grupo">
     <div class="grupo-hdr">Agora <span class="grupo-desc">— fotografia do estoque atual</span></div>
     <div class="agora-grid" id="agora-grid">
       <div class="agora-card">
         <div class="agora-label">Em aberto agora</div>
-        <div class="agora-num sk" style="height:64px;width:60px">&nbsp;</div>
+        <div class="agora-num sk" style="height:68px;width:60px">&nbsp;</div>
       </div>
       <div class="agora-card">
         <div class="agora-label">Pendentes agora</div>
-        <div class="agora-num sk" style="height:64px;width:60px">&nbsp;</div>
+        <div class="agora-num sk" style="height:68px;width:60px">&nbsp;</div>
       </div>
       <div class="agora-card">
         <div class="agora-label">Adiados agora</div>
-        <div class="agora-num sk" style="height:64px;width:60px">&nbsp;</div>
+        <div class="agora-num sk" style="height:68px;width:60px">&nbsp;</div>
       </div>
       <div class="agora-card">
         <div class="agora-label">Não atribuído</div>
-        <div class="agora-num sk" style="height:64px;width:60px">&nbsp;</div>
+        <div class="agora-num sk" style="height:68px;width:60px">&nbsp;</div>
       </div>
       <div class="agora-card">
         <div class="agora-label">SLA em risco — 1ª resposta</div>
@@ -203,7 +341,7 @@
     </div>
   </div>
 
-  <!-- GRUPO: HOJE (acumulado desde 00:00 BRT) -->
+  <!-- GRUPO: HOJE -->
   <div class="grupo">
     <div class="grupo-hdr">Hoje <span class="grupo-desc">— acumulado desde 00:00</span></div>
     <div class="hoje-grid" id="hoje-grid">
@@ -214,7 +352,7 @@
       <div class="agora-card">
         <div class="agora-label">Resolvidos hoje</div>
         <div class="agora-num sk" style="height:56px;width:60px">&nbsp;</div>
-        <div class="dw-inline sk" style="height:14px;width:160px;margin-top:8px">&nbsp;</div>
+        <div class="dw-inline sk" style="height:13px;width:160px;margin-top:8px">&nbsp;</div>
       </div>
       <div class="agora-card">
         <div class="agora-label">Resolvidos criados hoje</div>
@@ -223,7 +361,7 @@
     </div>
   </div>
 
-  <!-- BLOCO: POR ATENDENTE -->
+  <!-- POR ATENDENTE -->
   <div class="section" id="agent-section">
     <div class="sec-hdr">
       <span class="sec-hdr-title">Por atendente</span>
@@ -241,12 +379,12 @@
         </tr>
       </thead>
       <tbody id="agent-tbody">
-        <tr><td colspan="3" style="padding:20px;color:var(--muted);font-size:13px">Carregando…</td></tr>
+        <tr><td colspan="3" style="padding:20px;color:var(--label);font-size:13px">Carregando…</td></tr>
       </tbody>
     </table>
   </div>
 
-  <!-- BLOCO: SLA detalhe -->
+  <!-- SLA detalhe -->
   <div class="section">
     <div class="sec-hdr">
       <span class="sec-hdr-title" id="sla-title">SLA em risco</span>
@@ -308,14 +446,14 @@ function ticketDropdown(tickets) {
   </details>`;
 }
 
-// ── AGORA: 4 snapshots + SLA ──────────────────────────────────────────────────
+// ── AGORA ─────────────────────────────────────────────────────────────────────
 function renderAgoraGrid(av) {
-  const agora     = av.agora || {};
-  const naoAtrib  = agora.nao_atribuidos || { total: 0, tickets: [] };
-  const sla       = av.sla_risco || [];
-  const nCrit     = sla.filter(s => s.nivel === 'critico').length;
-  const nAtenc    = sla.filter(s => s.nivel === 'atencao').length;
-  const slaNum    = nCrit + nAtenc;
+  const agora    = av.agora || {};
+  const naoAtrib = agora.nao_atribuidos || { total: 0, tickets: [] };
+  const sla      = av.sla_risco || [];
+  const nCrit    = sla.filter(s => s.nivel === 'critico').length;
+  const nAtenc   = sla.filter(s => s.nivel === 'atencao').length;
+  const slaNum   = nCrit + nAtenc;
 
   document.getElementById('agora-grid').innerHTML = `
     <div class="agora-card">
@@ -363,21 +501,19 @@ function renderAgoraGrid(av) {
   `;
 }
 
-// ── HOJE: 3 fluxos do dia ─────────────────────────────────────────────────────
+// ── HOJE ──────────────────────────────────────────────────────────────────────
 function renderHojeGrid(av) {
-  const hoje = av.hoje || {};
-  const novos   = hoje.novos   ?? '—';
-  const resolv  = hoje.resolvidos;
-  const rcHoje  = hoje.resolv_criados_hoje ?? '—';
-  const dwAt    = hoje.dw_updated_at ? `via DW · carga ${fmtHora(hoje.dw_updated_at)}` : 'via DW · aguardando carga';
-
-  // Destaque: novos > resolvidos (fila crescendo)
+  const hoje  = av.hoje || {};
+  const novos  = hoje.novos   ?? '—';
+  const resolv = hoje.resolvidos;
+  const rcHoje = hoje.resolv_criados_hoje ?? '—';
+  const dwAt   = hoje.dw_updated_at ? `via DW · carga ${fmtHora(hoje.dw_updated_at)}` : 'via DW · aguardando carga';
   const alerta = typeof novos === 'number' && typeof resolv === 'number' && novos > resolv;
 
   document.getElementById('hoje-grid').innerHTML = `
     <div class="agora-card ${alerta ? 'alerta' : ''}">
       <div class="agora-label">Novos hoje</div>
-      <div class="agora-num" style="color:${alerta ? 'var(--amber)' : 'var(--preto)'}">${novos}</div>
+      <div class="agora-num" style="color:${alerta ? 'var(--amber)' : 'var(--text)'}">${novos}</div>
       <div class="agora-sub">criados desde 00:00 BRT</div>
     </div>
 
@@ -406,7 +542,7 @@ function renderAgentTable(av) {
   document.getElementById('sec-update').textContent  = `atualizado ${fmtHora(av.updated_at)}`;
 
   const rows = ORDEM.map(ag => {
-    const vivo   = av.por_agente?.[ag] || {};
+    const vivo    = av.por_agente?.[ag] || {};
     const naCaixa = vivo.na_caixa ?? 0;
     const tdStatus = _hasOverview
       ? `<td>${statusHtml(vivo.status)}</td>`
@@ -454,8 +590,8 @@ function renderSlaDetail(av) {
 // ── Render principal ──────────────────────────────────────────────────────────
 function render(data) {
   const av = data.ao_vivo;
-  document.getElementById('stale-bar').style.display  = data._stale ? 'block' : 'none';
-  document.getElementById('fresh-live').textContent   = fmtHora(av.updated_at);
+  document.getElementById('stale-bar').style.display = data._stale ? 'block' : 'none';
+  document.getElementById('fresh-live').textContent  = fmtHora(av.updated_at);
 
   renderAgoraGrid(av);
   renderHojeGrid(av);
