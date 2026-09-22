@@ -518,8 +518,8 @@ function renderHojeGrid(av) {
   const resolv = hoje.resolvidos;
   const rcHoje = hoje.resolv_criados_hoje ?? '—';
   const dwAt   = hoje.dw_updated_at
-    ? `⚠ DW · defasagem ~30 min · carga ${fmtHora(hoje.dw_updated_at)}`
-    : '⚠ DW · aguardando carga — único número não ao vivo';
+    ? `resolvidos até ${fmtHora(hoje.dw_updated_at)} · atualiza a cada 30 min`
+    : 'aguardando atualização';
   const alerta = typeof novos === 'number' && typeof resolv === 'number' && novos > resolv;
 
   document.getElementById('hoje-grid').innerHTML = `
