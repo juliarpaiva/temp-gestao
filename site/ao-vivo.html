@@ -125,6 +125,18 @@
     .sla-link:hover { background: #fce7f3; }
     .sla-scope-note { padding: 8px 22px; font-size: 11px; color: var(--muted); border-top: 1px solid #f1f5f9; background: #fafbfc; }
 
+    /* ── Ticket pills / dropdown ─────────────────────────────────── */
+    .ticket-dropdown { display: inline-block; position: relative; }
+    .ticket-dropdown summary { list-style: none; cursor: pointer; }
+    .ticket-dropdown summary::-webkit-details-marker { display: none; }
+    .ticket-pills { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 10px; background: var(--card); border: 1px solid var(--borda); border-radius: 8px; position: absolute; z-index: 30; box-shadow: var(--sh); min-width: 140px; left: 0; top: calc(100% + 4px); }
+    .ticket-pill { font-size: 11px; font-weight: 700; color: var(--rosa); text-decoration: none; padding: 2px 8px; background: #fce7f3; border-radius: 20px; white-space: nowrap; }
+    .ticket-pill:hover { background: var(--rosa); color: #fff; }
+    .ver-tickets-btn { font-size: 11px; font-weight: 700; color: var(--muted); margin-top: 6px; display: inline-block; }
+    .ver-tickets-btn:hover { color: var(--rosa); }
+    .sub-link { color: inherit; font-weight: 800; text-decoration: none; border-bottom: 1px dashed currentColor; }
+    .sub-link:hover { opacity: .75; }
+
     /* ── Skeleton ────────────────────────────────────────────────── */
     @keyframes shimmer { 0%{background-position:-700px 0} 100%{background-position:700px 0} }
     .sk { background: linear-gradient(90deg,#edf0f4 25%,#dde2e8 50%,#edf0f4 75%); background-size:700px 100%; animation:shimmer 1.4s ease-in-out infinite; border-radius: 6px; display: inline-block; }
@@ -275,9 +287,18 @@ function renderAgoraGrid(av, _ac) {
       <div class="agora-num">${fila.total}</div>
       <div class="agora-sub ${filaSubCls}">
         ${fila.mais_antigo_min != null
-          ? `+${fmtMin(fila.mais_antigo_min)} o mais antigo`
+          ? (fila.mais_antigo_link
+              ? `+${fmtMin(fila.mais_antigo_min)} <a class="sub-link" href="${fila.mais_antigo_link}" target="_blank" rel="noreferrer">o mais antigo</a>`
+              : `+${fmtMin(fila.mais_antigo_min)} o mais antigo`)
           : fila.total > 0 ? 'aguardando' : 'fila vazia'}
       </div>
+      ${fila.tickets?.length > 0 ? `
+      <details class="ticket-dropdown">
+        <summary class="ver-tickets-btn">ver ${fila.tickets.length} ticket${fila.tickets.length !== 1 ? 's' : ''}</summary>
+        <div class="ticket-pills">
+          ${fila.tickets.map(t => `<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}
+        </div>
+      </details>` : ''}
     </div>
     <div class="agora-card">
       <div class="agora-label">Em andamento</div>
@@ -328,7 +349,16 @@ function renderAgentTable(av, ac) {
     return `<tr>
       <td class="td-nome">${DISP[ag] || ag}</td>
       ${tdStatus}
-      <td><span class="td-live ${emAnd > 0 ? 'rosa' : 'muted'}">${emAnd}</span></td>
+      <td>
+        ${vivo.tickets?.length > 0
+          ? `<details class="ticket-dropdown">
+               <summary class="td-live rosa">${emAnd}</summary>
+               <div class="ticket-pills">
+                 ${vivo.tickets.map(t => `<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}
+               </div>
+             </details>`
+          : `<span class="td-live muted">0</span>`}
+      </td>
       <td><span class="td-acum ${resolv > 0 ? 'verde' : ''}">${resolv}</span></td>
       <td class="td-acum">${fmtMin(resp)}</td>
       <td class="td-acum">${fmtMin(tma)}</td>

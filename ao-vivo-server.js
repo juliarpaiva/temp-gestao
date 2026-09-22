@@ -104,7 +104,14 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     const oldest = n2p1.length > 0
       ? n2p1.reduce((acc, c) => c.created_at < acc.created_at ? c : acc)
       : null;
-    return { total: n2p1.length, oldest };
+    return {
+      total:   n2p1.length,
+      oldest,
+      tickets: n2p1.map(c => ({
+        id:   c.id,
+        link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}`,
+      })),
+    };
   }
 
   // Dados DW: encerrados/TMA/1ª resposta de hoje por agente + timestamp de frescor real
@@ -175,26 +182,31 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
 
       // Inicializa todos os agentes monitorados
       const porAgente = {};
-      for (const ag of CFG.AGENTES) porAgente[ag] = { em_andamento: 0, status: null };
+      for (const ag of CFG.AGENTES) porAgente[ag] = { em_andamento: 0, status: null, tickets: [] };
 
       // Chatwoot v2: overview.data.agents / v3: overview.agents (tenta os dois)
       const oAgents = overview?.data?.agents ||
         (Array.isArray(overview?.agents) ? overview.agents : null);
 
+      // Status via overview (se disponível)
       if (oAgents) {
         for (const a of oAgents) {
           const key = CFG.AGENTES.find(x => x === a.name);
           if (!key) continue;
-          porAgente[key].em_andamento = a.open_conversations_count ?? a.open_conversation_count ?? 0;
-          porAgente[key].status       = a.availability_status || null;
+          porAgente[key].status = a.availability_status || null;
         }
-      } else {
-        // Fallback: conta tickets abertos por assignee
-        for (const conv of openConvs) {
-          const name = conv.meta?.assignee?.name;
-          const key  = name && CFG.AGENTES.find(x => x === name);
-          if (key) porAgente[key].em_andamento++;
-        }
+      }
+
+      // Contagem e lista de tickets sempre via openConvs (count == lista de tickets garantido)
+      for (const conv of openConvs) {
+        const name = conv.meta?.assignee?.name;
+        const key  = name && CFG.AGENTES.find(x => x === name);
+        if (!key) continue;
+        porAgente[key].em_andamento++;
+        porAgente[key].tickets.push({
+          id:   conv.id,
+          link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${conv.id}`,
+        });
       }
 
       // SLA em risco — apenas 1ª resposta (v1).
@@ -224,7 +236,14 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           updated_at:      new Date().toISOString(),
           has_overview:    !!oAgents,
           em_andamento_truncated: truncated, // true = teto de 20 pág atingido; N2 count pode estar incompleto
-          fila:            { total: pendingInfo.total, mais_antigo_min: maisAntigoMin },
+          fila: {
+            total:            pendingInfo.total,
+            mais_antigo_min:  maisAntigoMin,
+            mais_antigo_link: pendingInfo.oldest
+              ? `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${pendingInfo.oldest.id}`
+              : null,
+            tickets:          pendingInfo.tickets,
+          },
           em_andamento:    openConvs.length, // já filtrado para N2; truncated=true sinaliza possível subcontagem
           por_agente:      porAgente,
           sla_risco:       slaRisco,
