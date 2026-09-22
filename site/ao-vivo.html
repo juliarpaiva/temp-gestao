@@ -399,7 +399,7 @@
 
 <script>
 // ── Config frontend ───────────────────────────────────────────────────────────
-const POLL_MS         = 30_000;
+const POLL_MS         = 60_000;
 const SLA_ATENCAO_MIN = 45;
 const SLA_CRITICO_MIN = 60;
 // ─────────────────────────────────────────────────────────────────────────────
@@ -600,8 +600,29 @@ async function fetchStatus() {
   _countdown = POLL_MS / 1000;
 }
 
+// Pausa polling quando aba está oculta, retoma + atualiza imediatamente ao voltar
+let _pollTimer = null;
+
+function startPolling() {
+  if (_pollTimer) return;
+  _pollTimer = setInterval(fetchStatus, POLL_MS);
+}
+
+function stopPolling() {
+  if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    stopPolling();
+  } else {
+    fetchStatus();   // atualiza imediatamente ao voltar
+    startPolling();
+  }
+});
+
 fetchStatus();
-setInterval(fetchStatus, POLL_MS);
+startPolling();
 setInterval(() => { _countdown = Math.max(0, _countdown - 1); updateHdrCountdown(); }, 1000);
 </script>
 </body>

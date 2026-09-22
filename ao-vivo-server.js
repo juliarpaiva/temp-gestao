@@ -3,7 +3,7 @@ const express = require('express');
 
 // ── Config — ajuste aqui ──────────────────────────────────────────────────────
 const CFG = {
-  POLL_TTL_S:      25,           // cache server-side (segundos)
+  POLL_TTL_S:      55,           // cache server-side (segundos)
   SLA_ATENCAO_MIN: 45,           // minutos sem 1ª resposta → atenção (amarelo)
   SLA_CRITICO_MIN: 60,           // minutos sem 1ª resposta → crítico (vermelho)
   BRT_OFFSET_H:   -3,            // fuso Brasília = UTC-3
