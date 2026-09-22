@@ -58,6 +58,10 @@
 
     .agora-card { background: var(--card); border: 1px solid var(--borda); border-radius: var(--r); box-shadow: var(--sh); padding: 24px 26px; }
     .agora-card.destaque { border-left: 4px solid var(--rosa); }
+    .agora-card.alerta   { border-left: 4px solid var(--amber); }
+    .vazao-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 900px) { .vazao-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 600px) { .vazao-grid { grid-template-columns: 1fr; } }
     .agora-label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 10px; }
     .agora-num { font-size: 64px; font-weight: 900; letter-spacing: -3px; line-height: 1; }
     .agora-card.destaque .agora-num { color: var(--rosa); }
@@ -185,6 +189,13 @@
     </div>
   </div>
 
+  <!-- BLOCO 1.5: VAZÃO DO DIA -->
+  <div class="vazao-grid" id="vazao-grid">
+    <div class="agora-card"><div class="agora-label">Entraram hoje</div><div class="agora-num sk" style="height:56px;width:60px">&nbsp;</div></div>
+    <div class="agora-card"><div class="agora-label">Resolvidos hoje</div><div class="agora-num sk" style="height:56px;width:60px">&nbsp;</div></div>
+    <div class="agora-card"><div class="agora-label">Em aberto (acumulado)</div><div class="agora-num sk" style="height:56px;width:60px">&nbsp;</div></div>
+  </div>
+
   <!-- BLOCO 2: POR AGENTE -->
   <div class="section" id="agent-section">
     <div class="sec-hdr">
@@ -202,7 +213,6 @@
           <th>Em andamento</th>
           <th>Encerrados hoje</th>
           <th>1ª Resposta</th>
-          <th>TMA</th>
         </tr>
       </thead>
       <tbody id="agent-tbody">
@@ -337,10 +347,9 @@ function renderAgentTable(av, ac) {
   const rows = ORDEM.map(ag => {
     const vivo = av.por_agente?.[ag] || {};
     const acum = ac.por_agente?.[ag] || {};
-    const emAnd   = vivo.em_andamento ?? 0;
-    const resolv  = acum.resolvidos ?? 0;
-    const tma     = acum.tma_min;
-    const resp    = acum.resp_min;
+    const emAnd  = vivo.em_andamento ?? 0;
+    const resolv = acum.resolvidos ?? 0;
+    const resp   = acum.resp_min;
 
     const tdStatus = _hasOverview
       ? `<td style="${!_hasOverview?'display:none':''}">${statusHtml(vivo.status)}</td>`
@@ -361,14 +370,40 @@ function renderAgentTable(av, ac) {
       </td>
       <td><span class="td-acum ${resolv > 0 ? 'verde' : ''}">${resolv}</span></td>
       <td class="td-acum">${fmtMin(resp)}</td>
-      <td class="td-acum">${fmtMin(tma)}</td>
     </tr>`;
   });
   document.getElementById('agent-tbody').innerHTML = rows.join('');
 
   const dwAt = ac.dw_updated_at ? fmtHora(ac.dw_updated_at) : '—';
   document.getElementById('dw-note').textContent =
-    `Encerrados / 1ª Resp. / TMA: dados do dia via DW (última carga: ${dwAt})`;
+    `Encerrados / 1ª Resp.: dados do dia via DW (última carga: ${dwAt})`;
+}
+
+function renderVazao(av) {
+  const vz = av.vazao;
+  if (!vz) return;
+  const alerta = vz.entram_hoje > vz.resolvidos_hoje;
+  const naoAt  = vz.nao_atribuidos > 0
+    ? ` <span style="color:var(--amber);font-size:11px;font-weight:700">(${vz.nao_atribuidos} sem atendente)</span>` : '';
+  document.getElementById('vazao-grid').innerHTML = `
+    <div class="agora-card ${alerta ? 'alerta' : ''}">
+      <div class="agora-label">Entraram hoje</div>
+      <div class="agora-num" style="color:${alerta ? 'var(--amber)' : 'var(--preto)'}">${vz.entram_hoje}</div>
+      <div class="agora-sub">tickets N2 criados hoje</div>
+    </div>
+    <div class="agora-card ${alerta ? 'alerta' : ''}">
+      <div class="agora-label">Resolvidos hoje</div>
+      <div class="agora-num" style="color:var(--verde)">${vz.resolvidos_hoje}</div>
+      <div class="agora-sub${alerta ? ' amber' : ''}">
+        ${alerta ? '⚠ fila crescendo no dia' : 'ritmo ok'}
+      </div>
+    </div>
+    <div class="agora-card">
+      <div class="agora-label">Em aberto (acumulado)</div>
+      <div class="agora-num" style="color:var(--rosa)">${vz.backlog}${naoAt}</div>
+      <div class="agora-sub" style="color:var(--muted);font-size:11px">estoque total N2 — inclui dias anteriores</div>
+    </div>
+  `;
 }
 
 function renderSlaDetail(av) {
@@ -402,6 +437,7 @@ function render(data) {
     ac.dw_updated_at ? `Último registro: ${fmtHora(ac.dw_updated_at)}` : '—';
 
   renderAgoraGrid(av, ac);
+  renderVazao(av);
   renderAgentTable(av, ac);
   renderSlaDetail(av);
 }

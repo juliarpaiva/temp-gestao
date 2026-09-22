@@ -80,12 +80,9 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       if (page >= 20) { truncated = true; break; }
       page++;
     }
-    // Escopo: tickets atribuídos a especialistas monitoradas (exclui Claudia/bot e sem assignee).
-    // n2_ticket filtra a FILA (pending); aqui o critério é o assignee, não a label.
-    const convs = all.filter(c => {
-      const name = c.meta?.assignee?.name;
-      return name && CFG.AGENTES.includes(name);
-    });
+    // Escopo: TODOS os tickets N2 abertos, incluindo sem assignee.
+    // O handler separa specialist-assigned (para tabela por agente) vs total N2 (para backlog).
+    const convs = all.filter(c => c.labels?.includes('n2_ticket'));
     return { convs, total: convs.length, truncated };
   }
 
@@ -112,6 +109,35 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}`,
       })),
     };
+  }
+
+  // Tickets N2 resolvidos hoje, ao vivo do CloudChat.
+  // sort=-updated_at → mais recentes na pág 1; para quando nenhum da página é de hoje.
+  async function _fetchResolvedHoje() {
+    const token = process.env.CLOUDCHAT_TOKEN;
+    const off = CFG.BRT_OFFSET_H * 3600000;
+    const todayBRT = new Date(Date.now() + off);
+    todayBRT.setUTCHours(0, 0, 0, 0);
+    const todayStartS = (todayBRT.getTime() - off) / 1000;
+
+    const todays = [];
+    for (let page = 1; page <= 5; page++) {
+      let r;
+      try {
+        r = await fetchCloudChat(
+          `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations?status=resolved&sort=-updated_at&page=${page}`,
+          token
+        );
+      } catch { break; }
+      const payload = r?.data?.payload || [];
+      if (!payload.length) break;
+      for (const c of payload) {
+        if (c.updated_at >= todayStartS && c.labels?.includes('n2_ticket')) todays.push(c);
+      }
+      if (!payload.some(c => c.updated_at >= todayStartS)) break; // tudo desta pág é anterior a hoje
+      if (payload.length < 25) break;
+    }
+    return { convs: todays, todayStartS };
   }
 
   // Dados DW: encerrados/TMA/1ª resposta de hoje por agente + timestamp de frescor real
@@ -172,13 +198,20 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     if (_cache && (nowS - _cacheTs) < CFG.POLL_TTL_S) return res.json(_cache);
 
     try {
-      const [overview, { convs: openConvs, total: totalOpen, truncated }, pendingInfo, dwHoje] = await Promise.all([
+      const [overview, { convs: openN2All, truncated }, pendingInfo, dwHoje, { convs: resolvedHoje, todayStartS }] = await Promise.all([
         _fetchOverview(),
-        _fetchAllOpen(),
+        _fetchAllOpen(),        // todos os N2 abertos (inclui sem assignee)
         _fetchPendingInfo(),
         _fetchDwHoje(),
+        _fetchResolvedHoje(),   // N2 resolvidos hoje, ao vivo
       ]);
       const now_s = Math.floor(Date.now() / 1000);
+
+      // Tickets N2 atribuídos a especialistas (para tabela por agente e SLA)
+      const openConvs = openN2All.filter(c => {
+        const name = c.meta?.assignee?.name;
+        return name && CFG.AGENTES.includes(name);
+      });
 
       // Inicializa todos os agentes monitorados
       const porAgente = {};
@@ -227,6 +260,11 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       }
       slaRisco.sort((a, b) => b.minutos - a.minutos);
 
+      // Vazão do dia (ao vivo, só CloudChat)
+      const entramHoje = openN2All.filter(c => c.created_at >= todayStartS).length
+                       + resolvedHoje.filter(c => c.created_at >= todayStartS).length;
+      const naoAtribuidos = openN2All.length - openConvs.length; // N2 abertos sem especialista
+
       const maisAntigoMin = pendingInfo.oldest
         ? Math.round(_bhMins(pendingInfo.oldest.created_at, now_s))
         : null;
@@ -235,7 +273,13 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         ao_vivo: {
           updated_at:      new Date().toISOString(),
           has_overview:    !!oAgents,
-          em_andamento_truncated: truncated, // true = teto de 20 pág atingido; N2 count pode estar incompleto
+          em_andamento_truncated: truncated,
+          vazao: {
+            entram_hoje:     entramHoje,
+            resolvidos_hoje: resolvedHoje.length,
+            backlog:         openN2All.length,   // todos N2 abertos, inclusive sem assignee
+            nao_atribuidos:  naoAtribuidos,       // N2 abertos sem especialista (visibilidade)
+          },
           fila: {
             total:            pendingInfo.total,
             mais_antigo_min:  maisAntigoMin,
