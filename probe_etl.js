@@ -42,31 +42,33 @@ async function main() {
   `);
   console.log('2. Max resolved_at_local geral:', r2[0]?.[0]);
 
-  // 3. Maximo updated_at_local geral (proxy da ultima execucao do ETL)
+  // 3. Colunas disponiveis na tabela
   const r3 = await mbQuery(`
-    SELECT MAX(updated_at_local)::text
-    FROM dw.fact_cloudchat_tickets
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'dw' AND table_name = 'fact_cloudchat_tickets'
+    ORDER BY ordinal_position
   `);
-  console.log('3. Max updated_at_local geral:', r3[0]?.[0]);
+  console.log('3. Colunas:', r3.map(r => r[0]).join(', '));
 
-  // 4. Tickets com updated_at_local nas ultimas 8h
+  // 4. Maximo created_at_local (quando linhas foram inseridas no DW)
   const r4 = await mbQuery(`
-    SELECT COUNT(*)::int
+    SELECT MAX(created_at_local)::text
     FROM dw.fact_cloudchat_tickets
-    WHERE updated_at_local >= NOW() AT TIME ZONE 'America/Sao_Paulo' - INTERVAL '8 hours'
   `);
-  console.log('4. Tickets atualizados nas ultimas 8h:', r4[0]?.[0]);
+  console.log('4. Max created_at_local geral:', r4[0]?.[0]);
 
-  // 5. Distribuicao de updated_at_local por hora hoje
+  // 5. Distribuicao de resolved_at_local por hora hoje
   const r5 = await mbQuery(`
-    SELECT DATE_TRUNC('hour', updated_at_local)::text AS hora, COUNT(*)::int AS qtd
+    SELECT DATE_TRUNC('hour', resolved_at_local)::text AS hora, COUNT(*)::int AS qtd
     FROM dw.fact_cloudchat_tickets
-    WHERE updated_at_local >= CURRENT_DATE
-      AND updated_at_local <  CURRENT_DATE + 1
+    WHERE ticket_status = 'resolved'
+      AND resolved_at_local >= CURRENT_DATE
+      AND resolved_at_local <  CURRENT_DATE + 1
     GROUP BY 1
     ORDER BY 1
   `);
-  console.log('5. Atualizacoes por hora hoje:');
+  console.log('5. Resolvidos por hora hoje no DW:');
   r5.forEach(r => console.log('  ', r[0], '->', r[1], 'tickets'));
 }
 
