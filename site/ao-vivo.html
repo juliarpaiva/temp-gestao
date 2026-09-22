@@ -518,7 +518,7 @@ function renderHojeGrid(av) {
   const resolv = hoje.resolvidos;
   const rcHoje = hoje.resolv_criados_hoje ?? '—';
   const dwAt   = hoje.dw_updated_at
-    ? `resolvidos até ${fmtHora(hoje.dw_updated_at)} · atualiza a cada 30 min`
+    ? `resolvidos até ${fmtHora(hoje.dw_updated_at)}`
     : 'aguardando atualização';
   const alerta = typeof novos === 'number' && typeof resolv === 'number' && novos > resolv;
 
