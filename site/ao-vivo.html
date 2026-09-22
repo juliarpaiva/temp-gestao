@@ -114,7 +114,8 @@
     .sla-badge { font-size: 9px; font-weight: 800; letter-spacing: .8px; padding: 3px 9px; border-radius: 20px; flex-shrink: 0; }
     .sla-badge.critico { background: #fee2e2; color: var(--red); }
     .sla-badge.atencao { background: #fef3c7; color: #854d0e; }
-    .sla-id { font-size: 12px; font-weight: 700; color: var(--muted); }
+    .sla-id { font-size: 12px; font-weight: 700; color: var(--muted); text-decoration: none; }
+    .sla-id:hover { color: var(--rosa); text-decoration: underline; }
     .sla-agent { font-weight: 700; font-size: 14px; }
     .sla-time { font-size: 22px; font-weight: 900; letter-spacing: -1px; }
     .sla-time.critico { color: var(--red); }
@@ -351,7 +352,7 @@ function renderSlaDetail(av) {
   document.getElementById('sla-list').innerHTML = sla.map(r => `
     <div class="sla-item">
       <span class="sla-badge ${r.nivel}">${r.nivel === 'critico' ? 'CRÍTICO' : 'ATENÇÃO'}</span>
-      <span class="sla-id">#${r.id}</span>
+      <a class="sla-id" href="${r.link}" target="_blank" rel="noreferrer">#${r.id}</a>
       <span class="sla-agent">${r.agente}</span>
       <span class="sla-time ${r.nivel}">${fmtMin(r.minutos)}</span>
       <span class="sla-note">sem 1ª resposta (h. comercial)</span>

@@ -63,7 +63,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   }
 
   // Todos os tickets abertos (status=open), paginado — limite de 20 páginas por segurança.
-  // Retorna { convs, truncated } — truncated=true sinaliza que o teto foi atingido.
+  // Retorna { convs, truncated } — convs filtrado por n2_ticket; truncated=true = teto atingido.
   async function _fetchAllOpen() {
     const token = process.env.CLOUDCHAT_TOKEN;
     const all   = [];
@@ -80,25 +80,27 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       if (page >= 20) { truncated = true; break; }
       page++;
     }
-    return { convs: all, total: total ?? all.length, truncated };
+    // Escopo: apenas tickets escalados para N2 (label confirmado em produção: n2_ticket)
+    const convs = all.filter(c => c.labels?.includes('n2_ticket'));
+    return { convs, total: convs.length, truncated };
   }
 
-  // Total pendente + ticket mais antigo.
-  // sort=created_at pede ordenação ASC explícita → página 1 contém os mais antigos,
-  // sem depender do comportamento padrão da API.
+  // Total pendente N2 + ticket mais antigo.
+  // sort=created_at pede ordenação ASC explícita → página 1 contém os mais antigos.
+  // Filtra por n2_ticket: tickets da Claudia sem escalonamento ficam de fora.
   async function _fetchPendingInfo() {
     const token = process.env.CLOUDCHAT_TOKEN;
     const r1    = await fetchCloudChat(
       `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations?status=pending&sort=created_at&page=1`,
       token
     );
-    const p1    = r1?.data?.payload || [];
-    const total = r1?.data?.meta?.all_count ?? p1.length;
-    // Com sort ASC a página 1 já tem os mais antigos; reduce garante o mínimo mesmo sem sort
-    const oldest = p1.length > 0
-      ? p1.reduce((acc, c) => c.created_at < acc.created_at ? c : acc)
+    const p1   = r1?.data?.payload || [];
+    const n2p1 = p1.filter(c => c.labels?.includes('n2_ticket'));
+    // oldest: já em ASC, mas reduce garante o mínimo mesmo se sort falhar
+    const oldest = n2p1.length > 0
+      ? n2p1.reduce((acc, c) => c.created_at < acc.created_at ? c : acc)
       : null;
-    return { total, oldest };
+    return { total: n2p1.length, oldest };
   }
 
   // Dados DW: encerrados/TMA/1ª resposta de hoje por agente + timestamp de frescor real
@@ -217,9 +219,9 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         ao_vivo: {
           updated_at:      new Date().toISOString(),
           has_overview:    !!oAgents,
-          em_andamento_truncated: truncated, // true = teto de 20 pág atingido; SLA/counts podem estar incompletos
+          em_andamento_truncated: truncated, // true = teto de 20 pág atingido; N2 count pode estar incompleto
           fila:            { total: pendingInfo.total, mais_antigo_min: maisAntigoMin },
-          em_andamento:    truncated ? totalOpen : openConvs.length,
+          em_andamento:    openConvs.length, // já filtrado para N2; truncated=true sinaliza possível subcontagem
           por_agente:      porAgente,
           sla_risco:       slaRisco,
         },
@@ -231,42 +233,6 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     } catch (e) {
       console.error('[ao-vivo]', e.message);
       if (_cache) return res.json({ ..._cache, _stale: true });
-      res.status(500).json({ error: e.message });
-    }
-  });
-
-  // TEMPORÁRIO — diagnóstico de estrutura de ticket. Remover após confirmar os sinais.
-  router.get('/ao-vivo/debug-conv', async (req, res) => {
-    const id = parseInt(req.query.id, 10);
-    if (!id) return res.status(400).json({ error: 'Use ?id=NUMERO' });
-    try {
-      const data = await fetchCloudChat(
-        `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${id}`,
-        process.env.CLOUDCHAT_TOKEN
-      );
-      // Devolve só os campos diagnósticos para não expor dados sensíveis
-      const c = data?.data || data;
-      res.json({
-        id:                   c?.id,
-        status:               c?.status,
-        inbox_id:             c?.inbox_id,
-        assignee_type:        c?.assignee_type,
-        channel:              c?.channel,
-        labels:               c?.labels,
-        conversation_type:    c?.conversation_type,
-        additional_attributes: c?.additional_attributes,
-        meta: {
-          assignee: c?.meta?.assignee
-            ? { id: c.meta.assignee.id, name: c.meta.assignee.name, type: c.meta.assignee.type, role: c.meta.assignee.role }
-            : null,
-          team: c?.meta?.team
-            ? { id: c.meta.team.id, name: c.meta.team.name }
-            : null,
-        },
-        created_at:           c?.created_at,
-        first_reply_created_at: c?.first_reply_created_at,
-      });
-    } catch (e) {
       res.status(500).json({ error: e.message });
     }
   });
