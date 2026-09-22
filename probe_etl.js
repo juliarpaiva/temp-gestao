@@ -58,6 +58,13 @@ async function main() {
   `);
   console.log('4. Max created_at_local geral:', r4[0]?.[0]);
 
+  // 5b. dw_updated_at — quando o ETL tocou pela ultima vez em qualquer linha
+  const r5b = await mbQuery(`
+    SELECT MAX(dw_updated_at)::text
+    FROM dw.fact_cloudchat_tickets
+  `);
+  console.log('5b. Max dw_updated_at (ultima execucao ETL):', r5b[0]?.[0]);
+
   // 5. Distribuicao de resolved_at_local por hora hoje
   const r5 = await mbQuery(`
     SELECT DATE_TRUNC('hour', resolved_at_local)::text AS hora, COUNT(*)::int AS qtd
