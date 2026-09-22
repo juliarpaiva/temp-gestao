@@ -235,5 +235,41 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     }
   });
 
+  // TEMPORÁRIO — diagnóstico de estrutura de ticket. Remover após confirmar os sinais.
+  router.get('/ao-vivo/debug-conv', async (req, res) => {
+    const id = parseInt(req.query.id, 10);
+    if (!id) return res.status(400).json({ error: 'Use ?id=NUMERO' });
+    try {
+      const data = await fetchCloudChat(
+        `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${id}`,
+        process.env.CLOUDCHAT_TOKEN
+      );
+      // Devolve só os campos diagnósticos para não expor dados sensíveis
+      const c = data?.data || data;
+      res.json({
+        id:                   c?.id,
+        status:               c?.status,
+        inbox_id:             c?.inbox_id,
+        assignee_type:        c?.assignee_type,
+        channel:              c?.channel,
+        labels:               c?.labels,
+        conversation_type:    c?.conversation_type,
+        additional_attributes: c?.additional_attributes,
+        meta: {
+          assignee: c?.meta?.assignee
+            ? { id: c.meta.assignee.id, name: c.meta.assignee.name, type: c.meta.assignee.type, role: c.meta.assignee.role }
+            : null,
+          team: c?.meta?.team
+            ? { id: c.meta.team.id, name: c.meta.team.name }
+            : null,
+        },
+        created_at:           c?.created_at,
+        first_reply_created_at: c?.first_reply_created_at,
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   return router;
 };
