@@ -281,7 +281,9 @@ function renderAgoraGrid(av, _ac) {
     <div class="agora-card">
       <div class="agora-label">Em andamento</div>
       <div class="agora-num" style="color:var(--rosa)">${av.em_andamento}</div>
-      <div class="agora-sub">atendimentos abertos</div>
+      <div class="agora-sub ${av.em_andamento_truncated ? 'amber' : ''}">
+        ${av.em_andamento_truncated ? 'contagem parcial (>20 pág.)' : 'atendimentos abertos'}
+      </div>
     </div>
     <div class="agora-card">
       <div class="agora-label">SLA em risco — 1ª resposta</div>
@@ -366,7 +368,7 @@ function render(data) {
   document.getElementById('stale-bar').style.display = isStale ? 'block' : 'none';
   document.getElementById('fresh-live').textContent = fmtHora(av.updated_at);
   document.getElementById('fresh-dw').textContent   =
-    ac.dw_updated_at ? `dados até ${fmtHora(ac.dw_updated_at)}` : '—';
+    ac.dw_updated_at ? `Último registro: ${fmtHora(ac.dw_updated_at)}` : '—';
 
   renderAgoraGrid(av, ac);
   renderAgentTable(av, ac);

@@ -11,8 +11,6 @@ const CFG = {
     inicio_min: 9 * 60,         // 9h00 BRT (minutos desde meia-noite)
     fim_min:    18 * 60 + 30,   // 18h30 BRT
     dias:       [1, 2, 3, 4, 5], // 1 = segunda … 5 = sexta
-    // CADÊNCIA DO ETL: a confirmar com a equipe de dados.
-    // O frescor exibido usa MAX(resolved_at_local) como proxy — nada muda aqui.
   },
   AGENTES: ['Mari', 'Fernanda Cavalcante', 'Paty', 'Lu Almeida', 'Rafa', 'Natchely Ortiz'],
   DISPLAY: {
@@ -64,11 +62,12 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     } catch { return null; }
   }
 
-  // Todos os tickets abertos (status=open), paginado — limite de 20 páginas por segurança
+  // Todos os tickets abertos (status=open), paginado — limite de 20 páginas por segurança.
+  // Retorna { convs, truncated } — truncated=true sinaliza que o teto foi atingido.
   async function _fetchAllOpen() {
     const token = process.env.CLOUDCHAT_TOKEN;
     const all   = [];
-    let page = 1, total = null;
+    let page = 1, total = null, truncated = false;
     while (true) {
       const r = await fetchCloudChat(
         `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations?status=open&page=${page}`,
@@ -77,34 +76,28 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       const payload = r?.data?.payload || [];
       if (total === null) total = r?.data?.meta?.all_count ?? payload.length;
       all.push(...payload);
-      if (all.length >= total || payload.length === 0 || page >= 20) break;
+      if (all.length >= total || payload.length === 0) break;
+      if (page >= 20) { truncated = true; break; }
       page++;
     }
-    return all;
+    return { convs: all, total: total ?? all.length, truncated };
   }
 
   // Total pendente + ticket mais antigo.
-  // Chatwoot ordena por created_at DESC → o mais antigo está na última página.
+  // sort=created_at pede ordenação ASC explícita → página 1 contém os mais antigos,
+  // sem depender do comportamento padrão da API.
   async function _fetchPendingInfo() {
     const token = process.env.CLOUDCHAT_TOKEN;
     const r1    = await fetchCloudChat(
-      `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations?status=pending&page=1`,
+      `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations?status=pending&sort=created_at&page=1`,
       token
     );
     const p1    = r1?.data?.payload || [];
     const total = r1?.data?.meta?.all_count ?? p1.length;
-    let all = [...p1];
-    if (total > 25) {
-      const lastPage = Math.ceil(total / 25);
-      try {
-        const rLast = await fetchCloudChat(
-          `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations?status=pending&page=${lastPage}`,
-          token
-        );
-        all = all.concat(rLast?.data?.payload || []);
-      } catch { /* usa o que já tem */ }
-    }
-    const oldest = all.reduce((acc, c) => (!acc || c.created_at < acc.created_at) ? c : acc, null);
+    // Com sort ASC a página 1 já tem os mais antigos; reduce garante o mínimo mesmo sem sort
+    const oldest = p1.length > 0
+      ? p1.reduce((acc, c) => c.created_at < acc.created_at ? c : acc)
+      : null;
     return { total, oldest };
   }
 
@@ -134,8 +127,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           AND resolved_at_local <  '${amanha}'
         GROUP BY 1
       `),
-      // CADÊNCIA DO ETL: a confirmar com a equipe de dados.
-      // Proxy de frescor: MAX(resolved_at_local) — não crava cadência no código.
+      // Frescor real do DW: MAX(resolved_at_local) como proxy do último registro carregado.
+      // CADÊNCIA DO ETL: a confirmar com a equipe de dados — nada muda aqui quando confirmado.
       dwQuery(`
         SELECT MAX(resolved_at_local)::text
         FROM dw.fact_cloudchat_tickets
@@ -166,7 +159,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     if (_cache && (nowS - _cacheTs) < CFG.POLL_TTL_S) return res.json(_cache);
 
     try {
-      const [overview, openConvs, pendingInfo, dwHoje] = await Promise.all([
+      const [overview, { convs: openConvs, total: totalOpen, truncated }, pendingInfo, dwHoje] = await Promise.all([
         _fetchOverview(),
         _fetchAllOpen(),
         _fetchPendingInfo(),
@@ -222,12 +215,13 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
 
       const result = {
         ao_vivo: {
-          updated_at:   new Date().toISOString(),
-          has_overview: !!oAgents,
-          fila:         { total: pendingInfo.total, mais_antigo_min: maisAntigoMin },
-          em_andamento: openConvs.length,
-          por_agente:   porAgente,
-          sla_risco:    slaRisco,
+          updated_at:      new Date().toISOString(),
+          has_overview:    !!oAgents,
+          em_andamento_truncated: truncated, // true = teto de 20 pág atingido; SLA/counts podem estar incompletos
+          fila:            { total: pendingInfo.total, mais_antigo_min: maisAntigoMin },
+          em_andamento:    truncated ? totalOpen : openConvs.length,
+          por_agente:      porAgente,
+          sla_risco:       slaRisco,
         },
         acumulados: dwHoje,
       };
