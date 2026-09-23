@@ -73,25 +73,27 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     } catch { return null; }
   }
 
-  // Todos os tickets status=open, paginado — para tabela por atendente e SLA.
-  async function _fetchAllOpen() {
+  // Tickets por status, paginado (open / pending / snoozed).
+  async function _fetchAllByStatus(status, maxPages = 20) {
     const token = process.env.CLOUDCHAT_TOKEN;
     const all   = [];
     let page = 1, total = null, truncated = false;
     while (true) {
       const r = await fetchCloudChat(
-        `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations?status=open&page=${page}`,
+        `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations?status=${status}&page=${page}`,
         token
       );
       const payload = r?.data?.payload || [];
       if (total === null) total = r?.data?.meta?.all_count ?? payload.length;
       all.push(...payload);
       if (all.length >= total || payload.length === 0) break;
-      if (page >= 20) { truncated = true; break; }
+      if (page >= maxPages) { truncated = true; break; }
       page++;
     }
     return { convs: all, truncated };
   }
+
+  const _fetchAllOpen = () => _fetchAllByStatus('open');
 
   // Contagens N2 via filter API (uma chamada por métrica, paralelas).
   // Fonte: CloudChat filter API — tempo real (não usa DW).
@@ -175,9 +177,11 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       _d.setUTCHours(0, 0, 0, 0);
       const todayStartISO = new Date(_d.getTime() - _off).toISOString(); // 00:00 BRT → UTC ISO
 
-      const [agentStatus, { convs: allOpenConvs, truncated }, n2Counts] = await Promise.all([
+      const [agentStatus, { convs: allOpenConvs, truncated }, { convs: allPendingConvs }, { convs: allSnoozedConvs }, n2Counts] = await Promise.all([
         _fetchAgentStatus(),
-        _fetchAllOpen(),
+        _fetchAllByStatus('open'),
+        _fetchAllByStatus('pending', 5),
+        _fetchAllByStatus('snoozed', 5),
         _fetchN2Counts(todayStartISO),
       ]);
       const now_s = Math.floor(Date.now() / 1000);
@@ -197,7 +201,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       const porAgente = {};
       for (const ag of CFG.AGENTES) {
         const st = agentStatus?.[ag] || null;
-        porAgente[ag] = { na_caixa: 0, status: st?.status || null, reason: st?.reason || null, emoji: st?.emoji || null, tickets: [] };
+        porAgente[ag] = { na_caixa: 0, pendentes: 0, adiados: 0, sem_resp: 0, max_espera_min: null, status: st?.status || null, reason: st?.reason || null, emoji: st?.emoji || null, tickets: [] };
       }
       for (const conv of openConvs) {
         const key = CFG.AGENTES.find(x => x === conv.meta?.assignee?.name);
@@ -207,6 +211,22 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           id:   conv.id,
           link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${conv.id}`,
         });
+        // 1ª resposta: acumula tickets sem reply e o maior tempo de espera (h. comercial)
+        if (!conv.first_reply_created_at) {
+          const mins = _bhMins(conv.created_at, now_s);
+          porAgente[key].sem_resp++;
+          if (mins > (porAgente[key].max_espera_min || 0)) porAgente[key].max_espera_min = Math.round(mins);
+        }
+      }
+
+      // Pendentes e adiados por atendente
+      for (const conv of allPendingConvs) {
+        const key = CFG.AGENTES.find(x => x === conv.meta?.assignee?.name);
+        if (key) porAgente[key].pendentes++;
+      }
+      for (const conv of allSnoozedConvs) {
+        const key = CFG.AGENTES.find(x => x === conv.meta?.assignee?.name);
+        if (key) porAgente[key].adiados++;
       }
 
       // SLA em risco: tickets open N2 com atendente, sem 1ª resposta, dentro do h. comercial

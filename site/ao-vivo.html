@@ -213,6 +213,14 @@
     }
     .td-live.rosa  { color: var(--rosa); }
     .td-live.muted { color: var(--sep); }
+    .td-med {
+      font-size: 16px; font-weight: 700; letter-spacing: -.5px;
+      font-variant-numeric: tabular-nums; color: var(--text);
+    }
+    .td-med.muted { color: var(--sep); }
+    .td-resp { font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+    .td-resp.amber { color: var(--amber); }
+    .td-resp.red   { color: var(--red); }
 
     /* Status dot */
     .status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; white-space: nowrap; }
@@ -386,11 +394,14 @@
         <tr>
           <th>Atendente</th>
           <th id="th-status">Status</th>
-          <th>Na caixa</th>
+          <th>Em aberto</th>
+          <th>Pendentes</th>
+          <th>Adiados</th>
+          <th>1ª resp.</th>
         </tr>
       </thead>
       <tbody id="agent-tbody">
-        <tr><td colspan="3" style="padding:20px;color:var(--label);font-size:13px">Carregando…</td></tr>
+        <tr><td colspan="6" style="padding:20px;color:var(--label);font-size:13px">Carregando…</td></tr>
       </tbody>
     </table>
   </div>
@@ -544,11 +555,25 @@ function renderAgentTable(av) {
   document.getElementById('sec-update').textContent  = `atualizado ${fmtHora(av.updated_at)}`;
 
   const rows = ORDEM.map(ag => {
-    const vivo    = av.por_agente?.[ag] || {};
-    const naCaixa = vivo.na_caixa ?? 0;
+    const vivo      = av.por_agente?.[ag] || {};
+    const naCaixa   = vivo.na_caixa   ?? 0;
+    const pendentes = vivo.pendentes   ?? 0;
+    const adiados   = vivo.adiados    ?? 0;
+    const semResp   = vivo.sem_resp   ?? 0;
+    const maxEspera = vivo.max_espera_min ?? null;
+
     const tdStatus = _hasOverview
       ? `<td>${statusHtml(vivo.status, vivo.reason, vivo.emoji)}</td>`
       : `<td style="display:none"></td>`;
+
+    // 1ª resposta: mostra "N sem resp · max Xmin" quando há tickets sem reply
+    let respHtml;
+    if (semResp === 0) {
+      respHtml = `<span class="td-resp">✓</span>`;
+    } else {
+      const nivel = maxEspera >= SLA_CRITICO_MIN ? 'red' : maxEspera >= SLA_ATENCAO_MIN ? 'amber' : '';
+      respHtml = `<span class="td-resp${nivel ? ' ' + nivel : ''}">${semResp} sem · max ${fmtMin(maxEspera)}</span>`;
+    }
 
     return `<tr>
       <td class="td-nome">${DISP[ag] || ag}</td>
@@ -563,6 +588,9 @@ function renderAgentTable(av) {
              </details>`
           : `<span class="td-live muted">0</span>`}
       </td>
+      <td><span class="td-med${pendentes === 0 ? ' muted' : ''}">${pendentes}</span></td>
+      <td><span class="td-med${adiados === 0 ? ' muted' : ''}">${adiados}</span></td>
+      <td>${respHtml}</td>
     </tr>`;
   });
   document.getElementById('agent-tbody').innerHTML = rows.join('');
