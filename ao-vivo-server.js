@@ -159,20 +159,23 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     // Não atribuído: todas as conversas abertas sem assignee, sem filtro de label
     // (espelha o que CloudChat exibe na aba "Não atribuída")
     const NAL = { attribute_key: 'assignee_id', filter_operator: 'is_not_present', values: [], query_operator: 'AND' };
-    const [open, pending, snoozed, novos, resolvCriados, naoAtrib] = await Promise.all([
+    const [open, pending, snoozed, novosRaw, resolvCriados, naoAtrib] = await Promise.all([
       postFilter([N2A, ST('open')]),
       postFilter([N2A, ST('pending')]),
       postFilter([N2A, ST('snoozed')]),
-      postFilter([CA(todayStartISO), { ...COM_AT, query_operator: null }]),  // todos tickets, não só N2
+      postFilterAll([CA(todayStartISO), { ...COM_AT, query_operator: null }]),  // todos tickets (paginado p/ filtrar por agente)
       postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
       postFilterAll([{ ...NAL }, ST('open')]),  // sem n2_ticket — espelha CloudChat; paginado p/ total exato
     ]);
+
+    // Conta apenas tickets criados hoje atribuídos às agentes monitoradas (exclui N1/Claudia etc.)
+    const novosHoje = novosRaw.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name)).length;
 
     return {
       open_count:          open.count,
       pending_count:       pending.count,
       snoozed_count:       snoozed.count,
-      novos_hoje:          novos.count,
+      novos_hoje:          novosHoje,
       resolv_criados_hoje: resolvCriados.count,
       nao_atribuidos: {
         total:   naoAtrib.count,
