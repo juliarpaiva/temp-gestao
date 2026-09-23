@@ -589,8 +589,10 @@ function renderAgentTable(av) {
   document.getElementById('sec-update').textContent  = `atualizado ${fmtHora(av.updated_at)}`;
 
   const rows = ORDEM.filter(ag => {
-    // Oculta Fernanda enquanto estiver offline (licença/férias)
-    if (ag === 'Fernanda Cavalcante' && _hasOverview && av.por_agente?.[ag]?.status === 'offline') return false;
+    // Oculta Fernanda offline (licença/férias), MAS só se não tiver tickets sem 1ª resposta
+    if (ag === 'Fernanda Cavalcante' && _hasOverview && av.por_agente?.[ag]?.status === 'offline') {
+      return (av.por_agente[ag]?.sem_resp ?? 0) > 0; // aparece se tiver ticket sem resposta
+    }
     return true;
   }).map(ag => {
     const vivo      = av.por_agente?.[ag] || {};
