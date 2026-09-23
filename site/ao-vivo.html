@@ -431,11 +431,15 @@ function todayLabel() {
   return `${DIAS_SEM[d.getDay()]} ${d.getDate()}/${String(d.getMonth()+1).padStart(2,'0')}`;
 }
 
-function statusHtml(status) {
+function statusHtml(status, reason, emoji) {
   if (!status) return '<span class="status-na">—</span>';
-  const MAP = { online:['Online','status-online'], busy:['Em atend.','status-busy'], offline:['Ausente','status-offline'] };
-  const [label, cls] = MAP[status] || [status, 'status-offline'];
-  return `<span class="status ${cls}">${label}</span>`;
+  if (status === 'online')  return '<span class="status status-online">Disponível</span>';
+  if (status === 'offline') return '<span class="status status-offline">Desconectado</span>';
+  if (status === 'busy') {
+    const motivo = reason ? `${emoji ? emoji + ' ' : ''}${reason}` : 'Ocupado';
+    return `<span class="status status-busy">${motivo}</span>`;
+  }
+  return `<span class="status status-offline">${status}</span>`;
 }
 
 function ticketDropdown(tickets) {
@@ -543,7 +547,7 @@ function renderAgentTable(av) {
     const vivo    = av.por_agente?.[ag] || {};
     const naCaixa = vivo.na_caixa ?? 0;
     const tdStatus = _hasOverview
-      ? `<td>${statusHtml(vivo.status)}</td>`
+      ? `<td>${statusHtml(vivo.status, vivo.reason, vivo.emoji)}</td>`
       : `<td style="display:none"></td>`;
 
     return `<tr>

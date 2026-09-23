@@ -61,7 +61,14 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       );
       const agents = Array.isArray(r) ? r : (r?.data || []);
       const map = {};
-      for (const a of agents) if (a.name) map[a.name] = a.availability_status || null;
+      for (const a of agents) {
+        if (!a.name) continue;
+        map[a.name] = {
+          status: a.availability_status || null,
+          reason: a.availability_reason?.reason || null,
+          emoji:  a.availability_reason?.emoji  || null,
+        };
+      }
       return map;
     } catch { return null; }
   }
@@ -189,7 +196,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       // Tabela por atendente: Na caixa (count + tickets) + status online
       const porAgente = {};
       for (const ag of CFG.AGENTES) {
-        porAgente[ag] = { na_caixa: 0, status: agentStatus?.[ag] || null, tickets: [] };
+        const st = agentStatus?.[ag] || null;
+        porAgente[ag] = { na_caixa: 0, status: st?.status || null, reason: st?.reason || null, emoji: st?.emoji || null, tickets: [] };
       }
       for (const conv of openConvs) {
         const key = CFG.AGENTES.find(x => x === conv.meta?.assignee?.name);
