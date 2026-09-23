@@ -762,7 +762,7 @@
         </div>
       </div>
 
-      <div class="painel" style="margin-bottom:20px;padding:20px 22px">
+      <div class="painel" style="margin-bottom:20px;padding:20px 22px${filterModeOp === 'dia' ? ';display:none' : ''}">
         <div class="painel-title">Tickets por status e agente — ${opsPeriodoLabel()}</div>
         <div id="ops-chart-status" style="position:relative;height:220px"></div>
       </div>
@@ -883,6 +883,7 @@
   }
 
   function renderGraficoStatus() {
+    if (filterModeOp === 'dia') return;
     const el = document.getElementById('ops-chart-status');
     if (!el || !_opsUnified.length) return;
     const labels     = _opsUnified.map(u => u.agente === 'Fernanda Cavalcante' ? 'Fernanda' : u.agente);
