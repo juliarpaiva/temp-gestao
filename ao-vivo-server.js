@@ -423,6 +423,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           hoje: {
             novos:               n2Counts.novos_hoje,           // CloudChat filter API
             resolv_criados_hoje: n2Counts.resolv_criados_hoje,  // CloudChat filter API
+            resolv_total_hoje:   n2Counts.resolv_total_hoje,    // total geral (sem filtro N2)
           },
 
           // Métricas AGORA (fotografia do estoque atual)
