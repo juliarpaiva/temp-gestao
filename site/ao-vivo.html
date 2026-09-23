@@ -409,7 +409,7 @@
           <th>Pendentes</th>
           <th>Adiados</th>
           <th title="Tickets abertos sem nenhuma resposta ainda. Âmbar acima de 45 min, vermelho acima de 1h (tempo comercial).">Esperando resposta ⓘ</th>
-          <th title="Média do tempo até a 1ª resposta em tickets respondidos hoje, em horas comerciais (9h–18h30, seg–sex). Respostas automáticas (menos de 1 min) são ignoradas.">Média 1ª resp. hoje ⓘ</th>
+          <th title="Média do tempo até a 1ª resposta em tickets cujo 1º reply foi dado hoje, em horas comerciais (9h–18h30, seg–sex). Respostas automáticas (&lt;1 min) são ignoradas. Tickets antigos que já tinham resposta não entram no tempo médio.">Média 1ª resp. hoje ⓘ</th>
         </tr>
       </thead>
       <tbody id="agent-tbody">
@@ -601,7 +601,8 @@ function renderAgentTable(av) {
     const adiados   = vivo.adiados    ?? 0;
     const semResp   = vivo.sem_resp   ?? 0;
     const maxEspera = vivo.max_espera_min ?? null;
-    const avgResp   = vivo.avg_resp_min ?? null;
+    const avgResp   = vivo.avg_resp_min     ?? null;
+    const antigos   = vivo.antigos_atendidos ?? 0;
 
     const tdStatus = _hasOverview
       ? `<td>${statusHtml(vivo.status, vivo.reason, vivo.emoji, vivo.since_s)}</td>`
@@ -616,10 +617,15 @@ function renderAgentTable(av) {
       esperandoHtml = `<span class="td-resp${nivel ? ' ' + nivel : ''}">${semResp} cliente${semResp > 1 ? 's' : ''} · há ${fmtMin(maxEspera)}</span>`;
     }
 
-    // Coluna 2: "Média 1ª resp. hoje" — média em horas comerciais de todos respondidos hoje
-    const avgRespHtml = avgResp !== null
-      ? `<span class="td-resp">${fmtMin(avgResp)}</span>`
-      : `<span class="td-resp muted">—</span>`;
+    // Coluna 2: "Média 1ª resp. hoje" — avg BH de tickets cujo 1º reply foi dado hoje
+    let avgRespHtml;
+    if (avgResp !== null) {
+      avgRespHtml = `<span class="td-resp">${fmtMin(avgResp)}</span>`;
+    } else if (antigos > 0) {
+      avgRespHtml = `<span class="td-resp muted">sem ticket novo · ${antigos} antigo${antigos > 1 ? 's' : ''} atendido${antigos > 1 ? 's' : ''}</span>`;
+    } else {
+      avgRespHtml = `<span class="td-resp muted">—</span>`;
+    }
 
     return `<tr>
       <td class="td-nome">${DISP[ag] || ag}</td>

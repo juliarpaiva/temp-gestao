@@ -188,14 +188,15 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     // Não atribuído: todas as conversas abertas sem assignee, sem filtro de label
     // (espelha o que CloudChat exibe na aba "Não atribuída")
     const NAL = { attribute_key: 'assignee_id', filter_operator: 'is_not_present', values: [], query_operator: 'AND' };
-    const [open, pending, snoozed, novosRaw, resolvCriados, naoAtrib, resolvHoje] = await Promise.all([
+    const [open, pending, snoozed, novosRaw, resolvCriados, naoAtrib, resolvHoje, resolvRecentes] = await Promise.all([
       postFilter([N2A, ST('open')]),
       postFilter([N2A, ST('pending')]),
       postFilter([N2A, ST('snoozed')]),
       postFilterAll([CA(todayStartISO), { ...COM_AT, query_operator: null }]),  // todos tickets (paginado p/ filtrar por agente)
       postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
       postFilterAll([{ ...NAL }, ST('open')]),  // sem n2_ticket — espelha CloudChat; paginado p/ total exato
-      postFilterAll([CA(todayStartISO), { ...COM_AT, query_operator: 'AND' }, ST('resolved')]),  // resolvidos hoje (para média 1ª resp)
+      postFilterAll([CA(todayStartISO), { ...COM_AT, query_operator: 'AND' }, ST('resolved')]),  // resolvidos criados hoje
+      postFilterAll([COM_AT, ST('resolved')], 5),  // resolvidos recentes (5 páginas) — captura 1ª resp dada hoje em tickets antigos
     ]);
 
     // Conta apenas tickets criados hoje atribuídos às agentes monitoradas (exclui N1/Claudia etc.)
@@ -207,7 +208,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       snoozed_count:       snoozed.count,
       novos_hoje:          novosHoje,
       resolv_criados_hoje: resolvCriados.count,
-      resolv_hoje_tickets: resolvHoje.tickets,
+      resolv_hoje_tickets:     resolvHoje.tickets,
+      resolv_recentes_tickets: resolvRecentes.tickets,
       nao_atribuidos: (() => {
         const off = CFG.BRT_OFFSET_H * 3600000;
         const todayBRT = new Date(Date.now() + off);
@@ -325,25 +327,41 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       }
 
       // Tempo médio de 1ª resposta hoje por agente
-      // (todos os tickets de qualquer status cujo first_reply_created_at foi hoje)
+      // Fontes: open/pending/snoozed (qualquer data) + resolvidos criados hoje + resolvidos recentes (5 páginas)
+      // Filtra localmente por first_reply_created_at >= hoje, independente de when foi criado o ticket
+      const allConvsForResp = [
+        ...allOpenConvs,
+        ...allPendingConvs,
+        ...allSnoozedConvs,
+        ...(n2Counts.resolv_hoje_tickets    || []),
+        ...(n2Counts.resolv_recentes_tickets || []),
+      ];
       const seenForResp = new Set();
-      for (const conv of [...allOpenConvs, ...allPendingConvs, ...allSnoozedConvs, ...(n2Counts.resolv_hoje_tickets || [])]) {
+      for (const conv of allConvsForResp) {
         const ag = CFG.AGENTES.find(x => x === conv.meta?.assignee?.name);
         if (!ag || seenForResp.has(conv.id)) continue;
         seenForResp.add(conv.id);
         const firstReply = conv.first_reply_created_at;
-        if (!firstReply || firstReply < todayStartS) continue;
-        const bhMins = _bhMins(conv.created_at, firstReply);
-        if (bhMins < 1) continue; // ignora auto-respostas
-        if (!porAgente[ag]._resp_samples) porAgente[ag]._resp_samples = [];
-        porAgente[ag]._resp_samples.push(bhMins);
+        if (firstReply >= todayStartS) {
+          // 1ª resposta dada hoje → entra na média
+          const bhMins = _bhMins(conv.created_at, firstReply);
+          if (bhMins >= 1) { // ignora auto-respostas
+            if (!porAgente[ag]._resp_samples) porAgente[ag]._resp_samples = [];
+            porAgente[ag]._resp_samples.push(bhMins);
+          }
+        } else if (firstReply && firstReply < todayStartS) {
+          // Ticket antigo já respondido (antes de hoje) — está na fila hoje mas não conta na média
+          porAgente[ag]._antigos = (porAgente[ag]._antigos || 0) + 1;
+        }
       }
       for (const ag of CFG.AGENTES) {
         const samples = porAgente[ag]._resp_samples;
-        porAgente[ag].avg_resp_min = samples && samples.length
+        porAgente[ag].avg_resp_min = samples?.length
           ? Math.round(samples.reduce((a, b) => a + b, 0) / samples.length)
           : null;
+        porAgente[ag].antigos_atendidos = porAgente[ag]._antigos || 0;
         delete porAgente[ag]._resp_samples;
+        delete porAgente[ag]._antigos;
       }
 
       // SLA em risco: tickets open N2 com atendente, sem 1ª resposta, dentro do h. comercial
