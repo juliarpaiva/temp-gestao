@@ -606,8 +606,26 @@ function renderAgentTable(av) {
              </details>`
           : `<span class="td-live muted">0</span>`}
       </td>
-      <td><span class="td-med${pendentes === 0 ? ' muted' : ''}">${pendentes}</span></td>
-      <td><span class="td-med${adiados === 0 ? ' muted' : ''}">${adiados}</span></td>
+      <td>
+        ${vivo.tickets_pendentes?.length > 0
+          ? `<details class="ticket-dropdown">
+               <summary class="td-med">${pendentes}</summary>
+               <div class="ticket-pills">
+                 ${vivo.tickets_pendentes.map(t => `<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}
+               </div>
+             </details>`
+          : `<span class="td-med muted">0</span>`}
+      </td>
+      <td>
+        ${vivo.tickets_adiados?.length > 0
+          ? `<details class="ticket-dropdown">
+               <summary class="td-med">${adiados}</summary>
+               <div class="ticket-pills">
+                 ${vivo.tickets_adiados.map(t => `<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}
+               </div>
+             </details>`
+          : `<span class="td-med muted">0</span>`}
+      </td>
       <td>${respHtml}</td>
     </tr>`;
   });

@@ -201,7 +201,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       const porAgente = {};
       for (const ag of CFG.AGENTES) {
         const st = agentStatus?.[ag] || null;
-        porAgente[ag] = { na_caixa: 0, pendentes: 0, adiados: 0, sem_resp: 0, max_espera_min: null, status: st?.status || null, reason: st?.reason || null, emoji: st?.emoji || null, tickets: [] };
+        porAgente[ag] = { na_caixa: 0, pendentes: 0, tickets_pendentes: [], adiados: 0, tickets_adiados: [], sem_resp: 0, max_espera_min: null, status: st?.status || null, reason: st?.reason || null, emoji: st?.emoji || null, tickets: [] };
       }
       for (const conv of openConvs) {
         const key = CFG.AGENTES.find(x => x === conv.meta?.assignee?.name);
@@ -222,11 +222,17 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       // Pendentes e adiados por atendente
       for (const conv of allPendingConvs) {
         const key = CFG.AGENTES.find(x => x === conv.meta?.assignee?.name);
-        if (key) porAgente[key].pendentes++;
+        if (key) {
+          porAgente[key].pendentes++;
+          porAgente[key].tickets_pendentes.push({ id: conv.id, link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${conv.id}` });
+        }
       }
       for (const conv of allSnoozedConvs) {
         const key = CFG.AGENTES.find(x => x === conv.meta?.assignee?.name);
-        if (key) porAgente[key].adiados++;
+        if (key) {
+          porAgente[key].adiados++;
+          porAgente[key].tickets_adiados.push({ id: conv.id, link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${conv.id}` });
+        }
       }
 
       // SLA em risco: tickets open N2 com atendente, sem 1ª resposta, dentro do h. comercial
