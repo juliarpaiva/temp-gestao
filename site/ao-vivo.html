@@ -233,6 +233,16 @@
     .status-offline { color: var(--muted); }
     .status-na      { color: var(--label); font-size: 11px; }
 
+    /* ── Legenda ─────────────────────────────────────────────────── */
+    .legenda {
+      padding: 10px 20px;
+      font-size: 11px; color: var(--label); line-height: 1.5;
+      border-top: 1px solid var(--sep);
+    }
+    .legenda strong { color: var(--muted); }
+    .leg-amber { color: var(--amber); font-weight: 600; }
+    .leg-red   { color: var(--red);   font-weight: 600; }
+
     /* ── SLA detalhe ─────────────────────────────────────────────── */
     .sla-empty { padding: 16px 20px; font-size: 13px; font-weight: 600; color: var(--verde); }
     .sla-item {
@@ -404,6 +414,11 @@
         <tr><td colspan="6" style="padding:20px;color:var(--label);font-size:13px">Carregando…</td></tr>
       </tbody>
     </table>
+    <div class="legenda">
+      <strong>1ª resp.</strong> — tickets em aberto sem nenhuma resposta enviada ainda.
+      ✓ = todos respondidos · "N sem · max Xmin" = N tickets aguardando, o mais antigo há X minutos (horas comerciais: 9h–18h30, seg–sex).
+      <span class="leg-amber">Âmbar</span> &gt; 45 min &nbsp;·&nbsp; <span class="leg-red">Vermelho</span> &gt; 1h.
+    </div>
   </div>
 
 </div><!-- /page -->
