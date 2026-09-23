@@ -588,7 +588,11 @@ function renderAgentTable(av) {
   document.getElementById('sec-date').textContent    = todayLabel();
   document.getElementById('sec-update').textContent  = `atualizado ${fmtHora(av.updated_at)}`;
 
-  const rows = ORDEM.map(ag => {
+  const rows = ORDEM.filter(ag => {
+    // Oculta Fernanda enquanto estiver offline (licença/férias)
+    if (ag === 'Fernanda Cavalcante' && _hasOverview && av.por_agente?.[ag]?.status === 'offline') return false;
+    return true;
+  }).map(ag => {
     const vivo      = av.por_agente?.[ag] || {};
     const naCaixa   = vivo.na_caixa   ?? 0;
     const pendentes = vivo.pendentes   ?? 0;
