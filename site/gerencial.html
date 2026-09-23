@@ -8,16 +8,23 @@
     :root {
       --rosa:  #e91e8c;
       --preto: #0f0f0f;
-      --bg:    #f0f2f5;
-      --card:  #ffffff;
-      --borda: #e2e8f0;
-      --muted: #64748b;
+      --bg:    #14151a;
+      --card:  #1d1e25;
+      --borda: rgba(255,255,255,0.07);
+      --muted: #6b7280;
       --r:     12px;
-      --sh:    0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06);
-      --sh-lg: 0 2px 8px rgba(0,0,0,.08), 0 8px 32px rgba(0,0,0,.08);
+      --sh:    0 1px 4px rgba(0,0,0,.3), 0 4px 16px rgba(0,0,0,.25);
+      --sh-lg: 0 2px 8px rgba(0,0,0,.4), 0 8px 32px rgba(0,0,0,.3);
+      --text:    #e2e4ec;
+      --sep:     #2a2c36;
+      --label:   #4a5060;
+      --verde:   #22c55e;
+      --amber:   #f59e0b;
+      --red:     #ef4444;
+      --azul:    #60a5fa;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui,-apple-system,"Segoe UI",sans-serif; background: var(--bg); color: var(--preto); font-size: 14px; line-height: 1.6; }
+    body { font-family: system-ui,-apple-system,"Segoe UI",sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; }
 
     /* HEADER */
     .header { background: var(--preto); color: #fff; border-bottom: 3px solid var(--rosa); position: sticky; top: 0; z-index: 100; }
@@ -36,7 +43,7 @@
 
     /* SKELETON */
     @keyframes shimmer { 0% { background-position:-700px 0 } 100% { background-position:700px 0 } }
-    .sk { background: linear-gradient(90deg,#edf0f4 25%,#dde2e8 50%,#edf0f4 75%); background-size:700px 100%; animation:shimmer 1.4s ease-in-out infinite; border-radius:6px; display:block; }
+    .sk { background: linear-gradient(90deg,#252731 25%,#2e3040 50%,#252731 75%); background-size:700px 100%; animation:shimmer 1.4s ease-in-out infinite; border-radius:6px; display:block; }
 
     /* MÊS SELECTOR */
     .mes-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; flex-wrap: wrap; }
@@ -79,7 +86,7 @@
     .agente-nome { font-size: 13px; font-weight: 700; min-width: 80px; flex-shrink: 0; }
     .agente-bar-wrap { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
     .agente-bar  { height: 100%; background: var(--rosa); border-radius: 4px; transition: width .4s ease; }
-    .agente-num  { font-size: 12px; font-weight: 700; color: var(--preto); width: 28px; text-align: right; flex-shrink: 0; }
+    .agente-num  { font-size: 12px; font-weight: 700; color: var(--text); width: 28px; text-align: right; flex-shrink: 0; }
 
     /* TOP TAGS */
     .tag-row { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
@@ -102,10 +109,10 @@
     .semana-vs.down { color: #16a34a; }
     .semana-vs.flat { color: var(--muted); }
     .semana-detalhe { font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; border-top: 1px solid var(--borda); padding-top: 10px; margin-top: 4px; }
-    .semana-detalhe span b { color: var(--preto); font-weight: 600; }
+    .semana-detalhe span b { color: var(--text); font-weight: 600; }
     .semana-csat-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
-    .semana-csat-item { font-size: 11px; color: var(--muted); background: #f8fafc; border: 1px solid var(--borda); border-radius: 6px; padding: 3px 8px; }
-    .semana-csat-item b { color: var(--preto); font-weight: 700; }
+    .semana-csat-item { font-size: 11px; color: var(--muted); background: var(--bg); border: 1px solid var(--borda); border-radius: 6px; padding: 3px 8px; }
+    .semana-csat-item b { color: var(--text); font-weight: 700; }
     .semana-csat-item.pos { color: #16a34a; border-color: #bbf7d0; background: #f0fdf4; }
     .semana-csat-item.neg { color: var(--rosa); border-color: #fce7f3; background: #fdf2f8; }
     .section-head.pos::before { background: #16a34a; }
@@ -115,13 +122,13 @@
     /* Tabela indevidas */
     .indev-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     .indev-table th { text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); padding: 16px 12px 10px; border-bottom: 1px solid var(--borda); }
-    .indev-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .indev-table td { padding: 10px 12px; border-bottom: 1px solid var(--sep); vertical-align: middle; }
     .indev-table tr:last-child td { border-bottom: none; }
-    .indev-table tr:hover td { background: #fafbfc; }
-    .indev-link { color: var(--preto); font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+    .indev-table tr:hover td { background: rgba(255,255,255,.025); }
+    .indev-link { color: var(--text); font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
     .indev-link:hover { color: var(--rosa); }
     .indev-badge { display: inline-block; padding: 2px 8px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 5px; font-size: 10px; font-weight: 700; color: #64748b; }
-    .btn-desfazer-sm { padding: 3px 10px; border-radius: 6px; border: 1px solid #e2e8f0; background: transparent; font-size: 10px; font-weight: 600; color: #94a3b8; cursor: pointer; transition: all .15s; white-space: nowrap; }
+    .btn-desfazer-sm { padding: 3px 10px; border-radius: 6px; border: 1px solid var(--sep); background: transparent; font-size: 10px; font-weight: 600; color: #94a3b8; cursor: pointer; transition: all .15s; white-space: nowrap; }
     .btn-desfazer-sm:hover { border-color: #ef4444; color: #ef4444; }
 
 
@@ -131,8 +138,8 @@
     .cal-header { display: grid; grid-template-columns: repeat(5, 1fr); background: var(--preto); }
     .cal-header span { padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 1px; }
     .cal-grid { display: grid; grid-template-columns: repeat(5, 1fr); }
-    .cal-cell { min-height: 82px; border: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: center; }
-    .cal-cell.empty { background: #fafafa; }
+    .cal-cell { min-height: 82px; border: 1px solid var(--sep); display: flex; align-items: center; justify-content: center; }
+    .cal-cell.empty { background: var(--bg); }
     .cal-day { width: 62px; height: 62px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; gap: 0; cursor: default; color: #cbd5e1; transition: transform .15s, box-shadow .15s; position: relative; }
     .cal-day.tem-dados { cursor: pointer; }
     .cal-day.tem-dados:hover { transform: scale(1.08); box-shadow: 0 4px 14px rgba(233,30,140,.25); }
@@ -161,15 +168,15 @@
     /* MODAL OUTROS */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 500; display: none; align-items: flex-start; justify-content: center; padding: 60px 16px; overflow-y: auto; }
     .modal-overlay.aberto { display: flex; }
-    .modal { background: #fff; border-radius: var(--r); box-shadow: 0 8px 40px rgba(0,0,0,.18); width: 560px; max-width: 96vw; }
+    .modal { background: var(--card); color: var(--text); border-radius: var(--r); box-shadow: 0 8px 40px rgba(0,0,0,.18); width: 560px; max-width: 96vw; }
     .modal-head { padding: 20px 24px 0; display: flex; align-items: center; justify-content: space-between; }
     .modal-title { font-size: 15px; font-weight: 800; }
     .modal-close { background: none; border: none; font-size: 20px; color: var(--muted); cursor: pointer; line-height: 1; padding: 0 2px; }
-    .modal-close:hover { color: var(--preto); }
+    .modal-close:hover { color: var(--text); }
     .modal-body  { padding: 16px 24px 24px; }
     .outros-ag-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; border-radius: 8px; padding: 6px 8px; transition: background .12s; }
     .outros-ag-row.clicavel { cursor: pointer; }
-    .outros-ag-row.clicavel:hover { background: #f8fafc; }
+    .outros-ag-row.clicavel:hover { background: rgba(255,255,255,.04); }
     .outros-ag-row.clicavel:hover .outros-ag-nome { color: var(--rosa); }
     .outros-ag-nome { font-size: 13px; font-weight: 600; min-width: 130px; }
     .outros-ag-bar-wrap { flex: 1; height: 7px; background: var(--bg); border-radius: 4px; overflow: hidden; }
@@ -177,24 +184,24 @@
     .outros-ag-cnt { font-size: 12px; font-weight: 700; color: var(--muted); width: 28px; text-align: right; }
     .outros-ticket-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     .outros-ticket-table th { text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); padding: 0 10px 8px; border-bottom: 1px solid var(--borda); }
-    .outros-ticket-table td { padding: 9px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .outros-ticket-table td { padding: 9px 10px; border-bottom: 1px solid var(--sep); vertical-align: middle; }
     .outros-ticket-table tr:last-child td { border-bottom: none; }
-    .outros-ticket-table tr:hover td { background: #fafbfc; }
+    .outros-ticket-table tr:hover td { background: rgba(255,255,255,.025); }
     .outros-nota-pos { color: #16a34a; font-weight: 700; }
     .outros-nota-neg { color: var(--rosa); font-weight: 700; }
-    .outros-link { color: var(--preto); font-weight: 700; text-decoration: none; }
+    .outros-link { color: var(--text); font-weight: 700; text-decoration: none; }
     .outros-link:hover { color: var(--rosa); }
     .btn-voltar-modal { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 6px; border: 1px solid var(--borda); background: transparent; font-size: 11px; font-weight: 700; color: var(--muted); cursor: pointer; transition: all .15s; margin-bottom: 4px; }
-    .btn-voltar-modal:hover { border-color: var(--preto); color: var(--preto); }
+    .btn-voltar-modal:hover { border-color: var(--text); color: var(--text); }
     .modal-secao-head { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .7px; padding: 10px 0 8px; display: flex; align-items: center; gap: 6px; }
     .modal-secao-head.pos { color: #16a34a; }
     .modal-secao-head.neg { color: var(--rosa); border-top: 1px solid var(--borda); margin-top: 8px; padding-top: 14px; }
 
     /* FILTER TABS */
-    .filter-tabs { display: flex; gap: 4px; margin-bottom: 20px; background: #f1f5f9; border-radius: 10px; padding: 4px; width: fit-content; }
+    .filter-tabs { display: flex; gap: 4px; margin-bottom: 20px; background: var(--bg); border-radius: 10px; padding: 4px; width: fit-content; }
     .filter-tab { padding: 7px 20px; border-radius: 7px; border: none; background: transparent; font-size: 12px; font-weight: 700; color: var(--muted); cursor: pointer; transition: all .15s; }
-    .filter-tab:hover { color: var(--preto); }
-    .filter-tab.ativo { background: #fff; color: var(--preto); box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+    .filter-tab:hover { color: var(--text); }
+    .filter-tab.ativo { background: var(--card); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.1); }
 
 
     /* STREAK */
@@ -209,11 +216,11 @@
     .ops-table th { text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); padding: 0 12px 10px; border-bottom: 1px solid var(--borda); white-space: nowrap; }
     .ops-table th.r { text-align: right; }
     .ops-table th[onclick] { cursor: pointer; user-select: none; }
-    .ops-table th[onclick]:hover { color: var(--preto); }
-    .ops-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+    .ops-table th[onclick]:hover { color: var(--text); }
+    .ops-table td { padding: 10px 12px; border-bottom: 1px solid var(--sep); vertical-align: middle; }
     .ops-table td.r { text-align: right; font-variant-numeric: tabular-nums; }
     .ops-table tr:last-child td { border-bottom: none; }
-    .ops-table tr:hover td { background: #fafbfc; }
+    .ops-table tr:hover td { background: rgba(255,255,255,.025); }
     .ops-agente { font-weight: 700; font-size: 13px; }
     .ops-pill { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 700; }
     .ops-pill.alto  { background: #f0fdf4; color: #15803d; border: 1px solid #16a34a; }
@@ -227,7 +234,7 @@
 
     /* FOOTER */
     .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--borda); font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
-    .footer-brand { font-weight: 900; font-size: 14px; color: var(--preto); }
+    .footer-brand { font-weight: 900; font-size: 14px; color: var(--text); }
     .footer-brand b { color: var(--rosa); }
     .erro { padding: 40px; background: #fff3f3; border: 1px solid #ffd0d0; border-radius: var(--r); color: #c0392b; text-align: center; }
 
@@ -235,8 +242,8 @@
     .sec-nav { background: var(--card); border-bottom: 1px solid var(--borda); position: sticky; top: 64px; z-index: 99; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
     .sec-nav-inner { max-width: 1140px; margin: 0 auto; padding: 0 32px; display: flex; gap: 2px; align-items: center; height: 42px; }
     .sec-nav-btn { padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 700; color: var(--muted); text-decoration: none; transition: all .15s; white-space: nowrap; }
-    .sec-nav-btn:hover { color: var(--preto); background: var(--bg); }
-    .sec-nav-btn.ativo { color: var(--preto); background: var(--bg); }
+    .sec-nav-btn:hover { color: var(--text); background: var(--bg); }
+    .sec-nav-btn.ativo { color: var(--text); background: var(--bg); }
 
     /* BACK-TO-TOP */
     .btn-topo { position: fixed; bottom: 28px; right: 28px; z-index: 200; background: var(--preto); color: #fff; border: none; border-radius: 50%; width: 44px; height: 44px; font-size: 18px; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.2); opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; display: flex; align-items: center; justify-content: center; }
@@ -261,10 +268,10 @@
         <span id="hdr-greeting">Conta</span>
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="opacity:.6"><path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <div id="user-menu-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 8px);background:#fff;border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,.18);min-width:160px;overflow:hidden;z-index:2000">
-        <button onclick="abrirAlterarSenha();fecharUserMenu()" style="display:block;width:100%;text-align:left;background:none;border:none;padding:11px 16px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;font-family:inherit;border-bottom:1px solid #f1f5f9">Alterar senha</button>
+      <div id="user-menu-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 8px);background:var(--card);border-radius:10px;box-shadow:0 4px 24px rgba(0,0,0,.18);min-width:160px;overflow:hidden;z-index:2000">
+        <button onclick="abrirAlterarSenha();fecharUserMenu()" style="display:block;width:100%;text-align:left;background:none;border:none;padding:11px 16px;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;border-bottom:1px solid var(--sep)">Alterar senha</button>
         <form method="POST" action="/logout" style="margin:0">
-          <button type="submit" style="display:block;width:100%;text-align:left;background:none;border:none;padding:11px 16px;font-size:13px;font-weight:600;color:#dc2626;cursor:pointer;font-family:inherit">Sair</button>
+          <button type="submit" style="display:block;width:100%;text-align:left;background:none;border:none;padding:11px 16px;font-size:13px;font-weight:600;color:var(--red);cursor:pointer;font-family:inherit">Sair</button>
         </form>
       </div>
     </div>
@@ -283,35 +290,35 @@
 
 <!-- Modal alterar senha -->
 <div id="modal-senha" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:16px;padding:36px 32px;width:100%;max-width:360px;box-shadow:0 8px 40px rgba(0,0,0,.2);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <div style="background:var(--card);color:var(--text);border-radius:16px;padding:36px 32px;width:100%;max-width:360px;box-shadow:0 8px 40px rgba(0,0,0,.2);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
       <h3 style="font-size:16px;font-weight:800;color:#0f0f0f">Alterar senha</h3>
       <button onclick="fecharAlterarSenha()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#94a3b8;line-height:1">×</button>
     </div>
     <div id="msg-senha-modal" style="display:none;border-radius:8px;padding:10px 14px;font-size:12px;font-weight:600;margin-bottom:16px"></div>
     <div style="margin-bottom:14px">
-      <label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Senha atual</label>
+      <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Senha atual</label>
       <div style="position:relative">
-        <input type="password" id="inp-atual" placeholder="••••••••" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 40px 9px 12px;font-size:14px;outline:none;font-family:inherit" onfocus="this.style.borderColor='#e91e8c'" onblur="this.style.borderColor='#e2e8f0'">
+        <input type="password" id="inp-atual" placeholder="••••••••" style="width:100%;border:1.5px solid rgba(255,255,255,.15);border-radius:8px;padding:9px 40px 9px 12px;font-size:14px;outline:none;font-family:inherit;background:transparent;color:var(--text)" onfocus="this.style.borderColor='#e91e8c'" onblur="this.style.borderColor='rgba(255,255,255,.15)'">
         <button type="button" onclick="toggleModal('inp-atual',this)" tabindex="-1" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;padding:4px;display:flex;align-items:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
       </div>
     </div>
     <div style="margin-bottom:8px">
-      <label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Nova senha</label>
+      <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Nova senha</label>
       <div style="position:relative">
-        <input type="password" id="inp-nova" placeholder="••••••••" oninput="validarNovaSenha()" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 40px 9px 12px;font-size:14px;outline:none;font-family:inherit" onfocus="this.style.borderColor='#e91e8c'" onblur="this.style.borderColor='#e2e8f0'">
+        <input type="password" id="inp-nova" placeholder="••••••••" oninput="validarNovaSenha()" style="width:100%;border:1.5px solid rgba(255,255,255,.15);border-radius:8px;padding:9px 40px 9px 12px;font-size:14px;outline:none;font-family:inherit;background:transparent;color:var(--text)" onfocus="this.style.borderColor='#e91e8c'" onblur="this.style.borderColor='rgba(255,255,255,.15)'">
         <button type="button" onclick="toggleModal('inp-nova',this)" tabindex="-1" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;padding:4px;display:flex;align-items:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
       </div>
     </div>
-    <div id="reqs-modal" style="background:#f8f9fb;border-radius:8px;padding:8px 12px;margin-bottom:14px">
+    <div id="reqs-modal" style="background:rgba(255,255,255,.05);border-radius:8px;padding:8px 12px;margin-bottom:14px">
       <div id="rm-len" style="font-size:12px;color:#94a3b8;padding:2px 0">· 8 caracteres ou mais</div>
       <div id="rm-num" style="font-size:12px;color:#94a3b8;padding:2px 0">· 1 número</div>
       <div id="rm-esp" style="font-size:12px;color:#94a3b8;padding:2px 0">· 1 caractere especial (!@#$...)</div>
     </div>
     <div style="margin-bottom:20px">
-      <label style="display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Confirmar nova senha</label>
+      <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Confirmar nova senha</label>
       <div style="position:relative">
-        <input type="password" id="inp-confirm" placeholder="••••••••" oninput="validarNovaSenha()" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 40px 9px 12px;font-size:14px;outline:none;font-family:inherit" onfocus="this.style.borderColor='#e91e8c'" onblur="this.style.borderColor='#e2e8f0'">
+        <input type="password" id="inp-confirm" placeholder="••••••••" oninput="validarNovaSenha()" style="width:100%;border:1.5px solid rgba(255,255,255,.15);border-radius:8px;padding:9px 40px 9px 12px;font-size:14px;outline:none;font-family:inherit;background:transparent;color:var(--text)" onfocus="this.style.borderColor='#e91e8c'" onblur="this.style.borderColor='rgba(255,255,255,.15)'">
         <button type="button" onclick="toggleModal('inp-confirm',this)" tabindex="-1" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;padding:4px;display:flex;align-items:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
       </div>
     </div>
@@ -322,13 +329,13 @@
 <main class="main">
   <div id="secao-kpis-op" style="margin-bottom:36px;scroll-margin-top:64px">
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px">
-      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
-      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
-      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
-      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
-      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
-      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
-      <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
+      <div style="background:var(--card);border:1px solid var(--borda);border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
+      <div style="background:var(--card);border:1px solid var(--borda);border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
+      <div style="background:var(--card);border:1px solid var(--borda);border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
+      <div style="background:var(--card);border:1px solid var(--borda);border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
+      <div style="background:var(--card);border:1px solid var(--borda);border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
+      <div style="background:var(--card);border:1px solid var(--borda);border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
+      <div style="background:var(--card);border:1px solid var(--borda);border-radius:12px;padding:18px 20px"><div class="sk" style="width:60px;height:9px;margin-bottom:12px"></div><div class="sk" style="width:50px;height:30px;margin-bottom:8px"></div><div class="sk" style="width:80px;height:9px"></div></div>
     </div>
   </div>
   <div id="conteudo">
@@ -507,9 +514,9 @@
             ${[7,15,30,90].map(n => `<button class="ops-week-btn${opsPeriodoPreset===n?' ativo':''}" onclick="opsSetUltimosDias(${n})">Últimos ${n} dias</button>`).join('')}
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <input type="date" id="ops-periodo-inicio" value="${opsPeriodoI || ''}" style="border:1px solid var(--borda);border-radius:8px;padding:5px 10px;font-size:12px;font-family:inherit;outline:none" onchange="opsPeriodoPreset=null;opsAtualizarPeriodo()">
+            <input type="date" id="ops-periodo-inicio" value="${opsPeriodoI || ''}" style="border:1px solid var(--borda);border-radius:8px;padding:5px 10px;font-size:12px;font-family:inherit;outline:none;background:var(--card);color:var(--text)" onchange="opsPeriodoPreset=null;opsAtualizarPeriodo()">
             <span style="font-size:12px;color:var(--muted);font-weight:600">até</span>
-            <input type="date" id="ops-periodo-fim" value="${opsPeriodoF || ''}" style="border:1px solid var(--borda);border-radius:8px;padding:5px 10px;font-size:12px;font-family:inherit;outline:none" onchange="opsPeriodoPreset=null;opsAtualizarPeriodo()">
+            <input type="date" id="ops-periodo-fim" value="${opsPeriodoF || ''}" style="border:1px solid var(--borda);border-radius:8px;padding:5px 10px;font-size:12px;font-family:inherit;outline:none;background:var(--card);color:var(--text)" onchange="opsPeriodoPreset=null;opsAtualizarPeriodo()">
             <button class="ops-week-btn ativo" onclick="opsAplicarPeriodo()" style="padding:5px 18px">Aplicar</button>
           </div>
         </div>`;
@@ -686,7 +693,7 @@
     el.innerHTML = `<div style="display:flex;flex-direction:column;gap:16px;margin-bottom:24px">
       ${metaConfigs.map(mc => `
         <div style="background:${cardBg};border:1px solid var(--borda);border-radius:16px;padding:20px 20px 16px">
-          <div style="font-size:14px;font-weight:700;color:var(--preto);margin-bottom:2px">${mc.title}</div>
+          <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:2px">${mc.title}</div>
           <div style="font-size:11px;color:var(--muted);margin-bottom:14px">Clique na legenda para ligar ou desligar cada série</div>
           <div style="position:relative;height:${H}px"><canvas id="${mc.id}"></canvas></div>
           <div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:6px">${legendHtml}</div>
@@ -903,7 +910,7 @@
           const active = opsSortCol === key;
           const arr = active ? (opsSortDir > 0 ? ' ▲' : ' ▼') : ' <span style="opacity:.35">⇅</span>';
           const tipHtml = tip ? ` <span title="${tip}" style="cursor:help;opacity:.5;font-size:11px;font-weight:400">ⓘ</span>` : '';
-          return `<th class="${align||''}" onclick="sortOps('${key}')" style="cursor:pointer;user-select:none;color:${active?'var(--preto)':'var(--muted)'}">${label}${tipHtml}${arr}</th>`;
+          return `<th class="${align||''}" onclick="sortOps('${key}')" style="cursor:pointer;user-select:none;color:${active?'var(--text)':'var(--muted)'}">${label}${tipHtml}${arr}</th>`;
         }
         function snCnt(ids, label, cor) {
           if (!ids || !ids.length) return `<span style="color:var(--muted)">0</span>`;
@@ -929,7 +936,7 @@
             <td class="r">${fmtHora(u.tempo_enc_h)}${u.mediana_enc_h !== null ? `<div style="font-size:10px;color:var(--muted);font-weight:400">${fmtHora(u.mediana_enc_h)} med</div>` : ''}</td>
           </tr>`;
         }).join('');
-        const claudiaRow = claudia ? `<tr style="color:var(--muted);font-style:italic;border-top:2px solid #e2e8f0">
+        const claudiaRow = claudia ? `<tr style="color:var(--muted);font-style:italic;border-top:2px solid var(--sep)">
           <td>Retenção N1 (Claudia)</td>
           <td class="r">${claudia}</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
         </tr>` : '';
@@ -1019,7 +1026,7 @@
         : `<span style="color:var(--muted);font-style:italic">sem avaliação</span>`;
       return `<tr data-st="${t.status || ''}">
         <td style="white-space:nowrap;color:var(--muted)">${data}</td>
-        <td><a href="${link}" target="_blank" rel="noopener" style="color:var(--preto);font-weight:700;text-decoration:none">#${t.id}<svg width="9" height="9" style="margin-left:2px;vertical-align:middle" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></td>
+        <td><a href="${link}" target="_blank" rel="noopener" style="color:var(--text);font-weight:700;text-decoration:none">#${t.id}<svg width="9" height="9" style="margin-left:2px;vertical-align:middle" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></td>
         <td>${notaH}</td>
         <td style="font-size:12px;color:var(--text)">${fb}</td>
       </tr>`;
@@ -1292,9 +1299,9 @@
     }
     if (claudiaFilterMode === 'periodo') {
       return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <input type="date" id="claudia-periodo-inicio" value="${claudiaPeriodoI||''}" style="border:1px solid var(--borda);border-radius:8px;padding:5px 10px;font-size:12px;font-family:inherit;outline:none">
+        <input type="date" id="claudia-periodo-inicio" value="${claudiaPeriodoI||''}" style="border:1px solid var(--borda);border-radius:8px;padding:5px 10px;font-size:12px;font-family:inherit;outline:none;background:var(--card);color:var(--text)">
         <span style="font-size:12px;color:var(--muted)">até</span>
-        <input type="date" id="claudia-periodo-fim" value="${claudiaPeriodoF||''}" style="border:1px solid var(--borda);border-radius:8px;padding:5px 10px;font-size:12px;font-family:inherit;outline:none">
+        <input type="date" id="claudia-periodo-fim" value="${claudiaPeriodoF||''}" style="border:1px solid var(--borda);border-radius:8px;padding:5px 10px;font-size:12px;font-family:inherit;outline:none;background:var(--card);color:var(--text)">
         <button onclick="aplicarPeriodoClaudia()" style="background:var(--preto);color:#fff;border:none;border-radius:8px;padding:5px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Aplicar</button>
       </div>`;
     }
@@ -1605,7 +1612,7 @@
     function thBtn(key, label) {
       const active = outrosSortKey === key;
       const arr = active ? (outrosSortDir === -1 ? ' ▼' : ' ▲') : ' <span style="opacity:.35">⇅</span>';
-      return `<button onclick="sortOutros('${key}')" style="background:none;border:none;cursor:pointer;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:${active?'var(--preto)':'var(--muted)'};font-family:inherit;padding:0">${label}${arr}</button>`;
+      return `<button onclick="sortOutros('${key}')" style="background:none;border:none;cursor:pointer;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:${active?'var(--text)':'var(--muted)'};font-family:inherit;padding:0">${label}${arr}</button>`;
     }
     bodyEl.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0 10px;border-bottom:1px solid var(--borda);margin-bottom:6px">
@@ -1711,7 +1718,7 @@
       const agenteLabel = (!t.agente || t.agente === '(sem atribuição)') ? '—' : escHtml(t.agente);
       return `<tr>
         <td><a class="outros-link" href="${link}" target="_blank" rel="noopener">#${t.id}<svg width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-left:3px"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg></a></td>
-        <td style="color:var(--preto);font-size:11px">${agenteLabel}</td>
+        <td style="color:var(--text);font-size:11px">${agenteLabel}</td>
         <td style="color:${stCor};font-weight:600;font-size:11px;text-transform:capitalize">${t.status}</td>
         <td style="color:var(--muted);font-size:11px">${dataCriacao}</td>
       </tr>`;
@@ -2355,10 +2362,10 @@
     } else if (filterMode === 'periodo') {
       modeNavHtml = `<div class="mes-nav" style="flex-wrap:wrap;align-items:center">
         <span class="mes-nav-label">Período</span>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">De <input type="date" id="periodo-ini" style="padding:6px 10px;border:1px solid var(--borda);border-radius:8px;font-size:12px;font-family:inherit;color:var(--preto);background:#fff" /></label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">Até <input type="date" id="periodo-fim" style="padding:6px 10px;border:1px solid var(--borda);border-radius:8px;font-size:12px;font-family:inherit;color:var(--preto);background:#fff" /></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">De <input type="date" id="periodo-ini" style="padding:6px 10px;border:1px solid var(--borda);border-radius:8px;font-size:12px;font-family:inherit;color:var(--text);background:var(--card)" /></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)">Até <input type="date" id="periodo-fim" style="padding:6px 10px;border:1px solid var(--borda);border-radius:8px;font-size:12px;font-family:inherit;color:var(--text);background:var(--card)" /></label>
         <button style="padding:7px 18px;border-radius:8px;border:none;background:var(--rosa);color:#fff;font-size:12px;font-weight:700;cursor:pointer" onclick="verPeriodo()">Ver período</button>
-        ${periodoInicio||periodoFim ? `<button style="padding:7px 14px;border-radius:8px;border:1px solid var(--borda);background:#fff;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer" onclick="limparPeriodo()">✕ Limpar</button>` : ''}
+        ${periodoInicio||periodoFim ? `<button style="padding:7px 14px;border-radius:8px;border:1px solid var(--borda);background:var(--card);font-size:12px;font-weight:600;color:var(--muted);cursor:pointer" onclick="limparPeriodo()">✕ Limpar</button>` : ''}
       </div>`;
     } else if (filterMode === 'dia' && !selectedDay) {
       modeNavHtml = `<p style="font-size:12px;color:var(--muted);margin-bottom:20px">Selecione "Última coleta" para ver os dados do dia mais recente.</p>`;
