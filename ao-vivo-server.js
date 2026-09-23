@@ -49,6 +49,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   const router = express.Router();
   let _cache   = null;
   let _cacheTs = 0;
+  const _statusHistory = {}; // { agentName: { status, since_s } } — persiste entre requests, reseta no dyno restart
 
   // ── Helpers internos ────────────────────────────────────────────────────────
 
@@ -230,11 +231,18 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         c.labels?.includes('n2_ticket') && CFG.AGENTES.includes(c.meta?.assignee?.name)
       );
 
+      // Atualiza histórico de status (para calcular tempo no status atual)
+      for (const ag of CFG.AGENTES) {
+        const newSt = agentStatus?.[ag]?.status || null;
+        const prev  = _statusHistory[ag];
+        if (!prev || prev.status !== newSt) _statusHistory[ag] = { status: newSt, since_s: now_s };
+      }
+
       // Tabela por atendente: Na caixa (count + tickets) + status online
       const porAgente = {};
       for (const ag of CFG.AGENTES) {
         const st = agentStatus?.[ag] || null;
-        porAgente[ag] = { na_caixa: 0, pendentes: 0, tickets_pendentes: [], adiados: 0, tickets_adiados: [], sem_resp: 0, max_espera_min: null, status: st?.status || null, reason: st?.reason || null, emoji: st?.emoji || null, tickets: [] };
+        porAgente[ag] = { na_caixa: 0, pendentes: 0, tickets_pendentes: [], adiados: 0, tickets_adiados: [], sem_resp: 0, max_espera_min: null, status: st?.status || null, reason: st?.reason || null, emoji: st?.emoji || null, since_s: _statusHistory[ag]?.since_s || null, tickets: [] };
       }
       for (const conv of openConvs) {
         const key = CFG.AGENTES.find(x => x === conv.meta?.assignee?.name);
