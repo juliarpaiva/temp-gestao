@@ -163,7 +163,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       postFilter([N2A, ST('open')]),
       postFilter([N2A, ST('pending')]),
       postFilter([N2A, ST('snoozed')]),
-      postFilter([{ ...N2A, query_operator: 'AND' }, { ...CA(todayStartISO), query_operator: 'AND' }, { ...COM_AT, query_operator: null }]),
+      postFilter([CA(todayStartISO), { ...COM_AT, query_operator: null }]),  // todos tickets, não só N2
       postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
       postFilterAll([{ ...NAL }, ST('open')]),  // sem n2_ticket — espelha CloudChat; paginado p/ total exato
     ]);
