@@ -126,6 +126,27 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       } catch { return { count: 0, tickets: [] }; }
     };
 
+    // Versão paginada: busca todas as páginas até esgotar (max 10 páginas).
+    const postFilterAll = async (payload) => {
+      try {
+        const all = [];
+        let page = 1, total = null;
+        while (true) {
+          const r = await fetchCloudChat(
+            `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=${page}`,
+            token, 'POST', { payload }
+          );
+          const meta  = r?.meta || r?.data?.meta || {};
+          const items = r?.payload || r?.data?.payload || [];
+          if (total === null) total = meta.all_count ?? items.length;
+          all.push(...items);
+          if (all.length >= total || items.length === 0 || page >= 10) break;
+          page++;
+        }
+        return { count: total ?? all.length, tickets: all };
+      } catch { return { count: 0, tickets: [] }; }
+    };
+
     // Condição base: label n2_ticket (com AND para encadear)
     const N2A = { attribute_key: 'labels', filter_operator: 'equal_to', values: ['n2_ticket'], query_operator: 'AND' };
     // Status (último elemento → query_operator: null)
@@ -144,7 +165,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       postFilter([N2A, ST('snoozed')]),
       postFilter([{ ...N2A, query_operator: 'AND' }, { ...CA(todayStartISO), query_operator: 'AND' }, { ...COM_AT, query_operator: null }]),
       postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
-      postFilter([{ ...NAL }, ST('open')]),  // sem n2_ticket — espelha CloudChat
+      postFilterAll([{ ...NAL }, ST('open')]),  // sem n2_ticket — espelha CloudChat; paginado p/ total exato
     ]);
 
     return {
