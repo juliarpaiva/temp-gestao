@@ -119,8 +119,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     const ST  = (s)  => ({ attribute_key: 'status',      filter_operator: 'equal_to',      values: [s],              query_operator: null });
     // Data de criação >= ISO (intermediário → AND)
     const CA  = (iso) => ({ attribute_key: 'created_at', filter_operator: 'is_greater_than', values: [iso],           query_operator: 'AND' });
-    // Sem assignee (intermediário → AND)
-    const NA  = { attribute_key: 'assignee_id', filter_operator: 'is_not_present', values: [], query_operator: 'AND' };
+    // Com assignee (intermediário → AND)
+    const COM_AT = { attribute_key: 'assignee_id', filter_operator: 'is_present', values: [], query_operator: 'AND' };
 
     // Não atribuído: todas as conversas abertas sem assignee, sem filtro de label
     // (espelha o que CloudChat exibe na aba "Não atribuída")
@@ -129,7 +129,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       postFilter([N2A, ST('open')]),
       postFilter([N2A, ST('pending')]),
       postFilter([N2A, ST('snoozed')]),
-      postFilter([{ ...N2A, query_operator: 'AND' }, { ...CA(todayStartISO), query_operator: null }]),
+      postFilter([{ ...N2A, query_operator: 'AND' }, { ...CA(todayStartISO), query_operator: 'AND' }, { ...COM_AT, query_operator: null }]),
       postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
       postFilter([{ ...NAL }, ST('open')]),  // sem n2_ticket — espelha CloudChat
     ]);
