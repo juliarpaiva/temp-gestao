@@ -222,10 +222,14 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         const hoje      = naoAtrib.tickets.filter(c => c.created_at >= todayS).map(mt);
         const ontem     = naoAtrib.tickets.filter(c => c.created_at >= yesterdayS && c.created_at < todayS).map(mt);
         const anteriores= naoAtrib.tickets.filter(c => c.created_at < yesterdayS).map(mt);
+        const oldestCreatedAt = naoAtrib.tickets.length > 0
+          ? Math.min(...naoAtrib.tickets.map(c => c.created_at))
+          : null;
         return {
-          total:   naoAtrib.count,
-          tickets: naoAtrib.tickets.map(mt),
-          por_dia: { hoje, ontem, anteriores },
+          total:              naoAtrib.count,
+          tickets:            naoAtrib.tickets.map(mt),
+          por_dia:            { hoje, ontem, anteriores },
+          oldest_created_at:  oldestCreatedAt,
         };
       })(),
     };

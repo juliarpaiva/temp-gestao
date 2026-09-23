@@ -531,7 +531,12 @@ function renderAgoraGrid(av) {
           ${(naPorDia.hoje?.length     > 0) ? `<details class="ticket-dropdown"><summary class="ver-tickets-btn" style="color:var(--red)">Hoje: ${naPorDia.hoje.length}</summary><div class="ticket-pills">${naPorDia.hoje.map(t=>`<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}</div></details>` : ''}
           ${(naPorDia.ontem?.length    > 0) ? `<details class="ticket-dropdown"><summary class="ver-tickets-btn" style="color:var(--amber)">Ontem: ${naPorDia.ontem.length}</summary><div class="ticket-pills">${naPorDia.ontem.map(t=>`<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}</div></details>` : ''}
           ${(naPorDia.anteriores?.length > 0) ? `<details class="ticket-dropdown"><summary class="ver-tickets-btn" style="color:var(--muted)">Anteriores: ${naPorDia.anteriores.length}</summary><div class="ticket-pills">${naPorDia.anteriores.map(t=>`<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}</div></details>` : ''}
-        </div>` : ''}
+        </div>
+        ${naoAtrib.oldest_created_at ? (() => {
+          const mins  = Math.floor((Date.now() / 1000 - naoAtrib.oldest_created_at) / 60);
+          const color = mins >= 60 ? 'var(--red)' : mins >= 30 ? 'var(--amber)' : 'var(--muted)';
+          return `<div style="margin-top:10px;font-size:11px;font-weight:600;color:${color}">mais antigo na fila: há ${fmtSince(naoAtrib.oldest_created_at)}</div>`;
+        })() : ''}` : ''}
     </div>
 
     <div class="agora-card ${nCrit > 0 ? 'critico' : nAtenc > 0 ? 'alerta' : ''}">
