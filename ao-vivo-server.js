@@ -190,16 +190,15 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     // Não atribuído: todas as conversas abertas sem assignee, sem filtro de label
     // (espelha o que CloudChat exibe na aba "Não atribuída")
     const NAL = { attribute_key: 'assignee_id', filter_operator: 'is_not_present', values: [], query_operator: 'AND' };
-    const [open, pending, snoozed, novosRaw, resolvCriados, naoAtrib, resolvHoje, resolvRecentes, resolvTotalHoje] = await Promise.all([
+    const [open, pending, snoozed, novosRaw, resolvCriados, naoAtrib, resolvHoje, resolvRecentes] = await Promise.all([
       postFilter([N2A, ST('open')]),
       postFilter([N2A, ST('pending')]),
       postFilter([N2A, ST('snoozed')]),
       postFilterAll([CA(todayStartISO), { ...COM_AT, query_operator: null }]),  // todos tickets (paginado p/ filtrar por agente)
       postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
       postFilterAll([{ ...NAL }, ST('open')]),  // sem n2_ticket — espelha CloudChat; paginado p/ total exato
-      postFilterAll([CA(todayStartISO), { ...COM_AT, query_operator: 'AND' }, ST('resolved')]),  // resolvidos criados hoje
+      postFilterAll([CA(todayStartISO), { ...COM_AT, query_operator: 'AND' }, ST('resolved')]),  // resolvidos criados hoje (com assignee)
       postFilterAll([COM_AT, ST('resolved')], 5),  // resolvidos recentes (5 páginas) — captura 1ª resp dada hoje em tickets antigos
-      postFilter([CA(todayStartISO), ST('resolved')]),  // total geral criados e fechados hoje (sem filtro N2)
     ]);
 
     // Conta apenas tickets criados hoje atribuídos às agentes monitoradas (exclui N1/Claudia etc.)
@@ -211,7 +210,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       snoozed_count:       snoozed.count,
       novos_hoje:          novosHoje,
       resolv_criados_hoje: resolvCriados.count,
-      resolv_total_hoje:   resolvTotalHoje.count,
+      resolv_total_hoje:   resolvHoje.count,
       resolv_hoje_tickets:     resolvHoje.tickets,
       resolv_recentes_tickets: resolvRecentes.tickets,
       nao_atribuidos: (() => {
