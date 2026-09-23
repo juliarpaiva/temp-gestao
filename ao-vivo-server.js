@@ -1,5 +1,6 @@
 'use strict';
 const express = require('express');
+const { Pool } = require('pg');
 
 // ── Config — ajuste aqui ──────────────────────────────────────────────────────
 const CFG = {
@@ -49,7 +50,34 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   const router = express.Router();
   let _cache   = null;
   let _cacheTs = 0;
-  const _statusHistory = {}; // { agentName: { status, since_s } } — persiste entre requests, reseta no dyno restart
+  const _statusHistory = {}; // { agentName: { status, since_s } } — persiste no PostgreSQL entre reinicios
+  let _dbPool  = null;
+  let _dbReady = false;
+
+  // Inicializa tabela e carrega histórico persistido
+  (async () => {
+    try {
+      _dbPool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+      await _dbPool.query(`
+        CREATE TABLE IF NOT EXISTS support_bi.ao_vivo_agent_status (
+          agent      TEXT PRIMARY KEY,
+          status     TEXT,
+          since_s    BIGINT,
+          updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+      `);
+      const { rows } = await _dbPool.query(
+        'SELECT agent, status, since_s FROM support_bi.ao_vivo_agent_status'
+      );
+      for (const row of rows) {
+        _statusHistory[row.agent] = { status: row.status, since_s: Number(row.since_s) };
+      }
+      _dbReady = true;
+      console.log('[ao-vivo] status history carregado do DB:', rows.length, 'agentes');
+    } catch (e) {
+      console.error('[ao-vivo] DB init error:', e.message);
+    }
+  })();
 
   // ── Helpers internos ────────────────────────────────────────────────────────
 
@@ -235,10 +263,27 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       );
 
       // Atualiza histórico de status (para calcular tempo no status atual)
+      const _changedAgents = [];
       for (const ag of CFG.AGENTES) {
         const newSt = agentStatus?.[ag]?.status || null;
         const prev  = _statusHistory[ag];
-        if (!prev || prev.status !== newSt) _statusHistory[ag] = { status: newSt, since_s: now_s };
+        if (!prev || prev.status !== newSt) {
+          _statusHistory[ag] = { status: newSt, since_s: now_s };
+          _changedAgents.push(ag);
+        }
+      }
+      // Persiste mudanças no PostgreSQL (fire-and-forget)
+      if (_dbReady && _changedAgents.length > 0) {
+        Promise.all(_changedAgents.map(ag => {
+          const h = _statusHistory[ag];
+          return _dbPool.query(
+            `INSERT INTO support_bi.ao_vivo_agent_status (agent, status, since_s, updated_at)
+             VALUES ($1, $2, $3, NOW())
+             ON CONFLICT (agent) DO UPDATE
+               SET status = EXCLUDED.status, since_s = EXCLUDED.since_s, updated_at = NOW()`,
+            [ag, h.status, h.since_s]
+          );
+        })).catch(e => console.error('[ao-vivo] DB upsert error:', e.message));
       }
 
       // Tabela por atendente: Na caixa (count + tickets) + status online
