@@ -242,6 +242,7 @@
     .legenda strong { color: var(--muted); }
     .leg-amber { color: var(--amber); font-weight: 600; }
     .leg-red   { color: var(--red);   font-weight: 600; }
+    .leg-sep   { color: var(--sep); margin: 0 4px; }
 
     /* ── SLA detalhe ─────────────────────────────────────────────── */
     .sla-empty { padding: 16px 20px; font-size: 13px; font-weight: 600; color: var(--verde); }
@@ -415,9 +416,11 @@
       </tbody>
     </table>
     <div class="legenda">
-      <strong>1ª resp.</strong> — tickets em aberto sem nenhuma resposta enviada ainda.
-      ✓ = todos respondidos · "N sem · max Xmin" = N tickets aguardando, o mais antigo há X minutos (horas comerciais: 9h–18h30, seg–sex).
-      <span class="leg-amber">Âmbar</span> &gt; 45 min &nbsp;·&nbsp; <span class="leg-red">Vermelho</span> &gt; 1h.
+      <strong>1ª resp.</strong> — quantos tickets abertos ainda não receberam resposta.
+      <span class="leg-sep">·</span> ✓ todos respondidos
+      <span class="leg-sep">·</span> <span class="leg-amber">âmbar</span> aguardando &gt; 45 min
+      <span class="leg-sep">·</span> <span class="leg-red">vermelho</span> &gt; 1h
+      <span class="leg-sep">·</span> tempo em horas comerciais (9h–18h30, seg–sex)
     </div>
   </div>
 
