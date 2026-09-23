@@ -50,7 +50,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   const router = express.Router();
   let _cache   = null;
   let _cacheTs = 0;
-  const _statusHistory = {}; // { agentName: { status, since_s } } — persiste no PostgreSQL entre reinicios
+  const _statusHistory  = {}; // { agentName: { status, since_s } } — persiste no PostgreSQL entre reinicios
+  const _prevConfirmed  = {}; // { agentName: { status, since_s } } — estado confirmado antes da última transição (rollback)
   let _dbPool  = null;
   let _dbReady = false;
 
@@ -71,6 +72,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       );
       for (const row of rows) {
         _statusHistory[row.agent] = { status: row.status, since_s: Number(row.since_s) };
+        _prevConfirmed[row.agent] = { status: row.status, since_s: Number(row.since_s) }; // carregado do DB = já confirmado
       }
       _dbReady = true;
       console.log('[ao-vivo] status history carregado do DB:', rows.length, 'agentes');
@@ -264,14 +266,38 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         c.labels?.includes('n2_ticket') && CFG.AGENTES.includes(c.meta?.assignee?.name)
       );
 
-      // Atualiza histórico de status (para calcular tempo no status atual)
+      // Atualiza histórico de status com debounce de 1 poll:
+      // Se A → B → A em ciclos consecutivos (API pisca), restaura o since_s original do A.
+      // Só persiste a mudança se o novo status aparecer por ≥2 polls seguidos.
       const _changedAgents = [];
       for (const ag of CFG.AGENTES) {
         const newSt = agentStatus?.[ag]?.status || null;
         const prev  = _statusHistory[ag];
-        if (!prev || prev.status !== newSt) {
+
+        if (!prev) {
+          // Primeira vez — inicializa
           _statusHistory[ag] = { status: newSt, since_s: now_s };
+          _prevConfirmed[ag]  = null;
           _changedAgents.push(ag);
+          continue;
+        }
+
+        if (newSt === prev.status) {
+          // Estável — salva como confirmado
+          _prevConfirmed[ag] = prev;
+        } else {
+          const wasConfirmed = _prevConfirmed[ag];
+          if (wasConfirmed && wasConfirmed.status === newSt) {
+            // Voltou ao status anterior em 1 poll (piscou) — restaura since_s original
+            _statusHistory[ag] = wasConfirmed;
+            _prevConfirmed[ag]  = null;
+            _changedAgents.push(ag);
+          } else {
+            // Mudança genuína (persiste por ≥2 polls) — confirma
+            _prevConfirmed[ag]  = prev;
+            _statusHistory[ag] = { status: newSt, since_s: now_s };
+            _changedAgents.push(ag);
+          }
         }
       }
       // Persiste mudanças no PostgreSQL (fire-and-forget)
