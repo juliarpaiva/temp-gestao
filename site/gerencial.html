@@ -819,7 +819,7 @@
           const encoded = encodeURIComponent(JSON.stringify(ids));
           return `<button onclick="abrirAdiadosTickets(decodeURIComponent('${encoded}'),'${label}')" style="background:none;border:none;padding:0;cursor:pointer;font:inherit;font-weight:700;color:${cor}">${ids.length}</button>`;
         }
-        const agRows = unified.map(u => {
+        const agRows = unified.filter(u => (u.encerrados || 0) + (u.pendentes || 0) + (u.em_aberto || 0) + (u.adiados_total || 0) > 0).map(u => {
           const nome = u.agente === 'Fernanda Cavalcante' ? 'Fernanda' : u.agente;
           const trCor = u.tempo_resp_h !== null ? (u.tempo_resp_h <= 1 ? '#16a34a' : u.tempo_resp_h <= 2 ? '#ca8a04' : '#dc2626') : 'inherit';
           const adTotal = u.adiados_total > 0
@@ -886,10 +886,12 @@
     if (filterModeOp === 'dia') return;
     const el = document.getElementById('ops-chart-status');
     if (!el || !_opsUnified.length) return;
-    const labels     = _opsUnified.map(u => u.agente === 'Fernanda Cavalcante' ? 'Fernanda' : u.agente);
-    const encerrados = _opsUnified.map(u => u.encerrados || 0);
-    const pendentes  = _opsUnified.map(u => u.pendentes  || 0);
-    const emAberto   = _opsUnified.map(u => u.em_aberto  || 0);
+    const ativos     = _opsUnified.filter(u => (u.encerrados || 0) + (u.pendentes || 0) + (u.em_aberto || 0) > 0);
+    if (!ativos.length) { el.innerHTML = ''; return; }
+    const labels     = ativos.map(u => u.agente === 'Fernanda Cavalcante' ? 'Fernanda' : u.agente);
+    const encerrados = ativos.map(u => u.encerrados || 0);
+    const pendentes  = ativos.map(u => u.pendentes  || 0);
+    const emAberto   = ativos.map(u => u.em_aberto  || 0);
     const canvas = document.createElement('canvas');
     el.innerHTML = '';
     el.appendChild(canvas);
