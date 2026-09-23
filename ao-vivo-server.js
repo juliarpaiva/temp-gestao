@@ -52,13 +52,17 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
 
   // ── Helpers internos ────────────────────────────────────────────────────────
 
-  // Overview de agentes (status online/ausente). Retorna null se endpoint inexistente.
-  async function _fetchOverview() {
+  // Status dos agentes via /agents (availability_status: online/busy/offline).
+  async function _fetchAgentStatus() {
     try {
-      return await fetchCloudChat(
-        `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/reports/overview`,
+      const r = await fetchCloudChat(
+        `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/agents`,
         process.env.CLOUDCHAT_TOKEN
       );
+      const agents = Array.isArray(r) ? r : (r?.data || []);
+      const map = {};
+      for (const a of agents) if (a.name) map[a.name] = a.availability_status || null;
+      return map;
     } catch { return null; }
   }
 
@@ -164,8 +168,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       _d.setUTCHours(0, 0, 0, 0);
       const todayStartISO = new Date(_d.getTime() - _off).toISOString(); // 00:00 BRT → UTC ISO
 
-      const [overview, { convs: allOpenConvs, truncated }, n2Counts] = await Promise.all([
-        _fetchOverview(),
+      const [agentStatus, { convs: allOpenConvs, truncated }, n2Counts] = await Promise.all([
+        _fetchAgentStatus(),
         _fetchAllOpen(),
         _fetchN2Counts(todayStartISO),
       ]);
@@ -182,18 +186,10 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         c.labels?.includes('n2_ticket') && CFG.AGENTES.includes(c.meta?.assignee?.name)
       );
 
-      // Status dos agentes via overview (pode ser null se endpoint não existir)
-      const oAgents = overview?.data?.agents ||
-        (Array.isArray(overview?.agents) ? overview.agents : null);
-
       // Tabela por atendente: Na caixa (count + tickets) + status online
       const porAgente = {};
-      for (const ag of CFG.AGENTES) porAgente[ag] = { na_caixa: 0, status: null, tickets: [] };
-      if (oAgents) {
-        for (const a of oAgents) {
-          const key = CFG.AGENTES.find(x => x === a.name);
-          if (key) porAgente[key].status = a.availability_status || null;
-        }
+      for (const ag of CFG.AGENTES) {
+        porAgente[ag] = { na_caixa: 0, status: agentStatus?.[ag] || null, tickets: [] };
       }
       for (const conv of openConvs) {
         const key = CFG.AGENTES.find(x => x === conv.meta?.assignee?.name);
@@ -225,7 +221,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       const result = {
         ao_vivo: {
           updated_at:   new Date().toISOString(),
-          has_overview: !!oAgents,
+          has_overview: !!agentStatus,
           truncated,
 
           // Métricas HOJE — 100% CloudChat ao vivo (25s cache)
