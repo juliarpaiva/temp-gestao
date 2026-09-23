@@ -177,13 +177,22 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       snoozed_count:       snoozed.count,
       novos_hoje:          novosHoje,
       resolv_criados_hoje: resolvCriados.count,
-      nao_atribuidos: {
-        total:   naoAtrib.count,
-        tickets: naoAtrib.tickets.map(c => ({
-          id:   c.id,
-          link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}`,
-        })),
-      },
+      nao_atribuidos: (() => {
+        const off = CFG.BRT_OFFSET_H * 3600000;
+        const todayBRT = new Date(Date.now() + off);
+        todayBRT.setUTCHours(0, 0, 0, 0);
+        const todayS     = (todayBRT.getTime() - off) / 1000;
+        const yesterdayS = todayS - 86400;
+        const mt = c => ({ id: c.id, link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}` });
+        const hoje      = naoAtrib.tickets.filter(c => c.created_at >= todayS).map(mt);
+        const ontem     = naoAtrib.tickets.filter(c => c.created_at >= yesterdayS && c.created_at < todayS).map(mt);
+        const anteriores= naoAtrib.tickets.filter(c => c.created_at < yesterdayS).map(mt);
+        return {
+          total:   naoAtrib.count,
+          tickets: naoAtrib.tickets.map(mt),
+          por_dia: { hoje, ontem, anteriores },
+        };
+      })(),
     };
   }
 

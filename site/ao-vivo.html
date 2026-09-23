@@ -484,7 +484,8 @@ function ticketDropdown(tickets) {
 // ── AGORA ─────────────────────────────────────────────────────────────────────
 function renderAgoraGrid(av) {
   const agora    = av.agora || {};
-  const naoAtrib = agora.nao_atribuidos || { total: 0, tickets: [] };
+  const naoAtrib = agora.nao_atribuidos || { total: 0, tickets: [], por_dia: {} };
+  const naPorDia = naoAtrib.por_dia || {};
   const sla      = av.sla_risco || [];
   const nCrit    = sla.filter(s => s.nivel === 'critico').length;
   const nAtenc   = sla.filter(s => s.nivel === 'atencao').length;
@@ -515,7 +516,12 @@ function renderAgoraGrid(av) {
       <div class="agora-sub ${naoAtrib.total > 0 ? 'amber' : 'verde'}">
         ${naoAtrib.total > 0 ? 'aberto sem responsável' : 'todos atribuídos ✓'}
       </div>
-      ${ticketDropdown(naoAtrib.tickets)}
+      ${naoAtrib.total > 0 ? `
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
+          ${(naPorDia.hoje?.length     > 0) ? `<details class="ticket-dropdown"><summary class="ver-tickets-btn" style="color:var(--red)">Hoje: ${naPorDia.hoje.length}</summary><div class="ticket-pills">${naPorDia.hoje.map(t=>`<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}</div></details>` : ''}
+          ${(naPorDia.ontem?.length    > 0) ? `<details class="ticket-dropdown"><summary class="ver-tickets-btn" style="color:var(--amber)">Ontem: ${naPorDia.ontem.length}</summary><div class="ticket-pills">${naPorDia.ontem.map(t=>`<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}</div></details>` : ''}
+          ${(naPorDia.anteriores?.length > 0) ? `<details class="ticket-dropdown"><summary class="ver-tickets-btn" style="color:var(--muted)">Anteriores: ${naPorDia.anteriores.length}</summary><div class="ticket-pills">${naPorDia.anteriores.map(t=>`<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}</div></details>` : ''}
+        </div>` : ''}
     </div>
 
     <div class="agora-card ${nCrit > 0 ? 'critico' : nAtenc > 0 ? 'alerta' : ''}">
