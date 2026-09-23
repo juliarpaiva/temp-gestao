@@ -568,8 +568,9 @@ function renderAgoraGrid(av) {
 // ── HOJE ──────────────────────────────────────────────────────────────────────
 function renderHojeGrid(av) {
   const hoje   = av.hoje || {};
-  const novos  = hoje.novos              ?? '—';
-  const rcHoje = hoje.resolv_criados_hoje ?? '—';
+  const novos      = hoje.novos              ?? '—';
+  const rcHoje     = hoje.resolv_criados_hoje ?? '—';
+  const rcTotal    = hoje.resolv_total_hoje   ?? '—';
 
   document.getElementById('hoje-grid').innerHTML = `
     <div class="agora-card">
@@ -581,7 +582,7 @@ function renderHojeGrid(av) {
     <div class="agora-card">
       <div class="agora-label">Resolvidos criados hoje</div>
       <div class="agora-num" style="color:var(--verde)">${rcHoje}</div>
-      <div class="agora-sub">criados e fechados hoje</div>
+      <div class="agora-sub">N2 · ${rcTotal} no total</div>
     </div>
   `;
 }
