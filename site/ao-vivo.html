@@ -408,19 +408,19 @@
           <th>Em aberto</th>
           <th>Pendentes</th>
           <th>Adiados</th>
-          <th>1ª resp.</th>
+          <th title="Tickets abertos sem nenhuma resposta ainda. Âmbar acima de 45 min, vermelho acima de 1h (tempo comercial).">Esperando resposta ⓘ</th>
+          <th title="Média do tempo até a 1ª resposta em tickets respondidos hoje, em horas comerciais (9h–18h30, seg–sex). Respostas automáticas (menos de 1 min) são ignoradas.">Média 1ª resp. hoje ⓘ</th>
         </tr>
       </thead>
       <tbody id="agent-tbody">
-        <tr><td colspan="6" style="padding:20px;color:var(--label);font-size:13px">Carregando…</td></tr>
+        <tr><td colspan="7" style="padding:20px;color:var(--label);font-size:13px">Carregando…</td></tr>
       </tbody>
     </table>
     <div class="legenda">
-      <strong>1ª resp.</strong> — quantos tickets abertos ainda não receberam resposta.
-      <span class="leg-sep">·</span> ✓ todos respondidos
+      <strong>Esperando resposta</strong> — tickets abertos sem nenhuma reply. — = nenhum aguardando.
       <span class="leg-sep">·</span> <span class="leg-amber">âmbar</span> aguardando &gt; 45 min
       <span class="leg-sep">·</span> <span class="leg-red">vermelho</span> &gt; 1h
-      <span class="leg-sep">·</span> tempo em horas comerciais (9h–18h30, seg–sex)
+      <span class="leg-sep">·</span> <strong>Média 1ª resp. hoje</strong> — tempo médio até a 1ª resposta dos tickets respondidos hoje (horas comerciais 9h–18h30, seg–sex; respostas automáticas &lt; 1 min ignoradas).
     </div>
   </div>
 
@@ -601,19 +601,25 @@ function renderAgentTable(av) {
     const adiados   = vivo.adiados    ?? 0;
     const semResp   = vivo.sem_resp   ?? 0;
     const maxEspera = vivo.max_espera_min ?? null;
+    const avgResp   = vivo.avg_resp_min ?? null;
 
     const tdStatus = _hasOverview
       ? `<td>${statusHtml(vivo.status, vivo.reason, vivo.emoji, vivo.since_s)}</td>`
       : `<td style="display:none"></td>`;
 
-    // 1ª resposta: mostra "N sem resp · max Xmin" quando há tickets sem reply
-    let respHtml;
+    // Coluna 1: "Esperando resposta" — tickets abertos sem nenhuma reply ainda
+    let esperandoHtml;
     if (semResp === 0) {
-      respHtml = `<span class="td-resp">✓</span>`;
+      esperandoHtml = `<span class="td-resp muted">—</span>`;
     } else {
       const nivel = maxEspera >= SLA_CRITICO_MIN ? 'red' : maxEspera >= SLA_ATENCAO_MIN ? 'amber' : '';
-      respHtml = `<span class="td-resp${nivel ? ' ' + nivel : ''}">${semResp} sem · max ${fmtMin(maxEspera)}</span>`;
+      esperandoHtml = `<span class="td-resp${nivel ? ' ' + nivel : ''}">${semResp} cliente${semResp > 1 ? 's' : ''} · há ${fmtMin(maxEspera)}</span>`;
     }
+
+    // Coluna 2: "Média 1ª resp. hoje" — média em horas comerciais de todos respondidos hoje
+    const avgRespHtml = avgResp !== null
+      ? `<span class="td-resp">${fmtMin(avgResp)}</span>`
+      : `<span class="td-resp muted">—</span>`;
 
     return `<tr>
       <td class="td-nome">${DISP[ag] || ag}</td>
@@ -648,7 +654,8 @@ function renderAgentTable(av) {
              </details>`
           : `<span class="td-med muted">0</span>`}
       </td>
-      <td>${respHtml}</td>
+      <td>${esperandoHtml}</td>
+      <td>${avgRespHtml}</td>
     </tr>`;
   });
   document.getElementById('agent-tbody').innerHTML = rows.join('');
