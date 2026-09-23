@@ -251,6 +251,7 @@
     .btn-topo:hover { background: var(--rosa); transform: translateY(-2px); }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 </head>
 <body>
 
@@ -811,8 +812,8 @@
         function th(key, label, align, tip) {
           const active = opsSortCol === key;
           const arr = active ? (opsSortDir > 0 ? ' ▲' : ' ▼') : ' <span style="opacity:.35">⇅</span>';
-          const sub = tip ? `<div style="font-size:9px;font-weight:400;color:var(--label);margin-top:2px;white-space:normal;line-height:1.3">${tip}</div>` : '';
-          return `<th class="${align||''}" onclick="sortOps('${key}')" style="cursor:pointer;user-select:none;vertical-align:top;color:${active?'var(--text)':'var(--muted)'}">${label}${arr}${sub}</th>`;
+          const tipHtml = tip ? ` <span title="${tip}" style="cursor:help;opacity:.5;font-size:11px;font-weight:400">ⓘ</span>` : '';
+          return `<th class="${align||''}" onclick="sortOps('${key}')" style="cursor:pointer;user-select:none;color:${active?'var(--text)':'var(--muted)'}">${label}${tipHtml}${arr}</th>`;
         }
         function snCnt(ids, label, cor) {
           if (!ids || !ids.length) return `<span style="color:var(--muted)">0</span>`;
@@ -861,14 +862,14 @@
           <table class="ops-table">
             <thead><tr>
               ${th('agente','Agente','')}
-              ${th('encerrados','Encerrados','r','resolvidos no período')}
-              ${th('pendentes','Pendentes','r','aguardando terceiros')}
-              ${th('em_aberto','Em aberto','r','na caixa agora')}
-              ${th('adiados_total','Adiados','r','em snooze')}
-              ${th('csat','CSAT','r','avaliações positivas')}
-              ${th('tempo_fila_h','Fila','r','espera até atendente')}
-              ${th('tempo_resp_h','1ª Resposta','r','tempo p/ responder')}
-              ${th('tempo_enc_h','Encerramento','r','abertura → fechamento')}
+              ${th('encerrados','Encerrados','r','Tickets resolvidos no período')}
+              ${th('pendentes','Pendentes','r','Tickets aguardando resolução de terceiros')}
+              ${th('em_aberto','Em aberto','r','Tickets em andamento na caixa de entrada')}
+              ${th('adiados_total','Adiados','r','Tickets em snooze — retornam automaticamente na data agendada')}
+              ${th('csat','CSAT','r','Porcentagem de avaliações positivas do período')}
+              ${th('tempo_fila_h','Fila','r','Tempo médio que o cliente aguardou na fila após a Claudia transferir o ticket para atendente humano')}
+              ${th('tempo_resp_h','1ª Resposta','r','Tempo médio que a atendente levou para responder após receber o ticket')}
+              ${th('tempo_enc_h','Encerramento','r','Tempo médio do ticket desde a abertura até o encerramento')}
             </tr></thead>
             <tbody>${agRows}${claudiaRow}${outrosHeader}${emAbertoRow}</tbody>
           </table>
@@ -910,13 +911,20 @@
         responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { position: 'top', labels: { color: '#6b7280', font: { size: 11, weight: '600' }, boxWidth: 10, padding: 16 } },
-          tooltip: { backgroundColor: '#1d1e25', titleColor: '#e2e4ec', bodyColor: '#6b7280', borderColor: 'rgba(255,255,255,.07)', borderWidth: 1, padding: 10 }
+          tooltip: { backgroundColor: '#1d1e25', titleColor: '#e2e4ec', bodyColor: '#6b7280', borderColor: 'rgba(255,255,255,.07)', borderWidth: 1, padding: 10 },
+          datalabels: {
+            anchor: 'end', align: 'end',
+            color: '#9ca3af',
+            font: { size: 10, weight: '600' },
+            formatter: v => v > 0 ? v : null,
+          }
         },
         scales: {
           x: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#6b7280', font: { size: 11 } }, border: { display: false } },
           y: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#6b7280', font: { size: 10 } }, min: 0, border: { display: false } }
         }
-      }
+      },
+      plugins: [ChartDataLabels]
     });
   }
 
