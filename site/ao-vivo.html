@@ -800,10 +800,10 @@ function openTicketPanel(title, tickets) {
     }
     for (const [ag, tix] of Object.entries(byAgent)) {
       html += `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:12px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--sep);display:flex;justify-content:space-between;align-items:baseline">${ag}<span style="font-size:12px;color:var(--text)">${tix.length}</span></div>`;
-      html += tix.map(t => `<a class="tp-item" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('');
+      html += tix.map(t => `<a class="tp-item" href="${t.link}" target="_blank" rel="noreferrer" style="display:flex;align-items:center;justify-content:space-between">#${t.id}${t.created_today ? '<span style="width:7px;height:7px;border-radius:50%;background:var(--verde);flex-shrink:0"></span>' : ''}</a>`).join('');
     }
   } else {
-    html = list.map(t => `<a class="tp-item" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('');
+    html = list.map(t => `<a class="tp-item" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}${t.created_today ? '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--verde);margin-left:8px;vertical-align:middle;flex-shrink:0"></span>' : ''}</a>`).join('');
   }
   document.getElementById('tpList').innerHTML = html || '<span style="color:var(--muted);font-size:13px">Nenhum ticket</span>';
   document.getElementById('tpOverlay').classList.add('open');
