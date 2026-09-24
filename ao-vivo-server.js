@@ -387,8 +387,12 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           porAgente[ag]._antigos = (porAgente[ag]._antigos || 0) + 1;
         }
         // Tocado hoje: agente enviou mensagem (message_type=1) hoje neste ticket
-        // conv.messages inclui últimas msgs no objeto; se ausente, fallback para waiting_since
-        const lastMsgs = Array.isArray(conv.messages) ? conv.messages : null;
+        // conv.messages inclui últimas msgs no objeto; se ausente/vazio, fallback para waiting_since
+        if (!global._dbgMsgLogged && Array.isArray(conv.messages)) {
+          console.log('[ao-vivo dbg] conv.messages sample:', JSON.stringify(conv.messages?.slice(0,2)));
+          global._dbgMsgLogged = true;
+        }
+        const lastMsgs = (Array.isArray(conv.messages) && conv.messages.length > 0) ? conv.messages : null;
         let agentMsgTs = null;
         if (lastMsgs !== null) {
           // Usa messages: detecta envio real pelo agente hoje
