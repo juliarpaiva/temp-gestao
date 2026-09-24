@@ -574,11 +574,18 @@ function renderAgoraGrid(av) {
 }
 
 // ── HOJE ──────────────────────────────────────────────────────────────────────
+function pillsHtml(tickets) {
+  if (!tickets?.length) return '';
+  return `<div class="ticket-pills" style="margin-top:6px">${tickets.map(t => `<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}</div>`;
+}
+
 function renderHojeGrid(av) {
   const hoje   = av.hoje || {};
   const novos      = hoje.novos              ?? '—';
   const rcHoje     = hoje.resolv_criados_hoje ?? '—';
   const rcTotal    = hoje.resolv_total_hoje   ?? '—';
+  const rcHojeTix  = hoje.resolv_criados_hoje_tickets ?? [];
+  const rcTotalTix = hoje.resolv_total_hoje_tickets   ?? [];
 
   document.getElementById('hoje-grid').innerHTML = `
     <div class="agora-card">
@@ -589,8 +596,10 @@ function renderHojeGrid(av) {
 
     <div class="agora-card">
       <div class="agora-label">Resolvidos criados hoje</div>
-      <div class="agora-num" style="color:var(--verde)">${rcHoje}</div>
-      <div class="agora-sub">N2 · ${rcTotal} no total</div>
+      <div class="agora-num" style="color:var(--verde)">${rcTotal}</div>
+      <div class="agora-sub">todas as tags · monitoradas${rcTotalTix.length ? '' : ''}</div>
+      ${pillsHtml(rcTotalTix)}
+      ${rcHoje !== rcTotal && rcHoje !== '—' ? `<div class="agora-sub" style="margin-top:8px">N2: ${rcHoje}${pillsHtml(rcHojeTix)}</div>` : ''}
     </div>
   `;
 }
