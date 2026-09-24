@@ -145,6 +145,18 @@
     .agora-sub.red   { color: var(--red); }
     .agora-sub.verde { color: var(--verde); }
 
+    /* ── Disponibilidade ────────────────────────────────────────── */
+    .disp-card {
+      background: var(--surface); border: 1px solid var(--borda);
+      border-radius: var(--r); padding: 16px 18px;
+    }
+    .disp-agent { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 12px; }
+    .disp-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .disp-label { font-size: 12px; font-weight: 500; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .disp-bar-wrap { flex: 0 0 80px; height: 4px; background: var(--sep); border-radius: 2px; overflow: hidden; }
+    .disp-bar { height: 100%; border-radius: 2px; }
+    .disp-time { font-size: 11px; font-weight: 600; color: var(--muted); flex: 0 0 44px; text-align: right; font-variant-numeric: tabular-nums; }
+
     /* DW note small */
     .dw-inline { font-size: 11px; font-weight: 500; color: var(--label); margin-top: 6px; }
 
@@ -449,6 +461,16 @@
       <span class="leg-sep">·</span> <span class="leg-amber">âmbar</span> aguardando &gt; 45 min
       <span class="leg-sep">·</span> <span class="leg-red">vermelho</span> &gt; 1h
       <span class="leg-sep">·</span> <strong>Média 1ª resp. hoje</strong> — tempo médio até a 1ª resposta dos tickets respondidos hoje (horas comerciais 9h–18h30, seg–sex; respostas automáticas &lt; 1 min ignoradas).
+    </div>
+  </div>
+
+  <!-- DISPONIBILIDADE -->
+  <div class="section" id="disp-section">
+    <div class="sec-hdr">
+      <span class="sec-hdr-title">Disponibilidade hoje</span>
+    </div>
+    <div id="disp-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:4px">
+      <div style="color:var(--muted);font-size:13px;padding:12px">Carregando…</div>
     </div>
   </div>
 
@@ -773,9 +795,63 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// ── Disponibilidade ───────────────────────────────────────────────────────────
+const STATUS_COR = {
+  'Disponível':    '#22c55e',
+  'online':        '#22c55e',
+  'Almoço':        '#f59e0b',
+  'Intervalo':     '#f59e0b',
+  'busy':          '#f59e0b',
+  'Treinamento':   '#60a5fa',
+  'Reunião':       '#60a5fa',
+  'Desconectado':  '#6b7280',
+  'offline':       '#6b7280',
+};
+function dispCor(label) {
+  return STATUS_COR[label] || '#a78bfa';
+}
+function fmtSecs(s) {
+  if (!s || s < 60) return s ? `${Math.round(s)}s` : '—';
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h > 0 ? `${h}h${m > 0 ? m + 'm' : ''}` : `${m}min`;
+}
+
+async function fetchDisponibilidade() {
+  try {
+    const r = await fetch('/ao-vivo/disponibilidade');
+    if (!r.ok) return;
+    const data = await r.json();
+    const porAg = data.por_agente || {};
+    const ORDEM_DISP = ['Mari','Paty','Lu Almeida','Rafa','Fernanda Cavalcante'];
+    const grid = document.getElementById('disp-grid');
+    if (!grid) return;
+    const cards = ORDEM_DISP.map(ag => {
+      const statuses = porAg[ag] || {};
+      const total = Object.values(statuses).reduce((a, b) => a + b, 0);
+      if (total === 0) return '';
+      const sorted = Object.entries(statuses).sort((a, b) => b[1] - a[1]);
+      const rows = sorted.map(([label, secs]) => {
+        const pct = total > 0 ? Math.round(secs / total * 100) : 0;
+        const cor = dispCor(label);
+        return `<div class="disp-row">
+          <span class="disp-label" title="${label}">${label}</span>
+          <div class="disp-bar-wrap"><div class="disp-bar" style="width:${pct}%;background:${cor}"></div></div>
+          <span class="disp-time">${fmtSecs(secs)}</span>
+        </div>`;
+      }).join('');
+      const nome = DISP[ag] || ag;
+      return `<div class="disp-card"><div class="disp-agent">${nome}</div>${rows}</div>`;
+    }).filter(Boolean).join('');
+    grid.innerHTML = cards || '<span style="color:var(--muted);font-size:13px;padding:12px">Aguardando dados — as atendentes precisam trocar de status ao menos uma vez para aparecer aqui.</span>';
+  } catch (e) { console.warn('[disp]', e); }
+}
+
 fetchStatus();
+fetchDisponibilidade();
 startPolling();
 setInterval(() => { _countdown = Math.max(0, _countdown - 1); updateHdrCountdown(); }, 1000);
+setInterval(fetchDisponibilidade, 60_000);
 </script>
 
 <!-- Painel lateral de tickets -->
