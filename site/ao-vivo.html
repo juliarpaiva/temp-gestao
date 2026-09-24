@@ -596,10 +596,20 @@ function renderHojeGrid(av) {
 
     <div class="agora-card">
       <div class="agora-label">Resolvidos criados hoje</div>
-      <div class="agora-num" style="color:var(--verde)">${rcTotal}</div>
-      <div class="agora-sub">todas as tags · monitoradas${rcTotalTix.length ? '' : ''}</div>
-      ${pillsHtml(rcTotalTix)}
-      ${rcHoje !== rcTotal && rcHoje !== '—' ? `<div class="agora-sub" style="margin-top:8px">N2: ${rcHoje}${pillsHtml(rcHojeTix)}</div>` : ''}
+      ${rcTotalTix.length > 0
+        ? `<details class="ticket-dropdown">
+             <summary style="list-style:none;cursor:pointer">
+               <div class="agora-num" style="color:var(--verde)">${rcTotal}</div>
+             </summary>
+             <div class="agora-sub" style="margin-bottom:4px">todas as tags · monitoradas</div>
+             ${pillsHtml(rcTotalTix)}
+             ${rcHoje !== rcTotal && rcHoje !== '—' && rcHojeTix.length > 0
+               ? `<div class="agora-sub" style="margin-top:8px">N2: ${rcHoje}</div>${pillsHtml(rcHojeTix)}`
+               : (rcHoje !== rcTotal && rcHoje !== '—' ? `<div class="agora-sub" style="margin-top:6px">N2: ${rcHoje}</div>` : '')}
+           </details>`
+        : `<div class="agora-num" style="color:var(--verde)">${rcTotal}</div>
+           <div class="agora-sub">todas as tags · monitoradas</div>
+           ${rcHoje !== rcTotal && rcHoje !== '—' ? `<div class="agora-sub" style="margin-top:4px">N2: ${rcHoje}</div>` : ''}`}
     </div>
   `;
 }
@@ -688,7 +698,7 @@ function renderAgentTable(av) {
       <td>${avgRespHtml}</td>
       <td>${ticksTocados.length > 0
         ? `<details class="ticket-dropdown">
-             <summary class="td-med">${ativos}${ultimaAtiv ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;font-weight:400">última ${fmtHoraS(ultimaAtiv)}</div>` : ''}</summary>
+             <summary class="td-med">${ativos}${ultimaAtiv ? `<span style="display:block;font-size:11px;color:var(--muted);margin-top:2px;font-weight:400">última ${fmtHoraS(ultimaAtiv)}</span>` : ''}</summary>
              <div class="ticket-pills">
                ${ticksTocados.map(t => `<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}
              </div>
