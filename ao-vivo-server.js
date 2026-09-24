@@ -326,7 +326,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       const porAgente = {};
       for (const ag of CFG.AGENTES) {
         const st = agentStatus?.[ag] || null;
-        porAgente[ag] = { na_caixa: 0, pendentes: 0, tickets_pendentes: [], adiados: 0, tickets_adiados: [], sem_resp: 0, max_espera_min: null, status: st?.status || null, reason: st?.reason || null, emoji: st?.emoji || null, since_s: _statusHistory[ag]?.since_s || null, tickets: [], ativos_hoje: 0, ultima_ativ_s: null };
+        porAgente[ag] = { na_caixa: 0, pendentes: 0, tickets_pendentes: [], adiados: 0, tickets_adiados: [], sem_resp: 0, max_espera_min: null, status: st?.status || null, reason: st?.reason || null, emoji: st?.emoji || null, since_s: _statusHistory[ag]?.since_s || null, tickets: [], ativos_hoje: 0, tickets_tocados_hoje: [], ultima_ativ_s: null };
       }
       for (const conv of openConvs) {
         const key = CFG.AGENTES.find(x => x === conv.meta?.assignee?.name);
@@ -392,6 +392,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         if (firstReply && firstReply >= todayStartS) {
           // 1ª resposta dada hoje — conta com certeza
           porAgente[ag].ativos_hoje++;
+          porAgente[ag].tickets_tocados_hoje.push({ id: conv.id, link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${conv.id}` });
           if (!porAgente[ag].ultima_ativ_s || lastAct > porAgente[ag].ultima_ativ_s)
             porAgente[ag].ultima_ativ_s = lastAct;
         } else if (firstReply && firstReply < todayStartS && lastAct && lastAct >= todayStartS) {
@@ -411,6 +412,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
             const ts = cached.agentMsgsToday.get(ag);
             if (ts) {
               porAgente[ag].ativos_hoje++;
+              porAgente[ag].tickets_tocados_hoje.push({ id: cand.id, link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${cand.id}` });
               if (!porAgente[ag].ultima_ativ_s || ts > porAgente[ag].ultima_ativ_s)
                 porAgente[ag].ultima_ativ_s = ts;
             }
@@ -448,6 +450,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           const ts = agentMsgsToday?.get(ag);
           if (ts) {
             porAgente[ag].ativos_hoje++;
+            porAgente[ag].tickets_tocados_hoje.push({ id: convId, link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${convId}` });
             if (!porAgente[ag].ultima_ativ_s || ts > porAgente[ag].ultima_ativ_s)
               porAgente[ag].ultima_ativ_s = ts;
           }

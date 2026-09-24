@@ -617,8 +617,9 @@ function renderAgentTable(av) {
     const maxEspera = vivo.max_espera_min ?? null;
     const avgResp   = vivo.avg_resp_min     ?? null;
     const antigos   = vivo.antigos_atendidos ?? 0;
-    const ativos    = vivo.ativos_hoje      ?? 0;
-    const ultimaAtiv = vivo.ultima_ativ_s   ?? null;
+    const ativos         = vivo.ativos_hoje          ?? 0;
+    const ultimaAtiv     = vivo.ultima_ativ_s        ?? null;
+    const ticksTocados   = vivo.tickets_tocados_hoje ?? [];
 
     const tdStatus = _hasOverview
       ? `<td>${statusHtml(vivo.status, vivo.reason, vivo.emoji, vivo.since_s)}</td>`
@@ -676,8 +677,13 @@ function renderAgentTable(av) {
       </td>
       <td>${esperandoHtml}</td>
       <td>${avgRespHtml}</td>
-      <td>${ativos > 0
-        ? `<span class="td-med">${ativos}</span>${ultimaAtiv ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">última ${fmtHoraS(ultimaAtiv)}</div>` : ''}`
+      <td>${ticksTocados.length > 0
+        ? `<details class="ticket-dropdown">
+             <summary class="td-med">${ativos}${ultimaAtiv ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;font-weight:400">última ${fmtHoraS(ultimaAtiv)}</div>` : ''}</summary>
+             <div class="ticket-pills">
+               ${ticksTocados.map(t => `<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}
+             </div>
+           </details>`
         : `<span class="td-resp muted">—</span>`}</td>
     </tr>`;
   });
