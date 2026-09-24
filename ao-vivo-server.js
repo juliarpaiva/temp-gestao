@@ -388,11 +388,15 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         }
         // Tocado hoje: agente enviou mensagem (message_type=1) hoje neste ticket
         // conv.messages inclui últimas msgs no objeto; se ausente/vazio, fallback para waiting_since
-        if (!global._dbgMsgLogged && Array.isArray(conv.messages)) {
-          console.log('[ao-vivo dbg] conv.messages sample:', JSON.stringify(conv.messages?.slice(0,2)));
-          global._dbgMsgLogged = true;
-        }
         const lastMsgs = (Array.isArray(conv.messages) && conv.messages.length > 0) ? conv.messages : null;
+        if (!global._dbgConvLogged && conv.last_activity_at >= todayStartS) {
+          console.log('[ao-vivo dbg] conv sample:', JSON.stringify({
+            id: conv.id, last_activity_at: conv.last_activity_at, waiting_since: conv.waiting_since,
+            msgs_len: Array.isArray(conv.messages) ? conv.messages.length : 'none',
+            msgs_sample: conv.messages?.slice?.(0, 1)
+          }));
+          global._dbgConvLogged = true;
+        }
         let agentMsgTs = null;
         if (lastMsgs !== null) {
           // Usa messages: detecta envio real pelo agente hoje
@@ -405,10 +409,9 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
             }
           }
         } else {
-          // Fallback: last_activity_at hoje + waiting_since null (agente tem última palavra)
+          // Fallback: last_activity_at hoje (sem waiting_since pois pode estar ausente da API)
           const lastAct = conv.last_activity_at;
-          const waitingSince = conv.waiting_since;
-          if (lastAct && lastAct >= todayStartS && !waitingSince) agentMsgTs = lastAct;
+          if (lastAct && lastAct >= todayStartS) agentMsgTs = lastAct;
         }
         if (agentMsgTs) {
           porAgente[ag].ativos_hoje++;
