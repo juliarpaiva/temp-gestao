@@ -852,7 +852,7 @@ app.get('/kpis-semanais', async (req, res) => {
     `).catch(() => []);
 
     const [
-      volume, respondidos, mediaDiaria, csatTimeDW, csatClaudia, retencaoN1,
+      volume, novosMonitoradas, respondidos, mediaDiaria, csatTimeDW, csatClaudia, retencaoN1,
       tempoResposta, tempoEncerramento, medResposta, medEncerramento,
       volAnterior, retencaoAnterior, csatAnterior,
       porAgenteRows, snoozedRows,
@@ -862,6 +862,7 @@ app.get('/kpis-semanais', async (req, res) => {
       emAbertoAgenteRows, emAbertoOutrosRows,
     ] = await Promise.all([
       sqlScalar(`SELECT COUNT(ticket_id) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
+      sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE COALESCE(agent_on_resolution_name, first_agent_reply_name) IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz') AND created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT COUNT(*) FROM dw.fact_cloudchat_tickets WHERE ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz') AND resolved_at_local >= '${d0}' AND resolved_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(COUNT(*) * 1.0 / NULLIF(COUNT(DISTINCT DATE(created_at_local)), 0), 1) FROM dw.fact_cloudchat_tickets WHERE created_at_local >= '${d0}' AND created_at_local < '${d1}'`),
       sqlScalar(`SELECT ROUND(((AVG(csat_score) - 1) / 4.0 * 100)::numeric, 1) FROM dw.fact_cloudchat_tickets t WHERE csat_score IS NOT NULL AND t.agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz') AND t.created_at_local >= '${d0}' AND t.created_at_local < '${d1}' ${indevidasNotIn}`),
@@ -1016,6 +1017,7 @@ app.get('/kpis-semanais', async (req, res) => {
       meta_volume_por_agente: 45 * diasUteis,
       atual: {
         volume:               volume      ?? 0,
+        novos_monitoradas:    novosMonitoradas ?? 0,
         respondidos:          respondidos ?? 0,
         media_diaria:         mediaDiaria ?? 0,
         csat_time:            csatTime,

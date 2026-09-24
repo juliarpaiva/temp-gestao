@@ -715,9 +715,14 @@
 
       <div class="kpi-grid" style="grid-template-columns:repeat(auto-fill,minmax(155px,1fr));margin-bottom:20px">
         <div class="kpi">
-          <div class="kpi-label">Recebidos</div>
+          <div class="kpi-label">Recebidos (total)</div>
           <div class="ops-kpi-num">${atual.volume.toLocaleString('pt-BR')}</div>
-          <div class="kpi-sub flat" style="margin-top:6px">tickets criados no período</div>
+          <div class="kpi-sub flat" style="margin-top:6px">todos os tickets do período</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Novos monitoradas</div>
+          <div class="ops-kpi-num">${(atual.novos_monitoradas ?? 0).toLocaleString('pt-BR')}</div>
+          <div class="kpi-sub flat" style="margin-top:6px">tickets das 5 agentes</div>
         </div>
         <div class="kpi" style="border-left:4px solid ${volCor}">
           <div class="kpi-label">Resolvidos</div>
