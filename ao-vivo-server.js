@@ -224,7 +224,11 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       resolv_criados_hoje:         resolvCriados.count,
       resolv_criados_hoje_tickets: resolvCriados.tickets.map(mt),
       resolv_fechados_hoje:         fechadosHojeTickets.length,
-      resolv_fechados_hoje_tickets: fechadosHojeTickets.map(mt),
+      resolv_fechados_hoje_tickets: fechadosHojeTickets.map(c => ({
+        id:    c.id,
+        link:  `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}`,
+        agent: c.meta?.assignee?.name || '',
+      })),
       resolv_hoje_tickets:     resolvHoje.tickets,
       resolv_recentes_tickets: resolvRecentes.tickets,
       nao_atribuidos: (() => {

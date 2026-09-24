@@ -778,9 +778,23 @@ setInterval(() => { _countdown = Math.max(0, _countdown - 1); updateHdrCountdown
 <script>
 function openTicketPanel(title, tickets) {
   document.getElementById('tpTitle').textContent = title;
-  document.getElementById('tpList').innerHTML = (tickets || [])
-    .map(t => `<a class="tp-item" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`)
-    .join('') || '<span style="color:var(--muted);font-size:13px">Nenhum ticket</span>';
+  const list = tickets || [];
+  let html = '';
+  const hasAgent = list.some(t => t.agent);
+  if (hasAgent) {
+    const byAgent = {};
+    for (const t of list) {
+      const ag = t.agent || 'Sem agente';
+      (byAgent[ag] = byAgent[ag] || []).push(t);
+    }
+    for (const [ag, tix] of Object.entries(byAgent)) {
+      html += `<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:12px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--sep)">${ag}</div>`;
+      html += tix.map(t => `<a class="tp-item" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('');
+    }
+  } else {
+    html = list.map(t => `<a class="tp-item" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('');
+  }
+  document.getElementById('tpList').innerHTML = html || '<span style="color:var(--muted);font-size:13px">Nenhum ticket</span>';
   document.getElementById('tpOverlay').classList.add('open');
   document.getElementById('tpPanel').classList.add('open');
 }
