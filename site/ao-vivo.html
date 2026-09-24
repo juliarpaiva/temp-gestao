@@ -618,13 +618,24 @@ function renderHojeGrid(av) {
 
     <div class="agora-card">
       <div class="agora-label">Fechados hoje · monitoradas</div>
-      ${rcTotalTix.length > 0
-        ? `<button class="tp-trigger" onclick='openTicketPanel("Fechados hoje",${JSON.stringify(rcTotalTix)})'>
-             <div class="agora-num" style="color:var(--verde)">${rcTotal}</div>
-             <div class="agora-sub">todas as tags${rcHoje !== '—' && +rcHoje > 0 ? ` · N2: ${rcHoje} criados hoje` : ''}</div>
-           </button>`
-        : `<div class="agora-num" style="color:var(--verde)">${rcTotal}</div>
-           <div class="agora-sub">todas as tags${rcHoje !== '—' && +rcHoje > 0 ? ` · N2: ${rcHoje} criados hoje` : ''}</div>`}
+      ${(() => {
+        const barPct = (rcTotal !== '—' && rcHoje !== '—' && +rcTotal > 0)
+          ? Math.round(+rcHoje / +rcTotal * 100) : 0;
+        const barHtml = (rcHoje !== '—' && +rcHoje > 0 && rcTotal !== '—' && +rcTotal > 0)
+          ? `<div style="margin-top:8px">
+               <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:3px">
+                 <span>abertos hoje</span><span>${rcHoje} / ${rcTotal}</span>
+               </div>
+               <div style="height:4px;background:var(--sep);border-radius:2px;overflow:hidden">
+                 <div style="height:100%;width:${barPct}%;background:var(--verde);border-radius:2px;transition:width .4s"></div>
+               </div>
+             </div>` : '';
+        const inner = `<div class="agora-num" style="color:var(--verde)">${rcTotal}</div>
+             <div class="agora-sub">todas as tags</div>${barHtml}`;
+        return rcTotalTix.length > 0
+          ? `<button class="tp-trigger" onclick='openTicketPanel("Fechados hoje",${JSON.stringify(rcTotalTix)})'>${inner}</button>`
+          : inner;
+      })()}
     </div>
   `;
 }
