@@ -381,7 +381,7 @@
         <div class="dw-inline sk" style="height:13px;width:160px;margin-top:8px">&nbsp;</div>
       </div>
       <div class="agora-card">
-        <div class="agora-label">Resolvidos criados hoje</div>
+        <div class="agora-label">Fechados hoje · monitoradas</div>
         <div class="agora-num sk" style="height:56px;width:60px">&nbsp;</div>
       </div>
     </div>
@@ -578,10 +578,10 @@ function pillsHtml(tickets) {
 function renderHojeGrid(av) {
   const hoje   = av.hoje || {};
   const novos      = hoje.novos              ?? '—';
-  const rcHoje     = hoje.resolv_criados_hoje ?? '—';
-  const rcTotal    = hoje.resolv_total_hoje   ?? '—';
-  const rcHojeTix  = hoje.resolv_criados_hoje_tickets ?? [];
-  const rcTotalTix = hoje.resolv_total_hoje_tickets   ?? [];
+  const rcHoje     = hoje.resolv_criados_hoje          ?? '—';
+  const rcTotal    = hoje.resolv_fechados_hoje         ?? '—';
+  const rcTotalTix = hoje.resolv_fechados_hoje_tickets ?? [];
+  const rcHojeTix  = hoje.resolv_criados_hoje_tickets  ?? [];
 
   document.getElementById('hoje-grid').innerHTML = `
     <div class="agora-card">
@@ -591,19 +591,19 @@ function renderHojeGrid(av) {
     </div>
 
     <div class="agora-card" style="position:relative">
-      <div class="agora-label">Resolvidos criados hoje</div>
+      <div class="agora-label">Fechados hoje · monitoradas</div>
       ${rcTotalTix.length > 0
         ? `<details class="ticket-dropdown" style="display:block">
              <summary style="list-style:none;display:block;cursor:pointer">
                <div class="agora-num" style="color:var(--verde)">${rcTotal}</div>
-               <div class="agora-sub">todas as tags · monitoradas${rcHoje !== rcTotal && rcHoje !== '—' ? ` · N2: ${rcHoje}` : ''}</div>
+               <div class="agora-sub">todas as tags${rcHoje !== '—' && +rcHoje > 0 ? ` · N2: ${rcHoje} criados hoje` : ''}</div>
              </summary>
              <div class="ticket-pills">
                ${rcTotalTix.map(t => `<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}
              </div>
            </details>`
         : `<div class="agora-num" style="color:var(--verde)">${rcTotal}</div>
-           <div class="agora-sub">todas as tags · monitoradas${rcHoje !== rcTotal && rcHoje !== '—' ? ` · N2: ${rcHoje}` : ''}</div>`}
+           <div class="agora-sub">todas as tags${rcHoje !== '—' && +rcHoje > 0 ? ` · N2: ${rcHoje} criados hoje` : ''}</div>`}
     </div>
   `;
 }

@@ -205,7 +205,16 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     // Conta apenas tickets criados hoje atribuídos às agentes monitoradas (exclui N1/Claudia etc.)
     const novosHoje      = novosRaw.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name)).length;
     const mt = c => ({ id: c.id, link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}` });
-    const resolvTotalHojeTickets = resolvHoje.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name));
+    const todayStartS = Math.floor(new Date(todayStartISO).getTime() / 1000);
+    // Fechados hoje = resolvidos recentes com last_activity_at >= hoje + criados hoje já resolvidos
+    // Combina as duas fontes e deduplica por id
+    const fechadosHojeMap = new Map();
+    for (const c of [...resolvRecentes.tickets, ...resolvHoje.tickets]) {
+      if (CFG.AGENTES.includes(c.meta?.assignee?.name) && (c.last_activity_at || 0) >= todayStartS) {
+        fechadosHojeMap.set(c.id, c);
+      }
+    }
+    const fechadosHojeTickets = [...fechadosHojeMap.values()];
 
     return {
       open_count:          open.count,
@@ -214,8 +223,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       novos_hoje:          novosHoje,
       resolv_criados_hoje:         resolvCriados.count,
       resolv_criados_hoje_tickets: resolvCriados.tickets.map(mt),
-      resolv_total_hoje:           resolvTotalHojeTickets.length,
-      resolv_total_hoje_tickets:   resolvTotalHojeTickets.map(mt),
+      resolv_fechados_hoje:         fechadosHojeTickets.length,
+      resolv_fechados_hoje_tickets: fechadosHojeTickets.map(mt),
       resolv_hoje_tickets:     resolvHoje.tickets,
       resolv_recentes_tickets: resolvRecentes.tickets,
       nao_atribuidos: (() => {
@@ -488,11 +497,11 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
 
           // Métricas HOJE — 100% CloudChat ao vivo (25s cache)
           hoje: {
-            novos:                       n2Counts.novos_hoje,
-            resolv_criados_hoje:         n2Counts.resolv_criados_hoje,
-            resolv_criados_hoje_tickets: n2Counts.resolv_criados_hoje_tickets,
-            resolv_total_hoje:           n2Counts.resolv_total_hoje,
-            resolv_total_hoje_tickets:   n2Counts.resolv_total_hoje_tickets,
+            novos:                        n2Counts.novos_hoje,
+            resolv_criados_hoje:          n2Counts.resolv_criados_hoje,
+            resolv_criados_hoje_tickets:  n2Counts.resolv_criados_hoje_tickets,
+            resolv_fechados_hoje:         n2Counts.resolv_fechados_hoje,
+            resolv_fechados_hoje_tickets: n2Counts.resolv_fechados_hoje_tickets,
           },
 
           // Métricas AGORA (fotografia do estoque atual)
