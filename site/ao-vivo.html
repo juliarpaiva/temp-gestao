@@ -280,25 +280,56 @@
     .sla-inline-row  { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .sla-agent-sm    { font-size: 12px; font-weight: 700; color: var(--text); flex: 1; min-width: 30px; }
 
-    /* ── Ticket pills / dropdown ─────────────────────────────────── */
-    .ticket-dropdown { display: inline-block; position: relative; }
-    .ticket-dropdown summary { list-style: none; cursor: pointer; }
-    .ticket-dropdown summary::-webkit-details-marker { display: none; }
-    .ticket-pills {
-      display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 10px;
-      background: #13141a; border: 1px solid var(--sep);
-      border-radius: 8px; position: absolute; z-index: 30;
-      box-shadow: 0 8px 24px rgba(0,0,0,.5);
-      min-width: 140px; left: 0; top: calc(100% + 4px);
+    /* ── Painel lateral de tickets ───────────────────────────────── */
+    .tp-trigger {
+      background: none; border: none; padding: 0; cursor: pointer;
+      display: block; width: 100%; text-align: left;
     }
-    /* Dentro de <td>: block mas mantém posição absoluta para flutuar */
-    td .ticket-dropdown { display: block; position: relative; }
-    .ticket-pill {
-      font-size: 11px; font-weight: 700; color: var(--rosa);
-      text-decoration: none; padding: 2px 8px;
-      background: rgba(233,30,140,.12); border-radius: 4px; white-space: nowrap;
+    .tp-trigger:hover { opacity: .8; }
+    .tp-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,.45);
+      opacity: 0; pointer-events: none;
+      transition: opacity .18s;
     }
-    .ticket-pill:hover { background: rgba(233,30,140,.22); }
+    .tp-overlay.open { opacity: 1; pointer-events: auto; }
+    .tp-panel {
+      position: fixed; top: 0; right: 0; bottom: 0;
+      width: 300px; max-width: 90vw;
+      background: var(--surface); border-left: 1px solid var(--sep);
+      z-index: 201; display: flex; flex-direction: column;
+      transform: translateX(100%); transition: transform .2s ease;
+    }
+    .tp-panel.open { transform: translateX(0); }
+    .tp-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px; border-bottom: 1px solid var(--sep);
+    }
+    .tp-head-title { font-size: 13px; font-weight: 700; }
+    .tp-close {
+      cursor: pointer; background: none; border: none;
+      color: var(--muted); font-size: 16px; padding: 4px 8px;
+      border-radius: 4px; line-height: 1;
+    }
+    .tp-close:hover { background: var(--sep); color: var(--text); }
+    .tp-list {
+      flex: 1; overflow-y: auto; padding: 12px 14px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .tp-item {
+      display: block; padding: 8px 12px;
+      background: rgba(233,30,140,.08); border: 1px solid rgba(233,30,140,.15);
+      border-radius: 6px; color: var(--rosa); text-decoration: none;
+      font-size: 13px; font-weight: 700; transition: background .12s;
+    }
+    .tp-item:hover { background: rgba(233,30,140,.2); }
+    .ver-tickets-btn {
+      font-size: 11px; font-weight: 600; color: var(--label);
+      margin-top: 8px; display: inline-block;
+      border-bottom: 1px dashed var(--sep); background: none; border-top: none; border-left: none; border-right: none;
+      cursor: pointer; padding: 0;
+    }
+    .ver-tickets-btn:hover { color: var(--muted); }
     .ver-tickets-btn {
       font-size: 11px; font-weight: 600; color: var(--label);
       margin-top: 8px; display: inline-block;
@@ -484,14 +515,9 @@ function statusHtml(status, reason, emoji, since_s) {
   return `<span class="status status-offline">${status}${since}</span>`;
 }
 
-function ticketDropdown(tickets) {
+function ticketDropdown(tickets, label) {
   if (!tickets?.length) return '';
-  return `<details class="ticket-dropdown">
-    <summary class="ver-tickets-btn">ver ${tickets.length} ticket${tickets.length !== 1 ? 's' : ''}</summary>
-    <div class="ticket-pills">
-      ${tickets.map(t => `<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}
-    </div>
-  </details>`;
+  return `<button class="ver-tickets-btn" onclick='openTicketPanel(${JSON.stringify(label||"Tickets")},${JSON.stringify(tickets)})'>ver ${tickets.length} ticket${tickets.length !== 1 ? 's' : ''}</button>`;
 }
 
 // ── AGORA ─────────────────────────────────────────────────────────────────────
@@ -531,9 +557,9 @@ function renderAgoraGrid(av) {
       </div>
       ${naoAtrib.total > 0 ? `
         <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
-          ${(naPorDia.hoje?.length     > 0) ? `<details class="ticket-dropdown"><summary class="ver-tickets-btn" style="color:var(--red)">Hoje: ${naPorDia.hoje.length}</summary><div class="ticket-pills">${naPorDia.hoje.map(t=>`<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}</div></details>` : ''}
-          ${(naPorDia.ontem?.length    > 0) ? `<details class="ticket-dropdown"><summary class="ver-tickets-btn" style="color:var(--amber)">Ontem: ${naPorDia.ontem.length}</summary><div class="ticket-pills">${naPorDia.ontem.map(t=>`<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}</div></details>` : ''}
-          ${(naPorDia.anteriores?.length > 0) ? `<details class="ticket-dropdown"><summary class="ver-tickets-btn" style="color:var(--muted)">Anteriores: ${naPorDia.anteriores.length}</summary><div class="ticket-pills">${naPorDia.anteriores.map(t=>`<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}</div></details>` : ''}
+          ${(naPorDia.hoje?.length     > 0) ? `<button class="ver-tickets-btn" style="color:var(--red)" onclick='openTicketPanel("Sem resp. — hoje",${JSON.stringify(naPorDia.hoje)})'>Hoje: ${naPorDia.hoje.length}</button>` : ''}
+          ${(naPorDia.ontem?.length    > 0) ? `<button class="ver-tickets-btn" style="color:var(--amber)" onclick='openTicketPanel("Sem resp. — ontem",${JSON.stringify(naPorDia.ontem)})'>Ontem: ${naPorDia.ontem.length}</button>` : ''}
+          ${(naPorDia.anteriores?.length > 0) ? `<button class="ver-tickets-btn" style="color:var(--muted)" onclick='openTicketPanel("Sem resp. — anteriores",${JSON.stringify(naPorDia.anteriores)})'>Anteriores: ${naPorDia.anteriores.length}</button>` : ''}
         </div>
         ${naoAtrib.oldest_created_at ? (() => {
           const mins  = Math.floor((Date.now() / 1000 - naoAtrib.oldest_created_at) / 60);
@@ -590,18 +616,13 @@ function renderHojeGrid(av) {
       <div class="agora-sub">com atribuição</div>
     </div>
 
-    <div class="agora-card" style="position:relative">
+    <div class="agora-card">
       <div class="agora-label">Fechados hoje · monitoradas</div>
       ${rcTotalTix.length > 0
-        ? `<details class="ticket-dropdown" style="display:block">
-             <summary style="list-style:none;display:block;cursor:pointer">
-               <div class="agora-num" style="color:var(--verde)">${rcTotal}</div>
-               <div class="agora-sub">todas as tags${rcHoje !== '—' && +rcHoje > 0 ? ` · N2: ${rcHoje} criados hoje` : ''}</div>
-             </summary>
-             <div class="ticket-pills">
-               ${rcTotalTix.map(t => `<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}
-             </div>
-           </details>`
+        ? `<button class="tp-trigger" onclick='openTicketPanel("Fechados hoje",${JSON.stringify(rcTotalTix)})'>
+             <div class="agora-num" style="color:var(--verde)">${rcTotal}</div>
+             <div class="agora-sub">todas as tags${rcHoje !== '—' && +rcHoje > 0 ? ` · N2: ${rcHoje} criados hoje` : ''}</div>
+           </button>`
         : `<div class="agora-num" style="color:var(--verde)">${rcTotal}</div>
            <div class="agora-sub">todas as tags${rcHoje !== '—' && +rcHoje > 0 ? ` · N2: ${rcHoje} criados hoje` : ''}</div>`}
     </div>
@@ -660,43 +681,23 @@ function renderAgentTable(av) {
       ${tdStatus}
       <td>
         ${vivo.tickets?.length > 0
-          ? `<details class="ticket-dropdown">
-               <summary class="td-live rosa">${naCaixa}</summary>
-               <div class="ticket-pills">
-                 ${vivo.tickets.map(t => `<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}
-               </div>
-             </details>`
+          ? `<button class="tp-trigger" onclick='openTicketPanel("Na caixa — ${(DISP[ag]||ag).replace(/'/g,"\\'")}",${JSON.stringify(vivo.tickets)})'><span class="td-live rosa">${naCaixa}</span></button>`
           : `<span class="td-live muted">0</span>`}
       </td>
       <td>
         ${vivo.tickets_pendentes?.length > 0
-          ? `<details class="ticket-dropdown">
-               <summary class="td-med">${pendentes}</summary>
-               <div class="ticket-pills">
-                 ${vivo.tickets_pendentes.map(t => `<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}
-               </div>
-             </details>`
+          ? `<button class="tp-trigger" onclick='openTicketPanel("Pendentes — ${(DISP[ag]||ag).replace(/'/g,"\\'")}",${JSON.stringify(vivo.tickets_pendentes)})'><span class="td-med">${pendentes}</span></button>`
           : `<span class="td-med muted">0</span>`}
       </td>
       <td>
         ${vivo.tickets_adiados?.length > 0
-          ? `<details class="ticket-dropdown">
-               <summary class="td-med">${adiados}</summary>
-               <div class="ticket-pills">
-                 ${vivo.tickets_adiados.map(t => `<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}
-               </div>
-             </details>`
+          ? `<button class="tp-trigger" onclick='openTicketPanel("Adiados — ${(DISP[ag]||ag).replace(/'/g,"\\'")}",${JSON.stringify(vivo.tickets_adiados)})'><span class="td-med">${adiados}</span></button>`
           : `<span class="td-med muted">0</span>`}
       </td>
       <td>${esperandoHtml}</td>
       <td>${avgRespHtml}</td>
       <td>${ticksTocados.length > 0
-        ? `<details class="ticket-dropdown">
-             <summary class="td-med">${ativos}${ultimaAtiv ? `<span style="display:block;font-size:11px;color:var(--muted);margin-top:2px;font-weight:400">última ${fmtHoraS(ultimaAtiv)}</span>` : ''}</summary>
-             <div class="ticket-pills">
-               ${ticksTocados.map(t => `<a class="ticket-pill" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`).join('')}
-             </div>
-           </details>`
+        ? `<button class="tp-trigger" onclick='openTicketPanel("Tocados hoje — ${(DISP[ag]||ag).replace(/'/g,"\\'")}",${JSON.stringify(ticksTocados)})'><span class="td-med">${ativos}</span>${ultimaAtiv ? `<span style="display:block;font-size:11px;color:var(--muted);margin-top:2px">última ${fmtHoraS(ultimaAtiv)}</span>` : ''}</button>`
         : `<span class="td-resp muted">—</span>`}</td>
     </tr>`;
   });
@@ -763,6 +764,31 @@ document.addEventListener('visibilitychange', () => {
 fetchStatus();
 startPolling();
 setInterval(() => { _countdown = Math.max(0, _countdown - 1); updateHdrCountdown(); }, 1000);
+</script>
+
+<!-- Painel lateral de tickets -->
+<div class="tp-overlay" id="tpOverlay" onclick="closeTicketPanel()"></div>
+<aside class="tp-panel" id="tpPanel">
+  <div class="tp-head">
+    <span class="tp-head-title" id="tpTitle"></span>
+    <button class="tp-close" onclick="closeTicketPanel()">✕</button>
+  </div>
+  <div class="tp-list" id="tpList"></div>
+</aside>
+<script>
+function openTicketPanel(title, tickets) {
+  document.getElementById('tpTitle').textContent = title;
+  document.getElementById('tpList').innerHTML = (tickets || [])
+    .map(t => `<a class="tp-item" href="${t.link}" target="_blank" rel="noreferrer">#${t.id}</a>`)
+    .join('') || '<span style="color:var(--muted);font-size:13px">Nenhum ticket</span>';
+  document.getElementById('tpOverlay').classList.add('open');
+  document.getElementById('tpPanel').classList.add('open');
+}
+function closeTicketPanel() {
+  document.getElementById('tpOverlay').classList.remove('open');
+  document.getElementById('tpPanel').classList.remove('open');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTicketPanel(); });
 </script>
 </body>
 </html>
