@@ -386,40 +386,14 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           // Ticket antigo já respondido (antes de hoje) — está na fila hoje mas não conta na média
           porAgente[ag]._antigos = (porAgente[ag]._antigos || 0) + 1;
         }
-        // Tocado hoje: agente enviou mensagem (message_type=1) hoje neste ticket
-        // conv.messages inclui últimas msgs no objeto; se ausente/vazio, fallback para waiting_since
-        const lastMsgs = (Array.isArray(conv.messages) && conv.messages.length > 0) ? conv.messages : null;
-        if (!global._dbgConvLogged && conv.last_activity_at >= todayStartS) {
-          console.log('[ao-vivo dbg] conv sample:', JSON.stringify({
-            id: conv.id, last_activity_at: conv.last_activity_at, waiting_since: conv.waiting_since,
-            msgs_len: Array.isArray(conv.messages) ? conv.messages.length : 'none',
-            msgs_sample: conv.messages?.slice?.(0, 1)
-          }));
-          global._dbgConvLogged = true;
-        }
-        let agentMsgTs = null;
-        if (lastMsgs !== null) {
-          // Usa messages: detecta envio real pelo agente hoje
-          for (const m of lastMsgs) {
-            if (m.message_type === 1 && m.created_at >= todayStartS) {
-              const senderName = m.sender?.name || m.author?.name || '';
-              if (senderName === ag && (!agentMsgTs || m.created_at > agentMsgTs)) {
-                agentMsgTs = m.created_at;
-              }
-            }
-          }
-        } else {
-          // Follow-up: last_activity_at hoje + 1ª resposta foi ANTES de hoje (ticket antigo)
-          // Exclui tickets onde 1ª resposta foi dada hoje (esses já aparecem em "Respondidos")
-          const lastAct     = conv.last_activity_at;
-          const firstReply  = conv.first_reply_created_at;
-          const isFollowUp  = firstReply && firstReply < todayStartS;
-          if (lastAct && lastAct >= todayStartS && isFollowUp) agentMsgTs = lastAct;
-        }
-        if (agentMsgTs) {
+        // Tocados hoje: ticket teve resposta em algum momento (first_reply_created_at existe)
+        // E teve atividade hoje — inclui 1ª resp hoje + follow-ups; exclui tickets sem reply (snooze/atribuição pura)
+        const lastAct    = conv.last_activity_at;
+        const firstReply = conv.first_reply_created_at;
+        if (lastAct && lastAct >= todayStartS && firstReply) {
           porAgente[ag].ativos_hoje++;
-          if (!porAgente[ag].ultima_ativ_s || agentMsgTs > porAgente[ag].ultima_ativ_s) {
-            porAgente[ag].ultima_ativ_s = agentMsgTs;
+          if (!porAgente[ag].ultima_ativ_s || lastAct > porAgente[ag].ultima_ativ_s) {
+            porAgente[ag].ultima_ativ_s = lastAct;
           }
         }
       }
