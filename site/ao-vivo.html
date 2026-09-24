@@ -410,10 +410,11 @@
           <th>Adiados</th>
           <th title="Tickets abertos sem nenhuma resposta ainda. Âmbar acima de 45 min, vermelho acima de 1h (tempo comercial).">Esperando resposta ⓘ</th>
           <th title="Média do tempo até a 1ª resposta em tickets cujo 1º reply foi dado hoje, em horas comerciais (9h–18h30, seg–sex). Respostas automáticas (&lt;1 min) são ignoradas. Tickets antigos que já tinham resposta não entram no tempo médio.">Média 1ª resp. hoje ⓘ</th>
+          <th title="Tickets com qualquer atividade (last_activity_at) hoje nesta atendente. Inclui abertura, resposta, follow-up e mensagem do cliente. Mostra também a última movimentação.">Tocados hoje ⓘ</th>
         </tr>
       </thead>
       <tbody id="agent-tbody">
-        <tr><td colspan="7" style="padding:20px;color:var(--label);font-size:13px">Carregando…</td></tr>
+        <tr><td colspan="8" style="padding:20px;color:var(--label);font-size:13px">Carregando…</td></tr>
       </tbody>
     </table>
     <div class="legenda">
@@ -458,6 +459,12 @@ function fmtHora(isoOrPg) {
 function todayLabel() {
   const d = new Date();
   return `${DIAS_SEM[d.getDay()]} ${d.getDate()}/${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function fmtHoraS(s) {
+  if (!s) return null;
+  const d = new Date(s * 1000);
+  return `${String(d.getHours()).padStart(2,'0')}h${String(d.getMinutes()).padStart(2,'0')}`;
 }
 
 function fmtSince(since_s) {
@@ -610,6 +617,8 @@ function renderAgentTable(av) {
     const maxEspera = vivo.max_espera_min ?? null;
     const avgResp   = vivo.avg_resp_min     ?? null;
     const antigos   = vivo.antigos_atendidos ?? 0;
+    const ativos    = vivo.ativos_hoje      ?? 0;
+    const ultimaAtiv = vivo.ultima_ativ_s   ?? null;
 
     const tdStatus = _hasOverview
       ? `<td>${statusHtml(vivo.status, vivo.reason, vivo.emoji, vivo.since_s)}</td>`
@@ -667,6 +676,9 @@ function renderAgentTable(av) {
       </td>
       <td>${esperandoHtml}</td>
       <td>${avgRespHtml}</td>
+      <td>${ativos > 0
+        ? `<span class="td-med">${ativos}</span>${ultimaAtiv ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">última ${fmtHoraS(ultimaAtiv)}</div>` : ''}`
+        : `<span class="td-resp muted">—</span>`}</td>
     </tr>`;
   });
   document.getElementById('agent-tbody').innerHTML = rows.join('');

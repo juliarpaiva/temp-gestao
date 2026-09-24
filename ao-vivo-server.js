@@ -325,7 +325,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       const porAgente = {};
       for (const ag of CFG.AGENTES) {
         const st = agentStatus?.[ag] || null;
-        porAgente[ag] = { na_caixa: 0, pendentes: 0, tickets_pendentes: [], adiados: 0, tickets_adiados: [], sem_resp: 0, max_espera_min: null, status: st?.status || null, reason: st?.reason || null, emoji: st?.emoji || null, since_s: _statusHistory[ag]?.since_s || null, tickets: [] };
+        porAgente[ag] = { na_caixa: 0, pendentes: 0, tickets_pendentes: [], adiados: 0, tickets_adiados: [], sem_resp: 0, max_espera_min: null, status: st?.status || null, reason: st?.reason || null, emoji: st?.emoji || null, since_s: _statusHistory[ag]?.since_s || null, tickets: [], ativos_hoje: 0, ultima_ativ_s: null };
       }
       for (const conv of openConvs) {
         const key = CFG.AGENTES.find(x => x === conv.meta?.assignee?.name);
@@ -385,6 +385,14 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         } else if (firstReply && firstReply < todayStartS) {
           // Ticket antigo já respondido (antes de hoje) — está na fila hoje mas não conta na média
           porAgente[ag]._antigos = (porAgente[ag]._antigos || 0) + 1;
+        }
+        // last_activity_at >= hoje → conta como ticket tocado hoje por esta atendente
+        const lastAct = conv.last_activity_at;
+        if (lastAct && lastAct >= todayStartS) {
+          porAgente[ag].ativos_hoje++;
+          if (!porAgente[ag].ultima_ativ_s || lastAct > porAgente[ag].ultima_ativ_s) {
+            porAgente[ag].ultima_ativ_s = lastAct;
+          }
         }
       }
       for (const ag of CFG.AGENTES) {
