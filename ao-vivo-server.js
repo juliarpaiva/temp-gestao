@@ -409,9 +409,12 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
             }
           }
         } else {
-          // Fallback: last_activity_at hoje (sem waiting_since pois pode estar ausente da API)
-          const lastAct = conv.last_activity_at;
-          if (lastAct && lastAct >= todayStartS) agentMsgTs = lastAct;
+          // Follow-up: last_activity_at hoje + 1ª resposta foi ANTES de hoje (ticket antigo)
+          // Exclui tickets onde 1ª resposta foi dada hoje (esses já aparecem em "Respondidos")
+          const lastAct     = conv.last_activity_at;
+          const firstReply  = conv.first_reply_created_at;
+          const isFollowUp  = firstReply && firstReply < todayStartS;
+          if (lastAct && lastAct >= todayStartS && isFollowUp) agentMsgTs = lastAct;
         }
         if (agentMsgTs) {
           porAgente[ag].ativos_hoje++;
