@@ -627,8 +627,6 @@ function renderAgentTable(av) {
     let avgRespHtml;
     if (avgResp !== null) {
       avgRespHtml = `<span class="td-resp">${fmtMin(avgResp)}</span>`;
-    } else if (antigos > 0) {
-      avgRespHtml = `<span class="td-resp muted">sem ticket novo · ${antigos} antigo${antigos > 1 ? 's' : ''} atendido${antigos > 1 ? 's' : ''}</span>`;
     } else {
       avgRespHtml = `<span class="td-resp muted">—</span>`;
     }
