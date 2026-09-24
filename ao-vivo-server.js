@@ -387,16 +387,9 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           // Ticket antigo já respondido (antes de hoje) — está na fila hoje mas não conta na média
           porAgente[ag]._antigos = (porAgente[ag]._antigos || 0) + 1;
         }
-        // Tocados hoje: 1ª resposta hoje (certo) ou candidato a follow-up (busca msgs depois)
+        // Tocados hoje: ticket respondido em algum momento + atividade hoje → verifica msgs reais
         const lastAct = conv.last_activity_at;
-        if (firstReply && firstReply >= todayStartS) {
-          // 1ª resposta dada hoje — conta com certeza
-          porAgente[ag].ativos_hoje++;
-          porAgente[ag].tickets_tocados_hoje.push({ id: conv.id, link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${conv.id}` });
-          if (!porAgente[ag].ultima_ativ_s || lastAct > porAgente[ag].ultima_ativ_s)
-            porAgente[ag].ultima_ativ_s = lastAct;
-        } else if (firstReply && firstReply < todayStartS && lastAct && lastAct >= todayStartS) {
-          // Ticket antigo com atividade hoje — verificar msgs (coletamos para busca em lote)
+        if (firstReply && lastAct && lastAct >= todayStartS) {
           if (!porAgente[ag]._followUpCandidates) porAgente[ag]._followUpCandidates = [];
           porAgente[ag]._followUpCandidates.push({ id: conv.id, lastAct });
         }
