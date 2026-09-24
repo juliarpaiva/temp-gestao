@@ -535,7 +535,8 @@ function renderAgoraGrid(av) {
         ${naoAtrib.oldest_created_at ? (() => {
           const mins  = Math.floor((Date.now() / 1000 - naoAtrib.oldest_created_at) / 60);
           const color = mins >= 60 ? 'var(--red)' : mins >= 30 ? 'var(--amber)' : 'var(--muted)';
-          return `<div style="margin-top:10px;font-size:11px;font-weight:600;color:${color}">mais antigo na fila: há ${fmtSince(naoAtrib.oldest_created_at)}</div>`;
+          const link = naoAtrib.oldest_ticket?.link ? `<a href="${naoAtrib.oldest_ticket.link}" target="_blank" rel="noreferrer" style="color:inherit;text-decoration:underline;text-underline-offset:2px">#${naoAtrib.oldest_ticket.id}</a>` : '';
+          return `<div style="margin-top:10px;font-size:11px;font-weight:600;color:${color}">mais antigo na fila: há ${fmtSince(naoAtrib.oldest_created_at)}${link ? ' · ' + link : ''}</div>`;
         })() : ''}` : ''}
     </div>
 
