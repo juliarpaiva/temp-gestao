@@ -428,13 +428,12 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           },
 
           // Métricas AGORA (fotografia do estoque atual)
+          // Usa soma de porAgente para bater com os valores da tabela (sem filtro N2)
           agora: {
-            // Em aberto: soma dos tickets abertos atribuídos às atendentes monitoradas
-            // (sem filtro de label — mesma base da tabela, para bater com a planilha)
-            open:           openConvs.length,
-            pending:        n2Counts.pending_count,  // Pendentes agora
-            snoozed:        n2Counts.snoozed_count,  // Adiados agora
-            nao_atribuidos: n2Counts.nao_atribuidos, // open N2 sem assignee
+            open:           CFG.AGENTES.reduce((s, ag) => s + (porAgente[ag]?.na_caixa    || 0), 0),
+            pending:        CFG.AGENTES.reduce((s, ag) => s + (porAgente[ag]?.pendentes   || 0), 0),
+            snoozed:        CFG.AGENTES.reduce((s, ag) => s + (porAgente[ag]?.adiados     || 0), 0),
+            nao_atribuidos: n2Counts.nao_atribuidos,
           },
 
           por_agente: porAgente,
