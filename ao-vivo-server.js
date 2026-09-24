@@ -388,8 +388,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           porAgente[ag]._antigos = (porAgente[ag]._antigos || 0) + 1;
         }
         // Tocados hoje: 1ª resposta hoje (certo) ou candidato a follow-up (busca msgs depois)
-        const lastAct    = conv.last_activity_at;
-        const firstReply = conv.first_reply_created_at;
+        const lastAct = conv.last_activity_at;
         if (firstReply && firstReply >= todayStartS) {
           // 1ª resposta dada hoje — conta com certeza
           porAgente[ag].ativos_hoje++;
