@@ -50,7 +50,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   const router = express.Router();
   let _cache   = null;
   let _cacheTs = 0;
-  const _statusHistory  = {}; // { agentName: { status, since_s } } — persiste no PostgreSQL entre reinicios
+  const _statusHistory  = {};
+  const _convMsgCache   = new Map(); // conv_id → { lastAct, agentMsgsToday: Map<name,ts> } // { agentName: { status, since_s } } — persiste no PostgreSQL entre reinicios
   const _prevConfirmed  = {}; // { agentName: { status, since_s } } — estado confirmado antes da última transição (rollback)
   let _dbPool  = null;
   let _dbReady = false;
@@ -386,17 +387,74 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           // Ticket antigo já respondido (antes de hoje) — está na fila hoje mas não conta na média
           porAgente[ag]._antigos = (porAgente[ag]._antigos || 0) + 1;
         }
-        // Tocados hoje: ticket teve resposta em algum momento (first_reply_created_at existe)
-        // E teve atividade hoje — inclui 1ª resp hoje + follow-ups; exclui tickets sem reply (snooze/atribuição pura)
+        // Tocados hoje: 1ª resposta hoje (certo) ou candidato a follow-up (busca msgs depois)
         const lastAct    = conv.last_activity_at;
         const firstReply = conv.first_reply_created_at;
-        if (lastAct && lastAct >= todayStartS && firstReply) {
+        if (firstReply && firstReply >= todayStartS) {
+          // 1ª resposta dada hoje — conta com certeza
           porAgente[ag].ativos_hoje++;
-          if (!porAgente[ag].ultima_ativ_s || lastAct > porAgente[ag].ultima_ativ_s) {
+          if (!porAgente[ag].ultima_ativ_s || lastAct > porAgente[ag].ultima_ativ_s)
             porAgente[ag].ultima_ativ_s = lastAct;
+        } else if (firstReply && firstReply < todayStartS && lastAct && lastAct >= todayStartS) {
+          // Ticket antigo com atividade hoje — verificar msgs (coletamos para busca em lote)
+          if (!porAgente[ag]._followUpCandidates) porAgente[ag]._followUpCandidates = [];
+          porAgente[ag]._followUpCandidates.push({ id: conv.id, lastAct });
+        }
+      }
+      // Busca msgs para candidatos a follow-up (em paralelo, com cache por lastAct)
+      const token = process.env.CLOUDCHAT_TOKEN;
+      const followUpTasks = [];
+      for (const ag of CFG.AGENTES) {
+        for (const cand of (porAgente[ag]._followUpCandidates || [])) {
+          const cached = _convMsgCache.get(cand.id);
+          if (cached && cached.lastAct === cand.lastAct) {
+            // cache hit — aplica direto
+            const ts = cached.agentMsgsToday.get(ag);
+            if (ts) {
+              porAgente[ag].ativos_hoje++;
+              if (!porAgente[ag].ultima_ativ_s || ts > porAgente[ag].ultima_ativ_s)
+                porAgente[ag].ultima_ativ_s = ts;
+            }
+          } else {
+            followUpTasks.push({ ag, convId: cand.id, lastAct: cand.lastAct });
+          }
+        }
+        delete porAgente[ag]._followUpCandidates;
+      }
+      if (followUpTasks.length > 0) {
+        const uniqueConvIds = [...new Set(followUpTasks.map(t => t.convId))];
+        const msgResults = await Promise.all(uniqueConvIds.map(async (convId) => {
+          try {
+            const r = await fetchCloudChat(
+              `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${convId}/messages`,
+              token
+            );
+            const msgs = r?.payload || r?.data?.payload || [];
+            const agentMsgsToday = new Map();
+            for (const m of msgs) {
+              if (m.message_type === 1 && m.created_at >= todayStartS) {
+                const name = m.sender?.name || m.author?.name || '';
+                if (!agentMsgsToday.has(name) || m.created_at > agentMsgsToday.get(name))
+                  agentMsgsToday.set(name, m.created_at);
+              }
+            }
+            const task = followUpTasks.find(t => t.convId === convId);
+            _convMsgCache.set(convId, { lastAct: task?.lastAct, agentMsgsToday });
+            return { convId, agentMsgsToday };
+          } catch { return { convId, agentMsgsToday: new Map() }; }
+        }));
+        const msgsMap = new Map(msgResults.map(r => [r.convId, r.agentMsgsToday]));
+        for (const { ag, convId, lastAct } of followUpTasks) {
+          const agentMsgsToday = msgsMap.get(convId);
+          const ts = agentMsgsToday?.get(ag);
+          if (ts) {
+            porAgente[ag].ativos_hoje++;
+            if (!porAgente[ag].ultima_ativ_s || ts > porAgente[ag].ultima_ativ_s)
+              porAgente[ag].ultima_ativ_s = ts;
           }
         }
       }
+
       for (const ag of CFG.AGENTES) {
         const samples = porAgente[ag]._resp_samples;
         porAgente[ag].avg_resp_min = samples?.length
