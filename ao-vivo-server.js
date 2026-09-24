@@ -50,13 +50,44 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   const router = express.Router();
   let _cache   = null;
   let _cacheTs = 0;
-  const _statusHistory  = {};
-  const _convMsgCache   = new Map(); // conv_id → { lastAct, agentMsgsToday: Map<name,ts> } // { agentName: { status, since_s } } — persiste no PostgreSQL entre reinicios
-  const _prevConfirmed  = {}; // { agentName: { status, since_s } } — estado confirmado antes da última transição (rollback)
+  const _statusHistory  = {}; // { agentName: { status, reason, since_s } }
+  const _prevConfirmed  = {}; // estado confirmado antes da última transição (debounce)
+  const _statusAccum    = {}; // { 'YYYY-MM-DD|agente' → { label → segundos } }
+  const _convMsgCache   = new Map(); // conv_id → { lastAct, agentMsgsToday: Map<name,ts> }
   let _dbPool  = null;
   let _dbReady = false;
 
-  // Inicializa tabela e carrega histórico persistido
+  function _brtDateStr(ts_s) {
+    const d = new Date((ts_s * 1000) + (CFG.BRT_OFFSET_H * 3600000));
+    return d.toISOString().slice(0, 10);
+  }
+
+  function _accumAdd(date, agente, label, secs) {
+    if (!secs || secs < 5) return;
+    const key = `${date}|${agente}`;
+    if (!_statusAccum[key]) _statusAccum[key] = {};
+    _statusAccum[key][label] = (_statusAccum[key][label] || 0) + Math.round(secs);
+  }
+
+  async function _persistAccum(date, agente) {
+    if (!_dbReady) return;
+    const key = `${date}|${agente}`;
+    const data = _statusAccum[key];
+    if (!data) return;
+    try {
+      await _dbPool.query(
+        `INSERT INTO support_bi.agent_status_daily (date, agente, data)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (date, agente) DO UPDATE
+           SET data = support_bi.agent_status_daily.data || $3::jsonb`,
+        [date, agente, JSON.stringify(Object.fromEntries(
+          Object.entries(data).map(([k, v]) => [k, v])
+        ))]
+      );
+    } catch (e) { console.error('[ao-vivo] accum persist error:', e.message); }
+  }
+
+  // Inicializa tabelas e carrega histórico persistido
   (async () => {
     try {
       _dbPool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
@@ -64,19 +95,37 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         CREATE TABLE IF NOT EXISTS support_bi.ao_vivo_agent_status (
           agent      TEXT PRIMARY KEY,
           status     TEXT,
+          reason     TEXT,
           since_s    BIGINT,
           updated_at TIMESTAMPTZ DEFAULT NOW()
         )
       `);
-      const { rows } = await _dbPool.query(
-        'SELECT agent, status, since_s FROM support_bi.ao_vivo_agent_status'
-      );
+      await _dbPool.query(`ALTER TABLE support_bi.ao_vivo_agent_status ADD COLUMN IF NOT EXISTS reason TEXT`);
+      await _dbPool.query(`
+        CREATE TABLE IF NOT EXISTS support_bi.agent_status_daily (
+          date   DATE NOT NULL,
+          agente TEXT NOT NULL,
+          data   JSONB NOT NULL DEFAULT '{}',
+          PRIMARY KEY (date, agente)
+        )
+      `);
+      // Carrega status atual
+      const { rows } = await _dbPool.query('SELECT agent, status, reason, since_s FROM support_bi.ao_vivo_agent_status');
       for (const row of rows) {
-        _statusHistory[row.agent] = { status: row.status, since_s: Number(row.since_s) };
-        _prevConfirmed[row.agent] = { status: row.status, since_s: Number(row.since_s) }; // carregado do DB = já confirmado
+        _statusHistory[row.agent] = { status: row.status, reason: row.reason, since_s: Number(row.since_s) };
+        _prevConfirmed[row.agent] = { status: row.status, reason: row.reason, since_s: Number(row.since_s) };
+      }
+      // Carrega acumulado de hoje
+      const today = _brtDateStr(Date.now() / 1000);
+      const { rows: accRows } = await _dbPool.query(
+        `SELECT agente, data FROM support_bi.agent_status_daily WHERE date = $1`, [today]
+      );
+      for (const row of accRows) {
+        const key = `${today}|${row.agente}`;
+        _statusAccum[key] = row.data || {};
       }
       _dbReady = true;
-      console.log('[ao-vivo] status history carregado do DB:', rows.length, 'agentes');
+      console.log('[ao-vivo] DB carregado:', rows.length, 'status,', accRows.length, 'acumulados hoje');
     } catch (e) {
       console.error('[ao-vivo] DB init error:', e.message);
     }
@@ -296,45 +345,51 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       // Só persiste a mudança se o novo status aparecer por ≥2 polls seguidos.
       const _changedAgents = [];
       for (const ag of CFG.AGENTES) {
-        const newSt = agentStatus?.[ag]?.status || null;
-        const prev  = _statusHistory[ag];
+        const newSt     = agentStatus?.[ag]?.status || null;
+        const newReason = agentStatus?.[ag]?.reason || null;
+        const prev      = _statusHistory[ag];
 
         if (!prev) {
-          // Primeira vez — inicializa
-          _statusHistory[ag] = { status: newSt, since_s: now_s };
+          _statusHistory[ag] = { status: newSt, reason: newReason, since_s: now_s };
           _prevConfirmed[ag]  = null;
           _changedAgents.push(ag);
           continue;
         }
 
-        if (newSt === prev.status) {
-          // Estável — salva como confirmado
+        const sameState = newSt === prev.status && newReason === prev.reason;
+        if (sameState) {
           _prevConfirmed[ag] = prev;
         } else {
           const wasConfirmed = _prevConfirmed[ag];
-          if (wasConfirmed && wasConfirmed.status === newSt) {
-            // Voltou ao status anterior em 1 poll (piscou) — restaura since_s original
+          if (wasConfirmed && wasConfirmed.status === newSt && wasConfirmed.reason === newReason) {
+            // Piscou — restaura estado confirmado
             _statusHistory[ag] = wasConfirmed;
             _prevConfirmed[ag]  = null;
             _changedAgents.push(ag);
           } else {
-            // Mudança genuína (persiste por ≥2 polls) — confirma
+            // Mudança genuína — acumula duração do estado anterior
+            if (prev.since_s) {
+              const label = prev.reason || prev.status || 'Desconhecido';
+              const date  = _brtDateStr(prev.since_s);
+              _accumAdd(date, ag, label, now_s - prev.since_s);
+              _persistAccum(date, ag);
+            }
             _prevConfirmed[ag]  = prev;
-            _statusHistory[ag] = { status: newSt, since_s: now_s };
+            _statusHistory[ag] = { status: newSt, reason: newReason, since_s: now_s };
             _changedAgents.push(ag);
           }
         }
       }
-      // Persiste mudanças no PostgreSQL (fire-and-forget)
+      // Persiste estado atual no PostgreSQL (fire-and-forget)
       if (_dbReady && _changedAgents.length > 0) {
         Promise.all(_changedAgents.map(ag => {
           const h = _statusHistory[ag];
           return _dbPool.query(
-            `INSERT INTO support_bi.ao_vivo_agent_status (agent, status, since_s, updated_at)
-             VALUES ($1, $2, $3, NOW())
+            `INSERT INTO support_bi.ao_vivo_agent_status (agent, status, reason, since_s, updated_at)
+             VALUES ($1, $2, $3, $4, NOW())
              ON CONFLICT (agent) DO UPDATE
-               SET status = EXCLUDED.status, since_s = EXCLUDED.since_s, updated_at = NOW()`,
-            [ag, h.status, h.since_s]
+               SET status = EXCLUDED.status, reason = EXCLUDED.reason, since_s = EXCLUDED.since_s, updated_at = NOW()`,
+            [ag, h.status, h.reason, h.since_s]
           );
         })).catch(e => console.error('[ao-vivo] DB upsert error:', e.message));
       }
@@ -528,6 +583,58 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     } catch (e) {
       console.error('[ao-vivo]', e.message);
       if (_cache) return res.json({ ..._cache, _stale: true });
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Disponibilidade por agente: hoje ou range
+  router.get('/ao-vivo/disponibilidade', async (req, res) => {
+    if (!_dbReady) return res.status(503).json({ error: 'DB não pronto' });
+    try {
+      const now_s  = Date.now() / 1000;
+      const today  = _brtDateStr(now_s);
+      const from   = req.query.from || today;
+      const to     = req.query.to   || today;
+
+      // Busca dados persistidos do período
+      const { rows } = await _dbPool.query(
+        `SELECT date::text AS date, agente, data FROM support_bi.agent_status_daily
+         WHERE date >= $1 AND date <= $2 ORDER BY date, agente`,
+        [from, to]
+      );
+
+      // Mescla com acumulado em memória de hoje (pode ter dados mais recentes)
+      const result = {};
+      for (const row of rows) {
+        if (!result[row.agente]) result[row.agente] = {};
+        for (const [label, secs] of Object.entries(row.data || {})) {
+          result[row.agente][label] = (result[row.agente][label] || 0) + Number(secs);
+        }
+      }
+      // Acumulado in-memory de hoje (dias dentro do range)
+      if (from <= today && today <= to) {
+        for (const ag of CFG.AGENTES) {
+          const key  = `${today}|${ag}`;
+          const mem  = _statusAccum[key] || {};
+          if (!result[ag]) result[ag] = {};
+          for (const [label, secs] of Object.entries(mem)) {
+            result[ag][label] = (result[ag][label] || 0) + Number(secs);
+          }
+          // Adiciona tempo no status atual (ainda não houve mudança)
+          const cur = _statusHistory[ag];
+          if (cur && cur.since_s) {
+            const curDate = _brtDateStr(cur.since_s);
+            if (curDate === today) {
+              const label = cur.reason || cur.status || 'Desconhecido';
+              result[ag][label] = (result[ag][label] || 0) + Math.round(now_s - cur.since_s);
+            }
+          }
+        }
+      }
+
+      res.json({ from, to, por_agente: result });
+    } catch (e) {
+      console.error('[ao-vivo] disponibilidade error:', e.message);
       res.status(500).json({ error: e.message });
     }
   });
