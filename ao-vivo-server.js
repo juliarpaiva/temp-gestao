@@ -202,7 +202,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     ]);
 
     // Conta apenas tickets criados hoje atribuídos às agentes monitoradas (exclui N1/Claudia etc.)
-    const novosHoje = novosRaw.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name)).length;
+    const novosHoje      = novosRaw.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name)).length;
+    const resolvTotalHoje = resolvHoje.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name)).length;
 
     return {
       open_count:          open.count,
@@ -210,7 +211,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       snoozed_count:       snoozed.count,
       novos_hoje:          novosHoje,
       resolv_criados_hoje: resolvCriados.count,
-      resolv_total_hoje:   resolvHoje.count,
+      resolv_total_hoje:   resolvTotalHoje,
       resolv_hoje_tickets:     resolvHoje.tickets,
       resolv_recentes_tickets: resolvRecentes.tickets,
       nao_atribuidos: (() => {
