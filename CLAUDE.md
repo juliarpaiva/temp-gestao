@@ -15,13 +15,13 @@ Metabase API → Node/Express no Heroku (cron diário) → PostgreSQL (support_b
 1. Cron roda às 7h todo dia útil (seg–sex) via `node-cron`
 2. Autentica no Metabase e busca TODAS as avaliações CSAT do dia útil anterior (sem filtro de nota)
 3. Separa: avaliados negativos (nota ≤ 3) e positivos (nota ≥ 4)
-4. Filtra para agentes monitoradas: Mari, Fernanda (Fer), Paty, Lu Almeida, Rafa
+4. Filtra para agentes monitoradas: Mari, Fernanda (Fer), Paty, Lu Almeida, Rafa, Natchely
 5. Busca tags de todos os tickets (negativos + positivos das monitoradas)
 6. Calcula métricas e salva no PostgreSQL com chave `date` (nunca sobrescreve)
 7. Expõe endpoints GET para o site consumir
 
 ## Agentes monitoradas
-Mari, Fernanda (Fer), Paty, Lu Almeida, Rafa — todas as demais agentes
+Mari, Fernanda (Fer), Paty, Lu Almeida, Rafa, Natchely — todas as demais agentes
 são excluídas dos dados por agente (mas contam nos totais globais).
 
 ## Dados salvos por dia (JSONB na coluna `data`)

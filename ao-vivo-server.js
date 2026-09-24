@@ -111,12 +111,16 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       `);
       // Carrega status atual
       const { rows } = await _dbPool.query('SELECT agent, status, reason, since_s FROM support_bi.ao_vivo_agent_status');
+      const initNow = Date.now() / 1000;
+      const today = _brtDateStr(initNow);
       for (const row of rows) {
-        _statusHistory[row.agent] = { status: row.status, reason: row.reason, since_s: Number(row.since_s) };
-        _prevConfirmed[row.agent] = { status: row.status, reason: row.reason, since_s: Number(row.since_s) };
+        const since_s = Number(row.since_s);
+        // Se since_s é de um dia anterior, reseta para agora (evita curDate !== today no endpoint)
+        const effectiveSince = _brtDateStr(since_s) < today ? initNow : since_s;
+        _statusHistory[row.agent] = { status: row.status, reason: row.reason, since_s: effectiveSince };
+        _prevConfirmed[row.agent] = { status: row.status, reason: row.reason, since_s: effectiveSince };
       }
       // Carrega acumulado de hoje
-      const today = _brtDateStr(Date.now() / 1000);
       const { rows: accRows } = await _dbPool.query(
         `SELECT agente, data FROM support_bi.agent_status_daily WHERE date = $1`, [today]
       );

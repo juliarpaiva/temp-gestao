@@ -823,7 +823,7 @@ async function fetchDisponibilidade() {
     if (!r.ok) return;
     const data = await r.json();
     const porAg = data.por_agente || {};
-    const ORDEM_DISP = ['Mari','Paty','Lu Almeida','Rafa','Fernanda Cavalcante'];
+    const ORDEM_DISP = ['Mari','Paty','Lu Almeida','Rafa','Fernanda Cavalcante','Natchely Ortiz'];
     const grid = document.getElementById('disp-grid');
     if (!grid) return;
     const cards = ORDEM_DISP.map(ag => {

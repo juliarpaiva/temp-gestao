@@ -249,6 +249,15 @@
     .btn-topo { position: fixed; bottom: 28px; right: 28px; z-index: 200; background: var(--preto); color: #fff; border: none; border-radius: 50%; width: 44px; height: 44px; font-size: 18px; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.2); opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; display: flex; align-items: center; justify-content: center; }
     .btn-topo.visivel { opacity: 1; pointer-events: auto; }
     .btn-topo:hover { background: var(--rosa); transform: translateY(-2px); }
+
+    /* DISPONIBILIDADE */
+    .disp-card { background: var(--card); border: 1px solid var(--borda); border-radius: 12px; padding: 16px 18px; }
+    .disp-agent { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 12px; }
+    .disp-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+    .disp-label { font-size: 12px; font-weight: 500; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .disp-bar-wrap { flex: 0 0 80px; height: 4px; background: var(--sep); border-radius: 2px; overflow: hidden; }
+    .disp-bar { height: 100%; border-radius: 2px; }
+    .disp-time { font-size: 11px; font-weight: 600; color: var(--muted); min-width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
@@ -369,6 +378,8 @@
     </div>
   </div>
 
+
+  <div id="secao-disponibilidade-op" style="margin-bottom:36px;scroll-margin-top:64px"></div>
 
   <div id="secao-claudia" style="margin-bottom:36px;scroll-margin-top:64px">
     <div class="section-head">Painel Claudia — Retenção N1</div>
@@ -886,6 +897,65 @@
       })()}
       `;
     renderGraficoStatus();
+    renderDispOp();
+  }
+
+  // ── Disponibilidade histórica por período ─────────────────────────────────
+  const _DISP_COR = {
+    'Disponível':'#22c55e','online':'#22c55e',
+    'Almoço':'#f59e0b','Intervalo':'#f59e0b','busy':'#f59e0b',
+    'Treinamento':'#60a5fa','Reunião':'#60a5fa',
+    'Desconectado':'#6b7280','offline':'#6b7280',
+  };
+  function _dispCor(label) { return _DISP_COR[label] || '#a78bfa'; }
+  function _fmtSecs(s) {
+    if (!s || s < 60) return s ? `${Math.round(s)}s` : '—';
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+    return h > 0 ? `${h}h${m > 0 ? m + 'm' : ''}` : `${m}min`;
+  }
+
+  async function renderDispOp() {
+    const el = document.getElementById('secao-disponibilidade-op');
+    if (!el) return;
+    if (!kpisOp) { el.innerHTML = ''; return; }
+    const from = kpisOp.semana;
+    const to   = kpisOp.semana_fim || kpisOp.semana;
+    el.innerHTML = `<div class="section-head">Disponibilidade — ${opsPeriodoLabel()}</div><div class="painel" style="padding:20px 22px"><p style="color:var(--muted);font-size:12px">Carregando…</p></div>`;
+    try {
+      const r = await fetch(`/ao-vivo/disponibilidade?from=${from}&to=${to}`);
+      if (!r.ok) { el.innerHTML = ''; return; }
+      const data = await r.json();
+      const porAg = data.por_agente || {};
+      const ORDEM = ['Mari','Paty','Lu Almeida','Rafa','Fernanda Cavalcante','Natchely Ortiz'];
+      const NOME  = { 'Fernanda Cavalcante':'Fer', 'Natchely Ortiz':'Natchely', 'Lu Almeida':'Lu' };
+      const cards = ORDEM.map(ag => {
+        const statuses = porAg[ag] || {};
+        const total = Object.values(statuses).reduce((a, b) => a + b, 0);
+        if (total === 0) return '';
+        const sorted = Object.entries(statuses).sort((a, b) => b[1] - a[1]);
+        const rows = sorted.map(([label, secs]) => {
+          const pct = total > 0 ? Math.round(secs / total * 100) : 0;
+          const cor = _dispCor(label);
+          return `<div class="disp-row">
+            <span class="disp-label" title="${label}">${label}</span>
+            <div class="disp-bar-wrap"><div class="disp-bar" style="width:${pct}%;background:${cor}"></div></div>
+            <span class="disp-time">${_fmtSecs(secs)}</span>
+          </div>`;
+        }).join('');
+        return `<div class="disp-card"><div class="disp-agent">${NOME[ag] || ag}</div>${rows}</div>`;
+      }).filter(Boolean).join('');
+      el.innerHTML = `
+        <div class="section-head">Disponibilidade — ${opsPeriodoLabel()}</div>
+        <div class="painel" style="padding:20px 22px">
+          ${cards
+            ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px">${cards}</div>`
+            : '<p style="color:var(--muted);font-size:13px;margin:0">Sem dados de disponibilidade para este período.</p>'
+          }
+        </div>`;
+    } catch (e) {
+      el.innerHTML = '';
+      console.warn('[disp-op]', e);
+    }
   }
 
   function renderGraficoStatus() {
