@@ -386,13 +386,30 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           // Ticket antigo já respondido (antes de hoje) — está na fila hoje mas não conta na média
           porAgente[ag]._antigos = (porAgente[ag]._antigos || 0) + 1;
         }
-        // Tocado hoje: last_activity_at >= hoje E waiting_since null (agente respondeu, não só adiou)
-        const lastAct = conv.last_activity_at;
-        const waitingSince = conv.waiting_since; // null = agente tem última palavra; >0 = cliente aguardando
-        if (lastAct && lastAct >= todayStartS && !waitingSince) {
+        // Tocado hoje: agente enviou mensagem (message_type=1) hoje neste ticket
+        // conv.messages inclui últimas msgs no objeto; se ausente, fallback para waiting_since
+        const lastMsgs = Array.isArray(conv.messages) ? conv.messages : null;
+        let agentMsgTs = null;
+        if (lastMsgs !== null) {
+          // Usa messages: detecta envio real pelo agente hoje
+          for (const m of lastMsgs) {
+            if (m.message_type === 1 && m.created_at >= todayStartS) {
+              const senderName = m.sender?.name || m.author?.name || '';
+              if (senderName === ag && (!agentMsgTs || m.created_at > agentMsgTs)) {
+                agentMsgTs = m.created_at;
+              }
+            }
+          }
+        } else {
+          // Fallback: last_activity_at hoje + waiting_since null (agente tem última palavra)
+          const lastAct = conv.last_activity_at;
+          const waitingSince = conv.waiting_since;
+          if (lastAct && lastAct >= todayStartS && !waitingSince) agentMsgTs = lastAct;
+        }
+        if (agentMsgTs) {
           porAgente[ag].ativos_hoje++;
-          if (!porAgente[ag].ultima_ativ_s || lastAct > porAgente[ag].ultima_ativ_s) {
-            porAgente[ag].ultima_ativ_s = lastAct;
+          if (!porAgente[ag].ultima_ativ_s || agentMsgTs > porAgente[ag].ultima_ativ_s) {
+            porAgente[ag].ultima_ativ_s = agentMsgTs;
           }
         }
       }
