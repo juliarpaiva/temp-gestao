@@ -386,9 +386,10 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           // Ticket antigo já respondido (antes de hoje) — está na fila hoje mas não conta na média
           porAgente[ag]._antigos = (porAgente[ag]._antigos || 0) + 1;
         }
-        // last_activity_at >= hoje → conta como ticket tocado hoje por esta atendente
+        // Tocado hoje: last_activity_at >= hoje E waiting_since null (agente respondeu, não só adiou)
         const lastAct = conv.last_activity_at;
-        if (lastAct && lastAct >= todayStartS) {
+        const waitingSince = conv.waiting_since; // null = agente tem última palavra; >0 = cliente aguardando
+        if (lastAct && lastAct >= todayStartS && !waitingSince) {
           porAgente[ag].ativos_hoje++;
           if (!porAgente[ag].ultima_ativ_s || lastAct > porAgente[ag].ultima_ativ_s) {
             porAgente[ag].ultima_ativ_s = lastAct;
