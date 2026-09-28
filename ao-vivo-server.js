@@ -476,6 +476,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       resolv_backlog_verificado_count:  backlogVerificadoTickets?.length ?? null,
       resolv_backlog_auto_count:        bv?.auto_count ?? null,
       resolv_backlog_candidatos:        backlogCandidates.length,
+      resolv_recentes_count:            resolvRecentes.tickets.length,
       resolv_janela_paginas:            resolvRecentes.pages,
       resolv_janela_hit_limit:          resolvRecentes.hitLimit,
       resolv_janela_hit_boundary:       resolvRecentes.hitBoundary,
@@ -774,6 +775,11 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
             resolv_backlog_verificado:        n2Counts.resolv_backlog_verificado,
             resolv_backlog_verificado_count:  n2Counts.resolv_backlog_verificado_count,
             resolv_backlog_candidatos:        n2Counts.resolv_backlog_candidatos,
+            resolv_recentes_count:            n2Counts.resolv_recentes_count,
+            resolv_janela_paginas:            n2Counts.resolv_janela_paginas,
+            resolv_janela_hit_limit:          n2Counts.resolv_janela_hit_limit,
+            resolv_janela_hit_boundary:       n2Counts.resolv_janela_hit_boundary,
+            resolv_recentes_tickets:          n2Counts.resolv_recentes_tickets,
           },
 
           // Métricas AGORA (fotografia do estoque atual)
@@ -946,15 +952,23 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     res.json({
       today_start_s:         todayStartS,
       candidatos_usados:     cache.resolv_backlog_candidatos,
-      resolv_recentes_count: recentes.length,
+      resolv_recentes_count: cache.resolv_recentes_count ?? recentes.length,
       janela_paginas:        cache.resolv_janela_paginas,
       janela_hit_limit:      cache.resolv_janela_hit_limit,
       janela_hit_boundary:   cache.resolv_janela_hit_boundary,
+      backlog_verificado:    _backlogVerified ? { count: _backlogVerified.count, tickets: _backlogVerified.tickets.length } : null,
       amostra_recentes: recentes.slice(0, 5).map(c => ({
         id: c.id, assignee: c.meta?.assignee?.name,
         created_at: c.created_at, last_activity_at: c.last_activity_at,
       })),
     });
+  });
+
+  router.post('/ao-vivo/diag-reset', (req, res) => {
+    _backlogVerified   = null;
+    _backlogVerifyBusy = false;
+    _cacheTs           = 0; // força próximo poll a rebuscar
+    res.json({ ok: true, msg: 'backlog reset — aguarde ~2min para novo ciclo' });
   });
 
   router.get('/ao-vivo/disponibilidade', async (req, res) => {
