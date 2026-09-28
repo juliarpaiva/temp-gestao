@@ -359,7 +359,10 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         }
         if (hitLimit) console.warn(`[ao-vivo] postFilterUntilOlderThanToday: limite de ${maxPages} páginas atingido!`);
         return { count: total ?? all.length, tickets: all, pages: page, hitLimit, hitBoundary };
-      } catch { return { count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false }; }
+      } catch (e) {
+        console.error('[ao-vivo] postFilterUntilOlderThanToday error:', e.message);
+        return { count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false };
+      }
     };
 
     // Pre-cálculo de todayStartS necessário para postFilterUntilOlderThanToday (antes do Promise.all)
