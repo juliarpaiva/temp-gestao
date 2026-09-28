@@ -632,6 +632,66 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     }
   });
 
+  // Debug endpoint — testa 3 perguntas sobre a API do CloudChat
+  router.get('/debug-ct', async (req, res) => {
+    const token = process.env.CLOUDCHAT_TOKEN;
+    const result = {};
+
+    try {
+      // Busca algumas conversas resolvidas para usar nos testes
+      const r = await fetchCloudChat(
+        `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=1`,
+        token, 'POST',
+        { payload: [{ attribute_key: 'assignee_id', filter_operator: 'is_present', values: [], query_operator: 'AND' }, { attribute_key: 'status', filter_operator: 'equal_to', values: ['resolved'], query_operator: null }] }
+      );
+      const convs = (r?.payload || r?.data?.payload || []).slice(0, 3);
+
+      // TESTE 1: mensagens de activity (message_type=2) com resolução/atribuição
+      result.teste1_activity_messages = [];
+      for (const conv of convs) {
+        try {
+          const msgs = await fetchCloudChat(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${conv.id}/messages`, token);
+          const activities = (msgs?.payload || []).filter(m => m.message_type === 2);
+          result.teste1_activity_messages.push({
+            conv_id: conv.id,
+            total_activities: activities.length,
+            exemplos: activities.slice(0, 5).map(m => ({
+              id: m.id,
+              content: m.content,
+              created_at: m.created_at,
+              created_at_iso: new Date(m.created_at * 1000).toISOString(),
+            })),
+          });
+        } catch (e) { result.teste1_activity_messages.push({ conv_id: conv.id, erro: e.message }); }
+      }
+
+      // TESTE 2: campos first_reply_created_at e waiting_since nas conversas
+      result.teste2_campos_conversa = convs.map(c => ({
+        conv_id: c.id,
+        first_reply_created_at: c.first_reply_created_at ?? 'AUSENTE',
+        waiting_since: c.waiting_since ?? 'AUSENTE',
+        todos_campos: Object.keys(c),
+      }));
+
+      // TESTE 3: v2 reports com type=agent
+      try {
+        const agentsR = await fetchCloudChat(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/agents`, token);
+        const agents = Array.isArray(agentsR) ? agentsR : (agentsR?.data || []);
+        const primeiro = agents[0];
+        const nowS = Math.floor(Date.now() / 1000);
+        const todayS = nowS - (nowS % 86400);
+        const v2Agent = await fetchCloudChat(
+          `/api/v2/accounts/${CLOUDCHAT_ACCOUNT}/reports?metric=avg_first_response_time&type=agent&id=${primeiro?.id}&since=${todayS}&until=${nowS}`,
+          token
+        );
+        result.teste3_v2_por_agente = { agente: primeiro?.name, id: primeiro?.id, resposta: v2Agent };
+      } catch (e) { result.teste3_v2_por_agente = { erro: e.message }; }
+
+    } catch (e) { result.erro_geral = e.message; }
+
+    res.json(result);
+  });
+
   // Disponibilidade por agente: hoje ou range
   router.get('/ao-vivo/disponibilidade', async (req, res) => {
     if (!_dbReady) return res.status(503).json({ error: 'DB não pronto' });
