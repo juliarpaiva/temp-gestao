@@ -66,6 +66,9 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   let _backlogVerified    = null; // { tickets, count, todayStartS, verifiedAt_s }
   let _backlogVerifyBusy  = false;
   let _pollRunning        = false; // background poll: apenas 1 ativo por vez
+  let _resolvState        = null;            // estado incremental de resolvidos hoje
+  let _pollGen            = 0;               // geração do poll — poll atrasado não sobrescreve cache novo
+  const _UNCHANGED        = Symbol('unchanged'); // sentinela para pendingState
 
   // Retorna Unix timestamp da última activity de resolução (ou null).
   // Cobre português ("resolvida") e inglês ("resolved by automation").
@@ -311,6 +314,166 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     };
   })();
 
+  // Chamada rate-limitada ao /filter — compartilhada entre _fetchN2Counts e _computeResolvUpdate.
+  const _filterFetch = async (page, payload) => {
+    await _filterRL.acquire();
+    try {
+      return await fetchCloudChat(
+        `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=${page}`,
+        process.env.CLOUDCHAT_TOKEN, 'POST', { payload }
+      );
+    } catch (e) {
+      if (e.httpStatus === 429) {
+        const ra = e.message.match(/"retry_after":(\d+)/)?.[1];
+        if (ra) _filterRL.penalize(parseInt(ra, 10));
+      }
+      throw e;
+    }
+  };
+
+  // Busca incremental + varredura completa em pedaços de 8 páginas para resolvidos recentes hoje.
+  // Retorna { resolvRecentes, pendingState } — pendingState só é aplicado ao gravar o cache.
+  async function _computeResolvUpdate(todayStartS, pollStartS) {
+    // Virada de dia → zera estado
+    if (_resolvState && _resolvState.todayStartS !== todayStartS) _resolvState = null;
+
+    const token          = process.env.CLOUDCHAT_TOKEN;
+    const agentIdsMap    = await _getAgentIds(token);
+    const monitoradosIds = CFG.AGENTES.map(a => agentIdsMap[a]).filter(Boolean);
+    const COM_AT_c  = { attribute_key: 'assignee_id', filter_operator: 'is_present',  values: [],             query_operator: 'AND' };
+    const COM_MON_c = monitoradosIds.length > 0
+      ? { attribute_key: 'assignee_id', filter_operator: 'equal_to', values: monitoradosIds, query_operator: 'AND' }
+      : COM_AT_c;
+    const ST_RES        = { attribute_key: 'status', filter_operator: 'equal_to', values: ['resolved'], query_operator: null };
+    const resolvPayload = [COM_MON_c, ST_RES];
+
+    const pendingState = {
+      mapUpdates:                new Map(),
+      mapDeletions:              new Set(),
+      newFullScan:               _UNCHANGED,
+      newLastFullScanCompletedS: _UNCHANGED,
+    };
+
+    // ── A: Incremental — só tickets com last_activity_at >= prevPollStart - 10min ──
+    let incrPages = 0, incrError = false;
+    if (_resolvState && _resolvState.prevPollStartS > 0) {
+      const stopS = Math.max(todayStartS, _resolvState.prevPollStartS - 10 * 60);
+      try {
+        let page = 1;
+        while (true) {
+          const r     = await _filterFetch(page, resolvPayload);
+          const items = r?.payload || r?.data?.payload || [];
+          for (const t of items) {
+            if (!_resolvState.tickets.has(t.id)) pendingState.mapUpdates.set(t.id, t);
+          }
+          incrPages++;
+          if (!items.length) break;
+          const oldest = items.reduce((m, c) => Math.min(m, c.last_activity_at || 0), Infinity);
+          if (oldest < stopS) break;
+          page++;
+        }
+      } catch (e) {
+        console.error('[ao-vivo] incremental error:', e.message);
+        incrError = true;
+      }
+    }
+
+    // ── B: Pedaço da varredura completa (8 páginas por poll) ────────────────────
+    const CHUNK = 8, ABS_MAX = 200;
+    const startNewScan = (
+      _resolvState === null ||
+      (_resolvState.fullScan === null && pollStartS - _resolvState.lastFullScanCompletedS > 3600)
+    );
+    const scanState = startNewScan
+      ? { nextPage: 1, seenIds: new Set(), scanStartS: pollStartS }
+      : (_resolvState?.fullScan ?? null);
+
+    let scanPages = 0, scanCompleted = false, scanAbsLimit = false, scanError = false;
+
+    if (scanState) {
+      const localSeen = new Set(scanState.seenIds);
+      let page = scanState.nextPage;
+      try {
+        while (page < scanState.nextPage + CHUNK && page <= ABS_MAX) {
+          const r     = await _filterFetch(page, resolvPayload);
+          const items = r?.payload || r?.data?.payload || [];
+          for (const t of items) {
+            localSeen.add(t.id);
+            if (!_resolvState?.tickets.has(t.id) && !pendingState.mapUpdates.has(t.id))
+              pendingState.mapUpdates.set(t.id, t);
+          }
+          scanPages++;
+          if (!items.length) { scanCompleted = true; break; }
+          const oldest = items.reduce((m, c) => Math.min(m, c.last_activity_at || 0), Infinity);
+          if (oldest < todayStartS) { scanCompleted = true; break; }
+          if (page >= ABS_MAX) { scanAbsLimit = true; break; }
+          page++;
+        }
+
+        if (scanCompleted && !scanAbsLimit) {
+          // Varredura terminou — calcula remoções com verificação individual
+          const toVerify = [];
+          for (const [id, t] of (_resolvState?.tickets || new Map())) {
+            if (!localSeen.has(id)) {
+              const actTime = Math.max(t.last_activity_at || 0, t.resolved_at || 0);
+              if (actTime < scanState.scanStartS) toVerify.push(id);
+            }
+          }
+          for (const id of toVerify) {
+            try {
+              const conv = await fetchCloudChat(
+                `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${id}`, token
+              );
+              if (conv.status !== 'resolved' ||
+                  !conv.last_activity_at ||
+                  conv.last_activity_at < todayStartS) {
+                pendingState.mapDeletions.add(id);
+              }
+            } catch { /* não verificável — mantém no Map */ }
+          }
+          pendingState.newFullScan               = null;
+          pendingState.newLastFullScanCompletedS = pollStartS;
+          console.log(`[ao-vivo] varredura completa (págs ${scanState.nextPage}–${page}); ` +
+            `candidatos remoção: ${toVerify.length}, confirmados: ${pendingState.mapDeletions.size}`);
+        } else if (scanAbsLimit) {
+          console.error(`[ao-vivo] AVISO: varredura atingiu limite absoluto de ${ABS_MAX} págs — incompleta`);
+          pendingState.newFullScan = null; // abandona; reinicia na próxima hora
+        } else {
+          // Pedaço concluído, continua no próximo poll
+          pendingState.newFullScan = { nextPage: page, seenIds: localSeen, scanStartS: scanState.scanStartS };
+        }
+      } catch (e) {
+        console.error('[ao-vivo] varredura chunk error:', e.message);
+        scanError = true;
+        if (pendingState.newFullScan === _UNCHANGED)
+          pendingState.newFullScan = { nextPage: scanState.nextPage, seenIds: localSeen, scanStartS: scanState.scanStartS };
+      }
+    }
+
+    // ── Build resultado para este poll ──────────────────────────────────────────
+    const allKnown = new Map(_resolvState?.tickets || []);
+    for (const [id, t] of pendingState.mapUpdates) allKnown.set(id, t);
+    const tickets = [...allKnown.values()];
+
+    return {
+      resolvRecentes: {
+        count: tickets.length, tickets,
+        pages: incrPages + scanPages,
+        hitLimit: scanAbsLimit, hitBoundary: scanCompleted,
+        error: incrError || scanError,
+        errorMsg: (incrError || scanError) ? 'Erro na busca incremental/varredura' : null,
+        _incr_pages: incrPages, _scan_pages: scanPages,
+        _scan_in_progress: pendingState.newFullScan !== _UNCHANGED
+          ? !!pendingState.newFullScan : (scanState !== null && !scanCompleted),
+        _scan_next_page: pendingState.newFullScan !== _UNCHANGED && pendingState.newFullScan
+          ? pendingState.newFullScan.nextPage : (scanState?.nextPage ?? null),
+        _map_size: allKnown.size,
+        _pending_deletions: pendingState.mapDeletions.size,
+      },
+      pendingState,
+    };
+  }
+
   // Contagens N2 via filter API (uma chamada por métrica, paralelas).
   // Fonte: CloudChat filter API — tempo real (não usa DW).
   //
@@ -318,26 +481,9 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   //   novos_hoje          — Criados hoje, todos os status (created_at >= 00:00 BRT)
   //   resolv_criados_hoje — Criados hoje E atualmente resolved
   //   nao_atribuidos      — open sem assignee (null) + lista de tickets
-  async function _fetchN2Counts(todayStartISO) {
+  async function _fetchN2Counts(todayStartISO, resolvRecentesParam = null) {
     const token = process.env.CLOUDCHAT_TOKEN;
-
-    // Toda chamada ao /filter passa pelo rate limiter compartilhado.
-    // Qualquer erro (429, 5xx, rede) é relançado — o route handler serve stale cache.
-    const fetchFilter = async (page, payload) => {
-      await _filterRL.acquire();
-      try {
-        return await fetchCloudChat(
-          `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=${page}`,
-          token, 'POST', { payload }
-        );
-      } catch (e) {
-        if (e.httpStatus === 429) {
-          const ra = e.message.match(/"retry_after":(\d+)/)?.[1];
-          if (ra) _filterRL.penalize(parseInt(ra, 10));
-        }
-        throw e; // sempre relança — sem zeros silenciosos
-      }
-    };
+    const fetchFilter = _filterFetch; // usa rate limiter compartilhado
 
     const postFilter = async (payload) => {
       const r = await fetchFilter(1, payload);
@@ -417,9 +563,11 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     const backlogJaVerificado = _backlogVerified && _backlogVerified.todayStartS === todayStartS_pre;
 
     // Backlog primeiro (cota de rate limit fresca) — só quando não verificado ainda hoje
-    const resolvRecentes = backlogJaVerificado
-      ? { count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false, error: false }
-      : await postFilterUntilOlderThanToday([COM_MON, ST('resolved')], todayStartS_pre, 40);
+    const resolvRecentes = resolvRecentesParam ?? (
+      backlogJaVerificado
+        ? { count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false, error: false }
+        : await postFilterUntilOlderThanToday([COM_MON, ST('resolved')], todayStartS_pre, 40)
+    );
     // 4 filtros em paralelo (open/pending/snoozed N2 removidos — vêm de allOpenConvs via GET)
     const [novosRaw, resolvCriados, naoAtrib, resolvHoje, novosRawMon] = await Promise.all([
       postFilterAll([CA(todayStartISO), { ...COM_AT, query_operator: null }]),
@@ -554,6 +702,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   async function _runPoll() {
     if (_pollRunning) return;
     _pollRunning = true;
+    const myGen  = ++_pollGen;
     const startS = Date.now() / 1000;
     const _releaseTimer = setTimeout(() => {
       console.error('[ao-vivo] poll ultrapassou 4min — liberando mutex');
@@ -567,12 +716,15 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       const todayStartISO = new Date(_d.getTime() - _off).toISOString(); // 00:00 BRT → UTC ISO
       const todayStartS   = (_d.getTime() - _off) / 1000;
 
+      // Busca incremental + pedaço de varredura (antes do Promise.all — fornece resolvRecentes)
+      const { resolvRecentes, pendingState } = await _computeResolvUpdate(todayStartS, startS);
+
       const [agentStatus, { convs: allOpenConvs, truncated }, { convs: allPendingConvs }, { convs: allSnoozedConvs }, n2Counts] = await Promise.all([
         _fetchAgentStatus(),
         _fetchAllByStatus('open'),
         _fetchAllByStatus('pending', 5),
         _fetchAllByStatus('snoozed', 5),
-        _fetchN2Counts(todayStartISO),
+        _fetchN2Counts(todayStartISO, resolvRecentes),
       ]);
       const now_s = Math.floor(Date.now() / 1000);
 
@@ -838,9 +990,25 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           sla_risco:  slaRisco,
         },
       };
+      if (myGen !== _pollGen) {
+        console.warn(`[ao-vivo] poll gen ${myGen} descartado — gen atual: ${_pollGen}`);
+        return;
+      }
+      // Aplica mudanças ao estado incremental apenas após verificação de geração
+      if (!_resolvState) {
+        _resolvState = { tickets: new Map(), prevPollStartS: 0, todayStartS, fullScan: null, lastFullScanCompletedS: 0 };
+      }
+      for (const [id, t] of pendingState.mapUpdates) _resolvState.tickets.set(id, t);
+      for (const id of pendingState.mapDeletions) _resolvState.tickets.delete(id);
+      if (pendingState.newFullScan !== _UNCHANGED) _resolvState.fullScan = pendingState.newFullScan;
+      if (pendingState.newLastFullScanCompletedS !== _UNCHANGED) _resolvState.lastFullScanCompletedS = pendingState.newLastFullScanCompletedS;
+      _resolvState.prevPollStartS = startS;
+      _resolvState.todayStartS    = todayStartS;
+
       _cache   = result;
       _cacheTs = Date.now() / 1000;
-      console.log(`[ao-vivo] poll OK ${new Date().toISOString()} (${Math.round(_cacheTs - startS)}s)`);
+      console.log(`[ao-vivo] poll OK ${new Date().toISOString()} (${Math.round(_cacheTs - startS)}s), ` +
+        `Map=${_resolvState.tickets.size}, scan=${_resolvState.fullScan ? 'p' + _resolvState.fullScan.nextPage : 'completa'}`);
     } catch (e) {
       console.error('[ao-vivo] poll falhou:', e.message);
     } finally {
