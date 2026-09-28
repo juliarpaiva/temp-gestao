@@ -281,16 +281,17 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     // Total resolvidos hoje (preciso) via reports API — conta resoluções reais, não last_activity_at
     const agentIdMap = await _getAgentIds(token);
     const nowS = Math.floor(Date.now() / 1000);
-    const resolsPorAgente = await Promise.all(CFG.AGENTES.map(async ag => {
+    const resolsPorAgente = await Promise.all(CFG.AGENTES.map(async (ag, i) => {
       const id = agentIdMap[ag];
-      if (!id) return 0;
+      if (!id) { if (i===0) console.log('[DEBUG reports] agente sem id:', ag, '| agentIdMap keys:', Object.keys(agentIdMap)); return 0; }
       try {
         const r = await fetchCloudChat(
           `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/reports/summary?type=agent&id=${id}&since=${todayStartS}&until=${nowS}`,
           token
         );
+        if (i===0) console.log('[DEBUG reports]', ag, 'id:', id, 'resp:', JSON.stringify(r));
         return r?.resolutions_count ?? 0;
-      } catch { return 0; }
+      } catch (e) { if (i===0) console.log('[DEBUG reports] erro:', e?.message); return 0; }
     }));
     const totalResolvidosHoje = resolsPorAgente.reduce((s, n) => s + n, 0);
 
