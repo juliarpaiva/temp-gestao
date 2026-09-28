@@ -394,7 +394,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     // Se backlog já foi verificado hoje, não refaz a busca cara (evita 429 em calls repetidos)
     const backlogJaVerificado = _backlogVerified && _backlogVerified.todayStartS === todayStartS_pre;
 
-    const [open, pending, snoozed, novosRaw, resolvCriados, naoAtrib, resolvHoje, resolvRecentes] = await Promise.all([
+    // 7 filtros concorrentes (sem o backlog para não sobrecarregar rate limit do /filter)
+    const [open, pending, snoozed, novosRaw, resolvCriados, naoAtrib, resolvHoje] = await Promise.all([
       postFilter([N2A, ST('open')]),
       postFilter([N2A, ST('pending')]),
       postFilter([N2A, ST('snoozed')]),
@@ -402,10 +403,11 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
       postFilterAll([{ ...NAL }, ST('open')]),  // sem n2_ticket — espelha CloudChat; paginado p/ total exato
       postFilterAll([CA(todayStartISO), COM_AT, ST('resolved')]),  // resolvidos criados hoje (com assignee, qualquer label)
-      backlogJaVerificado
-        ? Promise.resolve({ count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false, error: false })
-        : postFilterUntilOlderThanToday([COM_MON, ST('resolved')], todayStartS_pre, 40),
     ]);
+    // Backlog sequencial — após os outros 7 para não acumular burst no rate limit
+    const resolvRecentes = backlogJaVerificado
+      ? { count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false, error: false }
+      : await postFilterUntilOlderThanToday([COM_MON, ST('resolved')], todayStartS_pre, 40);
 
     // Conta apenas tickets criados hoje atribuídos às agentes monitoradas (exclui N1/Claudia etc.)
     const novosHoje      = novosRaw.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name)).length;
@@ -480,6 +482,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       resolv_janela_paginas:            resolvRecentes.pages,
       resolv_janela_hit_limit:          resolvRecentes.hitLimit,
       resolv_janela_hit_boundary:       resolvRecentes.hitBoundary,
+      resolv_janela_error:              resolvRecentes.error,
       resolv_fechados_hoje_tickets: [...totalResolvidosMap.values()].map(c => ({
         id:    c.id,
         link:  `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}`,
@@ -779,6 +782,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
             resolv_janela_paginas:            n2Counts.resolv_janela_paginas,
             resolv_janela_hit_limit:          n2Counts.resolv_janela_hit_limit,
             resolv_janela_hit_boundary:       n2Counts.resolv_janela_hit_boundary,
+            resolv_janela_error:              n2Counts.resolv_janela_error,
             resolv_recentes_tickets:          n2Counts.resolv_recentes_tickets,
           },
 
@@ -956,6 +960,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       janela_paginas:        cache.resolv_janela_paginas,
       janela_hit_limit:      cache.resolv_janela_hit_limit,
       janela_hit_boundary:   cache.resolv_janela_hit_boundary,
+      janela_error:          cache.resolv_janela_error,
       backlog_verificado:    _backlogVerified ? { count: _backlogVerified.count, tickets: _backlogVerified.tickets.length } : null,
       amostra_recentes: recentes.slice(0, 5).map(c => ({
         id: c.id, assignee: c.meta?.assignee?.name,
