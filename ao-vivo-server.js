@@ -259,17 +259,16 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     const novosHoje      = novosRaw.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name)).length;
     const mt = c => ({ id: c.id, link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}` });
     const todayStartS = Math.floor(new Date(todayStartISO).getTime() / 1000);
-    // DEBUG temp — remove após diagnóstico
-    { const s = resolvRecentes.tickets.slice(0,3).map(c=>({id:c.id,last_activity_at:c.last_activity_at,resolved_at:c.resolved_at})); console.log('[DEBUG fechados] todayStartS:',todayStartS,'samples:',JSON.stringify(s)); }
-    // Fechados hoje = resolvidos recentes com last_activity_at >= hoje + criados hoje já resolvidos
-    // Combina as duas fontes e deduplica por id
-    const fechadosHojeMap = new Map();
+    // Fechados hoje (preciso) = criados hoje E resolvidos, filtrados por monitoradas
+    const fechadosHojeTickets = resolvHoje.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name));
+    // Total resolvidos hoje (aprox.) = inclui antigos com last_activity_at >= hoje (backlog)
+    const totalResolvidosMap = new Map();
     for (const c of [...resolvRecentes.tickets, ...resolvHoje.tickets]) {
       if (CFG.AGENTES.includes(c.meta?.assignee?.name) && (c.last_activity_at || 0) >= todayStartS) {
-        fechadosHojeMap.set(c.id, c);
+        totalResolvidosMap.set(c.id, c);
       }
     }
-    const fechadosHojeTickets = [...fechadosHojeMap.values()];
+    const totalResolvidosHoje = totalResolvidosMap.size;
 
     return {
       open_count:          open.count,
@@ -279,11 +278,12 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       resolv_criados_hoje:         resolvCriados.count,
       resolv_criados_hoje_tickets: resolvCriados.tickets.map(mt),
       resolv_fechados_hoje:         fechadosHojeTickets.length,
+      resolv_total_hoje:            totalResolvidosHoje,
       resolv_fechados_hoje_tickets: fechadosHojeTickets.map(c => ({
         id:    c.id,
         link:  `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}`,
         agent: c.meta?.assignee?.name || '',
-        created_today: (c.created_at || 0) >= todayStartS,
+        created_today: true,
       })),
       resolv_hoje_tickets:     resolvHoje.tickets,
       resolv_recentes_tickets: resolvRecentes.tickets,
