@@ -276,6 +276,17 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     const novosHoje      = novosRaw.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name)).length;
     const mt = c => ({ id: c.id, link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}` });
     const todayStartS = Math.floor(new Date(todayStartISO).getTime() / 1000);
+    // Teste: reports API v2 para resolutions_count
+    try {
+      const nowS = Math.floor(Date.now() / 1000);
+      const rv2 = await fetchCloudChat(
+        `/api/v2/accounts/${CLOUDCHAT_ACCOUNT}/reports?metric=resolutions_count&type=account&since=${todayStartS}&until=${nowS}`,
+        token
+      );
+      console.log('[DEBUG v2 reports] status ok, resposta:', JSON.stringify(rv2)?.slice(0, 300));
+    } catch (e) {
+      console.log('[DEBUG v2 reports] erro:', e.message?.slice(0, 200));
+    }
     // Criados hoje E resolvidos pelas monitoradas (tickets para exibir na lista)
     const fechadosHojeTickets = resolvHoje.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name));
     // Total resolvidos hoje = criados hoje resolvidos + antigos resolvidos hoje (1 pág = 25 tickets mais recentes)
