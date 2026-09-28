@@ -394,17 +394,14 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     // Se backlog já foi verificado hoje, não refaz a busca cara (evita 429 em calls repetidos)
     const backlogJaVerificado = _backlogVerified && _backlogVerified.todayStartS === todayStartS_pre;
 
-    // 7 filtros concorrentes (sem o backlog para não sobrecarregar rate limit do /filter)
-    const [open, pending, snoozed, novosRaw, resolvCriados, naoAtrib, resolvHoje] = await Promise.all([
-      postFilter([N2A, ST('open')]),
-      postFilter([N2A, ST('pending')]),
-      postFilter([N2A, ST('snoozed')]),
-      postFilterAll([CA(todayStartISO), { ...COM_AT, query_operator: null }]),  // todos tickets (paginado p/ filtrar por agente)
-      postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
-      postFilterAll([{ ...NAL }, ST('open')]),  // sem n2_ticket — espelha CloudChat; paginado p/ total exato
-      postFilterAll([CA(todayStartISO), COM_AT, ST('resolved')]),  // resolvidos criados hoje (com assignee, qualquer label)
-    ]);
-    // Backlog sequencial — após os outros 7 para não acumular burst no rate limit
+    // Filtros serializados — evita burst que causa 429 no endpoint /filter
+    const open          = await postFilter([N2A, ST('open')]);
+    const pending       = await postFilter([N2A, ST('pending')]);
+    const snoozed       = await postFilter([N2A, ST('snoozed')]);
+    const novosRaw      = await postFilterAll([CA(todayStartISO), { ...COM_AT, query_operator: null }]);
+    const resolvCriados = await postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]);
+    const naoAtrib      = await postFilterAll([{ ...NAL }, ST('open')]);
+    const resolvHoje    = await postFilterAll([CA(todayStartISO), COM_AT, ST('resolved')]);
     const resolvRecentes = backlogJaVerificado
       ? { count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false, error: false }
       : await postFilterUntilOlderThanToday([COM_MON, ST('resolved')], todayStartS_pre, 40);
