@@ -441,7 +441,9 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       (c.created_at || 0) < todayStartS &&   // excluir criados hoje (já no card N2)
       !fechadosHojeTickets.find(f => f.id === c.id)
     );
-    _triggerBacklogVerify(backlogCandidates, token, todayStartS, resolvRecentes.error);
+    if (!backlogJaVerificado) {
+      _triggerBacklogVerify(backlogCandidates, token, todayStartS, resolvRecentes.error);
+    }
 
     // Snapshot do resultado verificado (pode ser null ou do poll anterior)
     const bv = _backlogVerified;
