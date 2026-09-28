@@ -972,8 +972,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   router.get('/ao-vivo/diag-reset', (req, res) => {
     _backlogVerified   = null;
     _backlogVerifyBusy = false;
-    _cacheTs           = 0; // força próximo poll a rebuscar
-    res.json({ ok: true, msg: 'backlog reset — aguarde ~2min para novo ciclo' });
+    // NÃO zera _cacheTs: o reset de backlog não força poll imediato (evita burst duplo)
+    res.json({ ok: true, msg: 'backlog reset — aguarde o próximo ciclo orgânico (~2min)' });
   });
 
   router.get('/ao-vivo/disponibilidade', async (req, res) => {
