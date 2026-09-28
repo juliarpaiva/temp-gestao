@@ -389,6 +389,9 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       ? { attribute_key: 'assignee_id', filter_operator: 'equal_to', values: monitoradosIds, query_operator: 'AND' }
       : COM_AT;
 
+    // Se backlog já foi verificado hoje, não refaz a busca cara (evita 429 em calls repetidos)
+    const backlogJaVerificado = _backlogVerified && _backlogVerified.todayStartS === todayStartS_pre;
+
     const [open, pending, snoozed, novosRaw, resolvCriados, naoAtrib, resolvHoje, resolvRecentes] = await Promise.all([
       postFilter([N2A, ST('open')]),
       postFilter([N2A, ST('pending')]),
@@ -397,7 +400,9 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
       postFilterAll([{ ...NAL }, ST('open')]),  // sem n2_ticket — espelha CloudChat; paginado p/ total exato
       postFilterAll([CA(todayStartISO), COM_AT, ST('resolved')]),  // resolvidos criados hoje (com assignee, qualquer label)
-      postFilterUntilOlderThanToday([COM_MON, ST('resolved')], todayStartS_pre, 40),  // só monitoradas: evita paginação infinita da ClaudIA
+      backlogJaVerificado
+        ? Promise.resolve({ count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false })
+        : postFilterUntilOlderThanToday([COM_MON, ST('resolved')], todayStartS_pre, 40),
     ]);
 
     // Conta apenas tickets criados hoje atribuídos às agentes monitoradas (exclui N1/Claudia etc.)
