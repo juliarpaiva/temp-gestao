@@ -505,10 +505,8 @@ async function fetchCloudChat(path, token, method = 'GET', body = null, _retries
   if (body) opts.body = JSON.stringify(body);
   const resp = await fetch(`${CLOUDCHAT_BASE}${path}`, opts);
   if (resp.status === 429 && _retries > 0) {
-    let wait = 30;
-    try { wait = JSON.parse(await resp.clone().text()).retry_after ?? 30; } catch {}
-    wait = Math.min(wait, 60);
-    await new Promise(r => setTimeout(r, wait * 1000));
+    // Retry rápido (5s) para não travar request dentro do timeout Heroku de 30s
+    await new Promise(r => setTimeout(r, 5000));
     return fetchCloudChat(path, token, method, body, _retries - 1);
   }
   if (!resp.ok) {
