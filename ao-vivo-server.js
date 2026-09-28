@@ -211,8 +211,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       } catch { return { count: 0, tickets: [] }; }
     };
 
-    // Versão paginada: busca todas as páginas até esgotar (max 10 páginas).
-    const postFilterAll = async (payload) => {
+    // Versão paginada: busca todas as páginas até esgotar (max maxPages páginas).
+    const postFilterAll = async (payload, maxPages = 10) => {
       try {
         const all = [];
         let page = 1, total = null;
@@ -225,7 +225,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           const items = r?.payload || r?.data?.payload || [];
           if (total === null) total = meta.all_count ?? items.length;
           all.push(...items);
-          if (all.length >= total || items.length === 0 || page >= 10) break;
+          if (all.length >= total || items.length === 0 || page >= maxPages) break;
           page++;
         }
         return { count: total ?? all.length, tickets: all };
