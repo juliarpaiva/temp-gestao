@@ -101,9 +101,14 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   // Dispara verificação em background sem bloquear o endpoint.
   // Respeita fuso America/Sao_Paulo (sempre UTC-3 após abolição do horário de verão).
   const _triggerBacklogVerify = (candidates, token, todayStartS) => {
-    if (_backlogVerifyBusy || candidates.length === 0) return;
     // Invalida resultado do dia anterior
     if (_backlogVerified && _backlogVerified.todayStartS !== todayStartS) _backlogVerified = null;
+    if (candidates.length === 0) {
+      // Sem candidatos: backlog confirmado vazio
+      _backlogVerified = { tickets: [], count: 0, auto_count: 0, rejected: [], todayStartS, verifiedAt_s: Date.now() / 1000 };
+      return;
+    }
+    if (_backlogVerifyBusy) return;
     _backlogVerifyBusy = true;
     _batchResolvedAt(candidates.map(c => c.id), token)
       .then(resolvedAtMap => {
