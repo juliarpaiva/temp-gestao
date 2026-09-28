@@ -898,6 +898,14 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     outrosAgentes.sort((a, b) => b.v2_resolutions - a.v2_resolutions);
     const totalOutrosV2 = outrosAgentes.reduce((s, r) => s + r.v2_resolutions, 0);
 
+    // Diagnóstico: IDs mapeados e amostra de tickets recentes
+    const monitoradosMap = {};
+    for (const ag of CFG.AGENTES) monitoradosMap[ag] = agentIds[ag] ?? null;
+    const recentes = cache.resolv_recentes_tickets || [];
+    const amostraRecentes = recentes.slice(0, 5).map(c => ({
+      id: c.id, assignee: c.meta?.assignee?.name, created_at: c.created_at, last_activity_at: c.last_activity_at,
+    }));
+
     res.json({
       tabela: tabela.map(row => {
         const ag = CFG.AGENTES.find(a => (CFG.DISPLAY[a] || a) === row.agente);
@@ -916,6 +924,12 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         total:                    rejeitados.length,
         sem_activity_resolvida:   rejeitados.filter(r => r.motivo === 'sem_activity_resolvida').length,
         resolvido_antes_de_hoje:  rejeitados.filter(r => r.motivo === 'resolvido_antes_de_hoje').length,
+      },
+      diag: {
+        monitorados_ids:        monitoradosMap,
+        resolv_recentes_count:  recentes.length,
+        amostra_recentes:       amostraRecentes,
+        today_start_s:          Math.floor(new Date(new Date().toISOString().slice(0,10)+'T03:00:00Z').getTime()/1000),
       },
     });
   });
