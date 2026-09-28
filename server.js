@@ -497,13 +497,20 @@ app.get('/indevidas-resumo', async (req, res) => {
 const CLOUDCHAT_BASE = 'https://cloudchat3.cloudhumans.com';
 const CLOUDCHAT_ACCOUNT = 73;
 
-async function fetchCloudChat(path, token, method = 'GET', body = null) {
+async function fetchCloudChat(path, token, method = 'GET', body = null, _retries = 2) {
   const opts = {
     method,
     headers: { 'api_access_token': token, 'Content-Type': 'application/json' },
   };
   if (body) opts.body = JSON.stringify(body);
   const resp = await fetch(`${CLOUDCHAT_BASE}${path}`, opts);
+  if (resp.status === 429 && _retries > 0) {
+    let wait = 30;
+    try { wait = JSON.parse(await resp.clone().text()).retry_after ?? 30; } catch {}
+    wait = Math.min(wait, 60);
+    await new Promise(r => setTimeout(r, wait * 1000));
+    return fetchCloudChat(path, token, method, body, _retries - 1);
+  }
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(`CloudChat ${resp.status}: ${text.slice(0, 200)}`);
