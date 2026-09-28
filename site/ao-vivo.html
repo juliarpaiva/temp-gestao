@@ -629,8 +629,10 @@ function renderHojeGrid(av) {
   const novos         = hoje.novos                      ?? '—';
   const precisos      = hoje.resolv_fechados_hoje        ?? '—';
   const precisosTix   = hoje.resolv_fechados_hoje_precisos ?? [];
+  const precisosIds   = new Set(precisosTix.map(t => t.id));
   const totalBacklog  = hoje.resolv_total_hoje           ?? null;
-  const backlogTix    = hoje.resolv_fechados_hoje_tickets ?? [];
+  const backlogTixAll = hoje.resolv_fechados_hoje_tickets ?? [];
+  const backlogTix    = backlogTixAll.filter(t => !precisosIds.has(t.id));
 
   const mkCard = (label, num, sub, tix, cor, aviso) => {
     const inner = `<div class="agora-num" style="color:${cor}">${num}</div>
