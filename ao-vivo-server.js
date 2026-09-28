@@ -269,7 +269,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
       postFilterAll([{ ...NAL }, ST('open')]),  // sem n2_ticket — espelha CloudChat; paginado p/ total exato
       postFilterAll([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, { ...COM_AT, query_operator: 'AND' }, ST('resolved')]),  // resolvidos criados hoje (com assignee, só n2_ticket)
-      postFilterAll([N2A, { ...COM_AT, query_operator: 'AND' }, ST('resolved')], 5),  // resolvidos recentes (5 páginas, só n2_ticket)
+      postFilterAll([N2A, { ...COM_AT, query_operator: 'AND' }, ST('resolved')], 1),  // resolvidos recentes (1 página = 25 mais recentes)
     ]);
 
     // Conta apenas tickets criados hoje atribuídos às agentes monitoradas (exclui N1/Claudia etc.)
@@ -278,22 +278,16 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     const todayStartS = Math.floor(new Date(todayStartISO).getTime() / 1000);
     // Criados hoje E resolvidos pelas monitoradas (tickets para exibir na lista)
     const fechadosHojeTickets = resolvHoje.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name));
-    // Total resolvidos hoje (preciso) via reports API — conta resoluções reais, não last_activity_at
-    const agentIdMap = await _getAgentIds(token);
-    const nowS = Math.floor(Date.now() / 1000);
-    const resolsPorAgente = await Promise.all(CFG.AGENTES.map(async (ag, i) => {
-      const id = agentIdMap[ag];
-      if (!id) { if (i===0) console.log('[DEBUG reports] agente sem id:', ag, '| agentIdMap keys:', Object.keys(agentIdMap)); return 0; }
-      try {
-        const r = await fetchCloudChat(
-          `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/reports/summary?type=agent&id=${id}&since=${todayStartS}&until=${nowS}`,
-          token
-        );
-        if (i===0) console.log('[DEBUG reports]', ag, 'id:', id, 'resp:', JSON.stringify(r));
-        return r?.resolutions_count ?? 0;
-      } catch (e) { if (i===0) console.log('[DEBUG reports] erro:', e?.message); return 0; }
-    }));
-    const totalResolvidosHoje = resolsPorAgente.reduce((s, n) => s + n, 0);
+    // Total resolvidos hoje = criados hoje resolvidos + antigos resolvidos hoje (1 pág = 25 tickets mais recentes)
+    // Usa last_activity_at como proxy de resolved_at (CloudChat não expõe resolved_at na filter API)
+    const totalResolvidosMap = new Map();
+    for (const c of fechadosHojeTickets) totalResolvidosMap.set(c.id, c);
+    for (const c of resolvRecentes.tickets) {
+      if (CFG.AGENTES.includes(c.meta?.assignee?.name) && (c.last_activity_at || 0) >= todayStartS) {
+        totalResolvidosMap.set(c.id, c);
+      }
+    }
+    const totalResolvidosHoje = totalResolvidosMap.size;
 
     return {
       open_count:          open.count,
