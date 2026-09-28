@@ -259,6 +259,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     const novosHoje      = novosRaw.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name)).length;
     const mt = c => ({ id: c.id, link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}` });
     const todayStartS = Math.floor(new Date(todayStartISO).getTime() / 1000);
+    // DEBUG temp — remove após diagnóstico
+    { const s = resolvRecentes.tickets.slice(0,3).map(c=>({id:c.id,last_activity_at:c.last_activity_at,resolved_at:c.resolved_at})); console.log('[DEBUG fechados] todayStartS:',todayStartS,'samples:',JSON.stringify(s)); }
     // Fechados hoje = resolvidos recentes com last_activity_at >= hoje + criados hoje já resolvidos
     // Combina as duas fontes e deduplica por id
     const fechadosHojeMap = new Map();
