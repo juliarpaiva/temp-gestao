@@ -114,8 +114,9 @@
     @media (max-width: 700px)  { .agora-grid { grid-template-columns: 1fr; } }
 
     /* HOJE: 2 cards ao vivo */
-    .hoje-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-    @media (max-width: 700px) { .hoje-grid { grid-template-columns: 1fr; } }
+    .hoje-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    @media (max-width: 900px) { .hoje-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 500px) { .hoje-grid { grid-template-columns: 1fr; } }
 
     /* ── Card base ───────────────────────────────────────────────── */
     .agora-card {
@@ -625,12 +626,22 @@ function pillsHtml(tickets) {
 
 function renderHojeGrid(av) {
   const hoje   = av.hoje || {};
-  const novos      = hoje.novos              ?? '—';
-  const rcHoje     = hoje.resolv_criados_hoje          ?? '—';
-  const rcTotal    = hoje.resolv_fechados_hoje         ?? '—';
-  const rcTotalAll = hoje.resolv_total_hoje            ?? null;
-  const rcTotalTix = hoje.resolv_fechados_hoje_tickets ?? [];
-  const rcHojeTix  = hoje.resolv_criados_hoje_tickets  ?? [];
+  const novos         = hoje.novos                      ?? '—';
+  const precisos      = hoje.resolv_fechados_hoje        ?? '—';
+  const precisosTix   = hoje.resolv_fechados_hoje_precisos ?? [];
+  const totalBacklog  = hoje.resolv_total_hoje           ?? null;
+  const backlogTix    = hoje.resolv_fechados_hoje_tickets ?? [];
+
+  const mkCard = (label, num, sub, tix, cor, aviso) => {
+    const inner = `<div class="agora-num" style="color:${cor}">${num}</div>
+      <div class="agora-sub">${sub}</div>
+      ${aviso ? `<div style="font-size:10px;color:var(--muted);margin-top:5px">${aviso}</div>` : ''}`;
+    return tix.length > 0
+      ? `<div class="agora-card"><div class="agora-label">${label}</div>
+           <button class="tp-trigger" onclick='openTicketPanel("${label}",${JSON.stringify(tix)})'>${inner}</button>
+         </div>`
+      : `<div class="agora-card"><div class="agora-label">${label}</div>${inner}</div>`;
+  };
 
   document.getElementById('hoje-grid').innerHTML = `
     <div class="agora-card">
@@ -638,29 +649,8 @@ function renderHojeGrid(av) {
       <div class="agora-num">${novos}</div>
       <div class="agora-sub">com atribuição</div>
     </div>
-
-    <div class="agora-card">
-      <div class="agora-label">Fechados hoje · monitoradas</div>
-      ${(() => {
-        const total = rcTotalAll ?? +rcTotal;
-        const criadosHoje = +rcTotal;
-        const barPct = (total > 0 && criadosHoje > 0) ? Math.round(criadosHoje / total * 100) : 0;
-        const barHtml = (criadosHoje > 0 && total > 0)
-          ? `<div style="margin-top:8px">
-               <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:3px">
-                 <span>abertos hoje</span><span>${criadosHoje} / ${total}</span>
-               </div>
-               <div style="height:4px;background:var(--sep);border-radius:2px;overflow:hidden">
-                 <div style="height:100%;width:${barPct}%;background:var(--verde);border-radius:2px;transition:width .4s"></div>
-               </div>
-             </div>` : '';
-        const inner = `<div class="agora-num" style="color:var(--verde)">${total}</div>
-             <div class="agora-sub">todas as tags</div>${barHtml}`;
-        return rcTotalTix.length > 0
-          ? `<button class="tp-trigger" onclick='openTicketPanel("Fechados hoje",${JSON.stringify(rcTotalTix)})'>${inner}</button>`
-          : inner;
-      })()}
-    </div>
+    ${mkCard('Fechados hoje · N2', precisos, 'abertos + fechados hoje', precisosTix, 'var(--verde)', '')}
+    ${mkCard('Fechados hoje · backlog', totalBacklog ?? '—', 'inclui tickets antigos', backlogTix, 'var(--azul, #4a9eff)', '~ estimado')}
   `;
 }
 
