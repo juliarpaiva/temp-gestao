@@ -652,7 +652,7 @@ function renderHojeGrid(av) {
       <div class="agora-sub">com atribuição</div>
     </div>
     ${mkCard('Fechados hoje · N2', precisos, 'abertos + fechados hoje', precisosTix, 'var(--verde)', '')}
-    ${mkCard('Fechados hoje · backlog', totalBacklog ?? '—', 'inclui tickets antigos', backlogTix, 'var(--azul, #4a9eff)', '~ estimado')}
+    ${mkCard('Fechados hoje · backlog', backlogTix.length || (totalBacklog ?? '—'), 'inclui tickets antigos', backlogTix, 'var(--azul, #4a9eff)', '~ estimado')}
   `;
 }
 
