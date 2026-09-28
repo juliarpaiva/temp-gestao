@@ -936,6 +936,27 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
 
 
   // Disponibilidade por agente: hoje ou range
+  router.get('/ao-vivo/diag', (req, res) => {
+    const cache = _cache?.ao_vivo?.hoje;
+    if (!cache) return res.json({ erro: 'Cache vazio — aguarde o primeiro poll.' });
+    const recentes = cache.resolv_recentes_tickets || [];
+    const off = CFG.BRT_OFFSET_H * 3600000;
+    const d = new Date(Date.now() + off); d.setUTCHours(0,0,0,0);
+    const todayStartS = (d.getTime() - off) / 1000;
+    res.json({
+      today_start_s:         todayStartS,
+      candidatos_usados:     cache.resolv_backlog_candidatos,
+      resolv_recentes_count: recentes.length,
+      janela_paginas:        cache.resolv_janela_paginas,
+      janela_hit_limit:      cache.resolv_janela_hit_limit,
+      janela_hit_boundary:   cache.resolv_janela_hit_boundary,
+      amostra_recentes: recentes.slice(0, 5).map(c => ({
+        id: c.id, assignee: c.meta?.assignee?.name,
+        created_at: c.created_at, last_activity_at: c.last_activity_at,
+      })),
+    });
+  });
+
   router.get('/ao-vivo/disponibilidade', async (req, res) => {
     if (!_dbReady) return res.status(503).json({ error: 'DB não pronto' });
     try {
