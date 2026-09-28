@@ -821,6 +821,32 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     });
   });
 
+  // Inspeção de activity messages de um ticket específico (debug)
+  // GET /debug-msgs?id=12345
+  router.get('/debug-msgs', async (req, res) => {
+    const id = parseInt(req.query.id, 10);
+    if (!id) return res.json({ erro: 'Passe ?id=NUMERO_DO_TICKET' });
+    const token = process.env.CLOUDCHAT_TOKEN;
+    try {
+      const r = await fetchCloudChat(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${id}/messages`, token);
+      const msgs = r?.payload || r?.data?.payload || [];
+      const activities = msgs
+        .filter(m => m.message_type === 2)
+        .sort((a, b) => b.created_at - a.created_at);
+      res.json({
+        ticket:          id,
+        total_msgs:      msgs.length,
+        total_activities: activities.length,
+        activities: activities.map(m => ({
+          id:         m.id,
+          created_at: new Date(m.created_at * 1000).toISOString(),
+          content:    m.content,
+          bate_regex: /resolvid/i.test(m.content || ''),
+        })),
+      });
+    } catch (e) { res.json({ erro: e.message }); }
+  });
+
   // Comparação backlog: lista antiga vs verificada via activity messages
   router.get('/debug-backlog', async (req, res) => {
     const cache = _cache?.ao_vivo?.hoje;
