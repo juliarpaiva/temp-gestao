@@ -59,6 +59,66 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   let _agentIds = null;    // { agentName → chatwoot_id }, cache diário
   let _agentIdsDay = null;
 
+  // ── resolved_at via activity messages ───────────────────────────────────────
+  // Cache: convId → { resolvedAt_s: number|null, fetchedAt_s: number }
+  const _resolvedAtCache = new Map();
+  let _backlogVerified    = null; // { tickets, count, todayStartS, verifiedAt_s }
+  let _backlogVerifyBusy  = false;
+
+  // Retorna Unix timestamp da última activity "resolvid*" (ou null).
+  // Cache TTL = 5 min. Não lança exceção.
+  const _getResolvedAt = async (convId, token) => {
+    const now_s  = Date.now() / 1000;
+    const cached = _resolvedAtCache.get(convId);
+    if (cached && (now_s - cached.fetchedAt_s) < 300) return cached.resolvedAt_s;
+    try {
+      const r    = await fetchCloudChat(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${convId}/messages`, token);
+      const msgs = r?.payload || r?.data?.payload || [];
+      // Cobre: "marcada como resolvida por X", "foi resolvida por automação", "resolvida" etc.
+      const resActs = msgs
+        .filter(m => m.message_type === 2 && /resolvid/i.test(m.content || ''))
+        .sort((a, b) => b.created_at - a.created_at);
+      const resolvedAt_s = resActs[0]?.created_at ?? null;
+      _resolvedAtCache.set(convId, { resolvedAt_s, fetchedAt_s: now_s });
+      return resolvedAt_s;
+    } catch { return null; }
+  };
+
+  // Processa lote de convIds com concorrência limitada (evita burst na API).
+  const _batchResolvedAt = async (convIds, token, concurrency = 5) => {
+    const out = new Map();
+    for (let i = 0; i < convIds.length; i += concurrency) {
+      await Promise.all(convIds.slice(i, i + concurrency).map(async id => {
+        out.set(id, await _getResolvedAt(id, token));
+      }));
+    }
+    return out;
+  };
+
+  // Dispara verificação em background sem bloquear o endpoint.
+  // Respeita fuso America/Sao_Paulo (sempre UTC-3 após abolição do horário de verão).
+  const _triggerBacklogVerify = (candidates, token, todayStartS) => {
+    if (_backlogVerifyBusy || candidates.length === 0) return;
+    // Invalida resultado do dia anterior
+    if (_backlogVerified && _backlogVerified.todayStartS !== todayStartS) _backlogVerified = null;
+    _backlogVerifyBusy = true;
+    _batchResolvedAt(candidates.map(c => c.id), token)
+      .then(resolvedAtMap => {
+        const verified = candidates.filter(c => {
+          const rAt = resolvedAtMap.get(c.id);
+          return rAt !== null && rAt >= todayStartS;
+        });
+        _backlogVerified = {
+          tickets:      verified,
+          count:        verified.length,
+          todayStartS,
+          verifiedAt_s: Date.now() / 1000,
+        };
+      })
+      .catch(e => console.error('[ao-vivo] backlog verify error:', e.message))
+      .finally(() => { _backlogVerifyBusy = false; });
+  };
+
   function _brtDateStr(ts_s) {
     const d = new Date((ts_s * 1000) + (CFG.BRT_OFFSET_H * 3600000));
     return d.toISOString().slice(0, 10);
@@ -299,6 +359,27 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     }
     const totalResolvidosHoje = totalResolvidosMap.size;
 
+    // Verificação via activity messages (paralela, fire-and-forget)
+    // Candidatos de backlog: resolvidos recentes, monitoradas, atividade hoje, não criados hoje
+    const backlogCandidates = resolvRecentes.tickets.filter(c =>
+      CFG.AGENTES.includes(c.meta?.assignee?.name) &&
+      (c.last_activity_at || 0) >= todayStartS &&
+      (c.created_at || 0) < todayStartS &&   // excluir criados hoje (já no card N2)
+      !fechadosHojeTickets.find(f => f.id === c.id)
+    );
+    _triggerBacklogVerify(backlogCandidates, token, todayStartS);
+
+    // Snapshot do resultado verificado (pode ser null ou do poll anterior)
+    const bv = _backlogVerified;
+    const backlogVerificadoTickets = (bv && bv.todayStartS === todayStartS)
+      ? bv.tickets.map(c => ({
+          id:           c.id,
+          link:         `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}`,
+          agent:        c.meta?.assignee?.name || '',
+          resolved_at_s: _resolvedAtCache.get(c.id)?.resolvedAt_s ?? null,
+        }))
+      : null; // null = ainda verificando
+
     return {
       open_count:          open.count,
       pending_count:       pending.count,
@@ -313,8 +394,11 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         agent: c.meta?.assignee?.name || '',
         created_today: true,
       })),
-      resolv_v2_total:              resolv_v2_total,
-      resolv_total_hoje:            totalResolvidosHoje,
+      resolv_v2_total:                  resolv_v2_total,
+      resolv_total_hoje:                totalResolvidosHoje,
+      resolv_backlog_verificado:        backlogVerificadoTickets,
+      resolv_backlog_verificado_count:  backlogVerificadoTickets?.length ?? null,
+      resolv_backlog_candidatos:        backlogCandidates.length,
       resolv_fechados_hoje_tickets: [...totalResolvidosMap.values()].map(c => ({
         id:    c.id,
         link:  `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}`,
@@ -604,9 +688,12 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
             resolv_criados_hoje_tickets:  n2Counts.resolv_criados_hoje_tickets,
             resolv_fechados_hoje:          n2Counts.resolv_fechados_hoje,
             resolv_fechados_hoje_precisos: n2Counts.resolv_fechados_hoje_precisos,
-            resolv_v2_total:               n2Counts.resolv_v2_total,
-            resolv_total_hoje:             n2Counts.resolv_total_hoje,
-            resolv_fechados_hoje_tickets:  n2Counts.resolv_fechados_hoje_tickets,
+            resolv_v2_total:                  n2Counts.resolv_v2_total,
+            resolv_total_hoje:                n2Counts.resolv_total_hoje,
+            resolv_fechados_hoje_tickets:     n2Counts.resolv_fechados_hoje_tickets,
+            resolv_backlog_verificado:        n2Counts.resolv_backlog_verificado,
+            resolv_backlog_verificado_count:  n2Counts.resolv_backlog_verificado_count,
+            resolv_backlog_candidatos:        n2Counts.resolv_backlog_candidatos,
           },
 
           // Métricas AGORA (fotografia do estoque atual)
