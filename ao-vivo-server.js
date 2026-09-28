@@ -5,7 +5,7 @@ const cron = require('node-cron');
 
 // ── Config — ajuste aqui ──────────────────────────────────────────────────────
 const CFG = {
-  POLL_TTL_S:      55,           // cache server-side (segundos)
+  POLL_TTL_S:      120,          // cache server-side (segundos) — 2min reduz chamadas ao CloudChat
   SLA_ATENCAO_MIN: 45,           // minutos sem 1ª resposta → atenção (amarelo)
   SLA_CRITICO_MIN: 60,           // minutos sem 1ª resposta → crítico (vermelho)
   BRT_OFFSET_H:   -3,            // fuso Brasília = UTC-3
