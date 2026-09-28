@@ -108,9 +108,25 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           const rAt = resolvedAtMap.get(c.id);
           return rAt !== null && rAt >= todayStartS;
         });
+        const rejected = candidates
+          .filter(c => {
+            const rAt = resolvedAtMap.get(c.id);
+            return !(rAt !== null && rAt >= todayStartS);
+          })
+          .map(c => {
+            const rAt = resolvedAtMap.get(c.id);
+            return {
+              id:                c.id,
+              agent:             c.meta?.assignee?.name,
+              motivo:            rAt === null ? 'sem_activity_resolvida' : 'resolvido_antes_de_hoje',
+              resolved_at_s:     rAt,
+              last_activity_at_s: c.last_activity_at,
+            };
+          });
         _backlogVerified = {
           tickets:      verified,
           count:        verified.length,
+          rejected,
           todayStartS,
           verifiedAt_s: Date.now() / 1000,
         };
@@ -780,11 +796,28 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     const totalSoma = tabela.reduce((s, r) => s + r.soma, 0);
     const totalV2   = tabela.reduce((s, r) => s + (r.v2_resolutions ?? 0), 0);
 
+    // Candidatos rejeitados pela verificação — agrupa por agente e motivo
+    const rejeitados = bv.rejected || [];
+    const rejMap = {};
+    for (const r of rejeitados) {
+      if (!r.agent) continue;
+      if (!rejMap[r.agent]) rejMap[r.agent] = { sem_activity_resolvida: [], resolvido_antes_de_hoje: [] };
+      rejMap[r.agent][r.motivo]?.push(r.id);
+    }
+
     res.json({
-      tabela,
-      totais: { soma: totalSoma, v2_por_agente: totalV2, v2_conta_toda: cache.resolv_v2_total },
+      tabela: tabela.map(row => {
+        const ag = CFG.AGENTES.find(a => (CFG.DISPLAY[a] || a) === row.agente);
+        return { ...row, rejeitados: rejMap[ag] || {} };
+      }),
+      totais:              { soma: totalSoma, v2_por_agente: totalV2, v2_conta_toda: cache.resolv_v2_total },
       candidatos_usados:   cache.resolv_backlog_candidatos,
       janela_200_risco:    cache.resolv_backlog_candidatos >= 190,
+      resumo_rejeicoes: {
+        total:                    rejeitados.length,
+        sem_activity_resolvida:   rejeitados.filter(r => r.motivo === 'sem_activity_resolvida').length,
+        resolvido_antes_de_hoje:  rejeitados.filter(r => r.motivo === 'resolvido_antes_de_hoje').length,
+      },
     });
   });
 
