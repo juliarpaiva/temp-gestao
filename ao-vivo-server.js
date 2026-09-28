@@ -100,12 +100,14 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
 
   // Dispara verificação em background sem bloquear o endpoint.
   // Respeita fuso America/Sao_Paulo (sempre UTC-3 após abolição do horário de verão).
-  const _triggerBacklogVerify = (candidates, token, todayStartS) => {
+  const _triggerBacklogVerify = (candidates, token, todayStartS, resolvRecentesError = false) => {
     // Invalida resultado do dia anterior
     if (_backlogVerified && _backlogVerified.todayStartS !== todayStartS) _backlogVerified = null;
     if (candidates.length === 0) {
-      // Sem candidatos: backlog confirmado vazio
-      _backlogVerified = { tickets: [], count: 0, auto_count: 0, rejected: [], todayStartS, verifiedAt_s: Date.now() / 1000 };
+      // Só confirma vazio se a busca foi bem-sucedida (sem erro de API)
+      if (!resolvRecentesError) {
+        _backlogVerified = { tickets: [], count: 0, auto_count: 0, rejected: [], todayStartS, verifiedAt_s: Date.now() / 1000 };
+      }
       return;
     }
     if (_backlogVerifyBusy) return;
@@ -358,10 +360,10 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           page++;
         }
         if (hitLimit) console.warn(`[ao-vivo] postFilterUntilOlderThanToday: limite de ${maxPages} páginas atingido!`);
-        return { count: total ?? all.length, tickets: all, pages: page, hitLimit, hitBoundary };
+        return { count: total ?? all.length, tickets: all, pages: page, hitLimit, hitBoundary, error: false };
       } catch (e) {
         console.error('[ao-vivo] postFilterUntilOlderThanToday error:', e.message);
-        return { count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false };
+        return { count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false, error: true };
       }
     };
 
@@ -401,7 +403,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       postFilterAll([{ ...NAL }, ST('open')]),  // sem n2_ticket — espelha CloudChat; paginado p/ total exato
       postFilterAll([CA(todayStartISO), COM_AT, ST('resolved')]),  // resolvidos criados hoje (com assignee, qualquer label)
       backlogJaVerificado
-        ? Promise.resolve({ count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false })
+        ? Promise.resolve({ count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false, error: false })
         : postFilterUntilOlderThanToday([COM_MON, ST('resolved')], todayStartS_pre, 40),
     ]);
 
@@ -440,7 +442,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       (c.created_at || 0) < todayStartS &&   // excluir criados hoje (já no card N2)
       !fechadosHojeTickets.find(f => f.id === c.id)
     );
-    _triggerBacklogVerify(backlogCandidates, token, todayStartS);
+    _triggerBacklogVerify(backlogCandidates, token, todayStartS, resolvRecentes.error);
 
     // Snapshot do resultado verificado (pode ser null ou do poll anterior)
     const bv = _backlogVerified;
