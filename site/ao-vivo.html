@@ -636,6 +636,8 @@ function renderHojeGrid(av) {
   // Verificado via activity messages (null = ainda processando)
   const verificado      = hoje.resolv_backlog_verificado;       // null | array
   const verificadoCount = hoje.resolv_backlog_verificado_count; // null | number
+  const autoCount       = hoje.resolv_backlog_auto_count ?? 0;
+  const hitLimit        = hoje.resolv_janela_hit_limit ?? false;
   const verificadoTix   = verificado !== null
     ? (verificado || []).filter(t => !precisosIds.has(t.id))
     : [];
@@ -651,6 +653,12 @@ function renderHojeGrid(av) {
       : `<div class="agora-card"><div class="agora-label">${label}</div>${inner}</div>`;
   };
 
+  const backlogSub = [
+    'inclui tickets antigos',
+    autoCount > 0 ? `${autoCount} por automação` : '',
+    hitLimit   ? '⚠️ janela incompleta' : '',
+  ].filter(Boolean).join(' · ');
+
   const backlogCard = verificado === null
     ? `<div class="agora-card">
          <div class="agora-label">Fechados hoje · backlog</div>
@@ -658,7 +666,7 @@ function renderHojeGrid(av) {
          <div class="agora-sub">via histórico de atividades</div>
          ${v2Aviso ? `<div style="font-size:10px;color:var(--muted);margin-top:5px">${v2Aviso}</div>` : ''}
        </div>`
-    : mkCard('Fechados hoje · backlog', verificadoCount ?? '—', 'inclui tickets antigos', verificadoTix, 'var(--azul)', v2Aviso);
+    : mkCard('Fechados hoje · backlog', verificadoCount ?? '—', backlogSub, verificadoTix, hitLimit ? 'var(--amber)' : 'var(--azul)', v2Aviso);
 
   document.getElementById('hoje-grid').innerHTML = `
     <div class="agora-card">

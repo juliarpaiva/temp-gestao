@@ -65,7 +65,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   let _backlogVerified    = null; // { tickets, count, todayStartS, verifiedAt_s }
   let _backlogVerifyBusy  = false;
 
-  // Retorna Unix timestamp da última activity "resolvid*" (ou null).
+  // Retorna Unix timestamp da última activity de resolução (ou null).
+  // Cobre português ("resolvida") e inglês ("resolved by automation").
   // Cache TTL = 5 min. Não lança exceção.
   const _getResolvedAt = async (convId, token) => {
     const now_s  = Date.now() / 1000;
@@ -74,12 +75,13 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     try {
       const r    = await fetchCloudChat(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${convId}/messages`, token);
       const msgs = r?.payload || r?.data?.payload || [];
-      // Cobre: "marcada como resolvida por X", "foi resolvida por automação", "resolvida" etc.
       const resActs = msgs
-        .filter(m => m.message_type === 2 && /resolvid/i.test(m.content || ''))
+        .filter(m => m.message_type === 2 && /resolv(id|ed)/i.test(m.content || ''))
         .sort((a, b) => b.created_at - a.created_at);
       const resolvedAt_s = resActs[0]?.created_at ?? null;
-      _resolvedAtCache.set(convId, { resolvedAt_s, fetchedAt_s: now_s });
+      // Marca automação: "by automation", "por automação" ou "by System"
+      const auto = resolvedAt_s !== null && /automat(ion|ão)|by System/i.test(resActs[0]?.content || '');
+      _resolvedAtCache.set(convId, { resolvedAt_s, fetchedAt_s: now_s, auto });
       return resolvedAt_s;
     } catch { return null; }
   };
@@ -123,9 +125,11 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
               last_activity_at_s: c.last_activity_at,
             };
           });
+        const autoCount = verified.filter(c => _resolvedAtCache.get(c.id)?.auto).length;
         _backlogVerified = {
           tickets:      verified,
           count:        verified.length,
+          auto_count:   autoCount,
           rejected,
           todayStartS,
           verifiedAt_s: Date.now() / 1000,
@@ -325,6 +329,36 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       } catch { return { count: 0, tickets: [] }; }
     };
 
+    // Versão adaptativa: pagina resolvRecentes até encontrar ticket com last_activity_at antes de hoje.
+    // Evita janela fixa insuficiente em dias com muita atividade (tags em lote, etc.).
+    // Limite: 40 páginas (= 1000 tickets); emite alerta se atingido.
+    const postFilterUntilOlderThanToday = async (payload, todayS, maxPages = 40) => {
+      try {
+        const all = [];
+        let page = 1, total = null, hitLimit = false, hitBoundary = false;
+        while (true) {
+          const r = await fetchCloudChat(
+            `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=${page}`,
+            token, 'POST', { payload }
+          );
+          const meta  = r?.meta || r?.data?.meta || {};
+          const items = r?.payload || r?.data?.payload || [];
+          if (total === null) total = meta.all_count ?? items.length;
+          all.push(...items);
+          if (items.length === 0 || all.length >= total) break;
+          const oldestOnPage = items.reduce((m, c) => Math.min(m, c.last_activity_at || 0), Infinity);
+          if (oldestOnPage < todayS) { hitBoundary = true; break; }
+          if (page >= maxPages) { hitLimit = true; break; }
+          page++;
+        }
+        if (hitLimit) console.warn(`[ao-vivo] postFilterUntilOlderThanToday: limite de ${maxPages} páginas atingido!`);
+        return { count: total ?? all.length, tickets: all, pages: page, hitLimit, hitBoundary };
+      } catch { return { count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false }; }
+    };
+
+    // Pre-cálculo de todayStartS necessário para postFilterUntilOlderThanToday (antes do Promise.all)
+    const todayStartS_pre = Math.floor(new Date(todayStartISO).getTime() / 1000);
+
     // Condição base: label n2_ticket (com AND para encadear)
     const N2A = { attribute_key: 'labels', filter_operator: 'equal_to', values: ['n2_ticket'], query_operator: 'AND' };
     // Status (último elemento → query_operator: null)
@@ -345,13 +379,13 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
       postFilterAll([{ ...NAL }, ST('open')]),  // sem n2_ticket — espelha CloudChat; paginado p/ total exato
       postFilterAll([CA(todayStartISO), COM_AT, ST('resolved')]),  // resolvidos criados hoje (com assignee, qualquer label)
-      postFilterAll([COM_AT, ST('resolved')], 8),  // resolvidos recentes (8 páginas = 200 mais recentes, sem filtro de label)
+      postFilterUntilOlderThanToday([COM_AT, ST('resolved')], todayStartS_pre, 40),  // adaptativo: para quando tickets ficam anteriores a hoje
     ]);
 
     // Conta apenas tickets criados hoje atribuídos às agentes monitoradas (exclui N1/Claudia etc.)
     const novosHoje      = novosRaw.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name)).length;
     const mt = c => ({ id: c.id, link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}` });
-    const todayStartS = Math.floor(new Date(todayStartISO).getTime() / 1000);
+    const todayStartS = todayStartS_pre; // já calculado antes do Promise.all
     // Conta exata de resoluções via reports API v2 (sem dependência de last_activity_at)
     let resolv_v2_total = null;
     try {
@@ -414,7 +448,11 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       resolv_total_hoje:                totalResolvidosHoje,
       resolv_backlog_verificado:        backlogVerificadoTickets,
       resolv_backlog_verificado_count:  backlogVerificadoTickets?.length ?? null,
+      resolv_backlog_auto_count:        bv?.auto_count ?? null,
       resolv_backlog_candidatos:        backlogCandidates.length,
+      resolv_janela_paginas:            resolvRecentes.pages,
+      resolv_janela_hit_limit:          resolvRecentes.hitLimit,
+      resolv_janela_hit_boundary:       resolvRecentes.hitBoundary,
       resolv_fechados_hoje_tickets: [...totalResolvidosMap.values()].map(c => ({
         id:    c.id,
         link:  `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}`,
@@ -811,8 +849,13 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         return { ...row, rejeitados: rejMap[ag] || {} };
       }),
       totais:              { soma: totalSoma, v2_por_agente: totalV2, v2_conta_toda: cache.resolv_v2_total },
-      candidatos_usados:   cache.resolv_backlog_candidatos,
-      janela_200_risco:    cache.resolv_backlog_candidatos >= 190,
+      candidatos_usados:        cache.resolv_backlog_candidatos,
+      janela_paginas:           cache.resolv_janela_paginas,
+      janela_hit_limit:         cache.resolv_janela_hit_limit,
+      janela_hit_boundary:      cache.resolv_janela_hit_boundary,
+      janela_alerta:            cache.resolv_janela_hit_limit
+        ? '⚠️ Limite de 40 páginas atingido — pode haver tickets de hoje fora da contagem'
+        : (cache.resolv_janela_hit_boundary ? `✅ Parou ao encontrar tickets anteriores a hoje (página ${cache.resolv_janela_paginas})` : null),
       resumo_rejeicoes: {
         total:                    rejeitados.length,
         sem_activity_resolvida:   rejeitados.filter(r => r.motivo === 'sem_activity_resolvida').length,
@@ -841,7 +884,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           id:         m.id,
           created_at: new Date(m.created_at * 1000).toISOString(),
           content:    m.content,
-          bate_regex: /resolvid/i.test(m.content || ''),
+          bate_regex: /resolv(id|ed)/i.test(m.content || ''),
+          auto:       /automat(ion|ão)|by System/i.test(m.content || ''),
         })),
       });
     } catch (e) { res.json({ erro: e.message }); }
@@ -873,7 +917,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         const r    = await fetchCloudChat(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${t.id}/messages`, token);
         const msgs = r?.payload || r?.data?.payload || [];
         const acts = msgs.filter(m => m.message_type === 2).sort((a, b) => b.created_at - a.created_at);
-        const resAct  = acts.find(m => /resolvid/i.test(m.content || ''));
+        const resAct  = acts.find(m => /resolv(id|ed)/i.test(m.content || ''));
         const lastAct = acts[0];
         return {
           id:             t.id,
