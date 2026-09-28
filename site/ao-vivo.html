@@ -630,10 +630,15 @@ function renderHojeGrid(av) {
   const precisos      = hoje.resolv_fechados_hoje        ?? '—';
   const precisosTix   = hoje.resolv_fechados_hoje_precisos ?? [];
   const precisosIds   = new Set(precisosTix.map(t => t.id));
-  const backlogTixAll = hoje.resolv_fechados_hoje_tickets ?? [];
-  const backlogTix    = backlogTixAll.filter(t => !precisosIds.has(t.id) && !t.created_today);
   const v2Total       = hoje.resolv_v2_total ?? null;
-  const backlogAviso  = v2Total !== null ? `Total conta: ${v2Total}` : '';
+  const v2Aviso       = v2Total !== null ? `conta toda: ${v2Total}` : '';
+
+  // Verificado via activity messages (null = ainda processando)
+  const verificado      = hoje.resolv_backlog_verificado;       // null | array
+  const verificadoCount = hoje.resolv_backlog_verificado_count; // null | number
+  const verificadoTix   = verificado !== null
+    ? (verificado || []).filter(t => !precisosIds.has(t.id))
+    : [];
 
   const mkCard = (label, num, sub, tix, cor, aviso) => {
     const inner = `<div class="agora-num" style="color:${cor}">${num}</div>
@@ -646,6 +651,15 @@ function renderHojeGrid(av) {
       : `<div class="agora-card"><div class="agora-label">${label}</div>${inner}</div>`;
   };
 
+  const backlogCard = verificado === null
+    ? `<div class="agora-card">
+         <div class="agora-label">Fechados hoje · backlog</div>
+         <div class="agora-num" style="color:var(--muted);font-size:18px;font-weight:600">verificando…</div>
+         <div class="agora-sub">via histórico de atividades</div>
+         ${v2Aviso ? `<div style="font-size:10px;color:var(--muted);margin-top:5px">${v2Aviso}</div>` : ''}
+       </div>`
+    : mkCard('Fechados hoje · backlog', verificadoCount ?? '—', 'inclui tickets antigos', verificadoTix, 'var(--azul)', v2Aviso);
+
   document.getElementById('hoje-grid').innerHTML = `
     <div class="agora-card">
       <div class="agora-label">Novos hoje</div>
@@ -653,7 +667,7 @@ function renderHojeGrid(av) {
       <div class="agora-sub">com atribuição</div>
     </div>
     ${mkCard('Fechados hoje · N2', precisos, 'abertos + fechados hoje', precisosTix, 'var(--verde)', '')}
-    ${mkCard('Fechados hoje · backlog', backlogTix.length || '—', 'inclui tickets antigos', backlogTix, 'var(--azul)', backlogAviso)}
+    ${backlogCard}
   `;
 }
 
