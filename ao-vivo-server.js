@@ -269,7 +269,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
       postFilterAll([{ ...NAL }, ST('open')]),  // sem n2_ticket — espelha CloudChat; paginado p/ total exato
       postFilterAll([CA(todayStartISO), COM_AT, ST('resolved')]),  // resolvidos criados hoje (com assignee, qualquer label)
-      postFilterAll([COM_AT, ST('resolved')], 4),  // resolvidos recentes (4 páginas = 100 mais recentes, sem filtro de label)
+      postFilterAll([COM_AT, ST('resolved')], 8),  // resolvidos recentes (8 páginas = 200 mais recentes, sem filtro de label)
     ]);
 
     // Conta apenas tickets criados hoje atribuídos às agentes monitoradas (exclui N1/Claudia etc.)
