@@ -65,7 +65,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   const _resolvedAtCache = new Map();
   let _backlogVerified    = null; // { tickets, count, todayStartS, verifiedAt_s }
   let _backlogVerifyBusy  = false;
-  let _pollInProgress     = null; // mutex: apenas 1 poll ativo por vez
+  let _pollRunning        = false; // background poll: apenas 1 ativo por vez
 
   // Retorna Unix timestamp da última activity de resolução (ou null).
   // Cobre português ("resolvida") e inglês ("resolved by automation").
@@ -421,11 +421,12 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       ? { count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false, error: false }
       : await postFilterUntilOlderThanToday([COM_MON, ST('resolved')], todayStartS_pre, 40);
     // 4 filtros em paralelo (open/pending/snoozed N2 removidos — vêm de allOpenConvs via GET)
-    const [novosRaw, resolvCriados, naoAtrib, resolvHoje] = await Promise.all([
+    const [novosRaw, resolvCriados, naoAtrib, resolvHoje, novosRawMon] = await Promise.all([
       postFilterAll([CA(todayStartISO), { ...COM_AT, query_operator: null }]),
       postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
       postFilterAll([{ ...NAL }, ST('open')]),
       postFilterAll([CA(todayStartISO), COM_AT, ST('resolved')]),
+      postFilter([CA(todayStartISO), { ...COM_MON, query_operator: null }]), // _novos_raw_count_test
     ]);
 
     // Conta apenas tickets criados hoje atribuídos às agentes monitoradas (exclui N1/Claudia etc.)
@@ -480,8 +481,9 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       : null; // null = ainda verificando
 
     return {
-      novos_hoje:          novosHoje,
-      resolv_criados_hoje:         resolvCriados.count,
+      novos_hoje:            novosHoje,
+      _novos_raw_count_test: novosRawMon.count,
+      resolv_criados_hoje:   resolvCriados.count,
       resolv_criados_hoje_tickets: resolvCriados.tickets.map(mt),
       resolv_fechados_hoje:         fechadosHojeTickets.length,
       resolv_fechados_hoje_precisos: fechadosHojeTickets.map(c => ({
@@ -536,20 +538,27 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
 
 
   // ── Rota principal ──────────────────────────────────────────────────────────
+  // Poll roda em background (_runPoll); rota sempre retorna cache imediatamente — sem H12.
 
-  router.get('/ao-vivo/status', async (req, res) => {
-    const nowS = Date.now() / 1000;
-    if (_cache && (nowS - _cacheTs) < CFG.POLL_TTL_S) return res.json(_cache);
-
-    // Poll único: se já há um em andamento, aguarda e serve o resultado (evita burst de calls)
-    if (_pollInProgress) {
-      try { await _pollInProgress; } catch { /* serve stale abaixo */ }
-      if (_cache) return res.json(_cache);
-      return res.status(503).json({ error: 'poll em andamento falhou' });
+  router.get('/ao-vivo/status', (req, res) => {
+    if (!_cache && !_pollRunning) _runPoll();
+    if (_cache) {
+      const stale = (Date.now() / 1000 - _cacheTs) > 15 * 60; // >15min = desatualizado
+      return res.json({ ..._cache, _stale: stale, _server_ts: Math.floor(_cacheTs) });
     }
-    let _pollResolve, _pollReject;
-    _pollInProgress = new Promise((ok, fail) => { _pollResolve = ok; _pollReject = fail; });
+    return res.json({ loading: true });
+  });
 
+  // ── _runPoll: ciclo de dados em background ────────────────────────────────────
+
+  async function _runPoll() {
+    if (_pollRunning) return;
+    _pollRunning = true;
+    const startS = Date.now() / 1000;
+    const _releaseTimer = setTimeout(() => {
+      console.error('[ao-vivo] poll ultrapassou 4min — liberando mutex');
+      _pollRunning = false;
+    }, 4 * 60 * 1000);
     try {
       // Início do dia em BRT como ISO UTC (para filtro de criação no filter API)
       const _off = CFG.BRT_OFFSET_H * 3600000;
@@ -796,6 +805,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           // Métricas HOJE — 100% CloudChat ao vivo (25s cache)
           hoje: {
             novos:                        n2Counts.novos_hoje,
+            _novos_raw_count_test:        n2Counts._novos_raw_count_test,
             resolv_criados_hoje:          n2Counts.resolv_criados_hoje,
             resolv_criados_hoje_tickets:  n2Counts.resolv_criados_hoje_tickets,
             resolv_fechados_hoje:          n2Counts.resolv_fechados_hoje,
@@ -829,18 +839,18 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         },
       };
       _cache   = result;
-      _cacheTs = nowS;
-      _pollResolve();
-      res.json(result);
+      _cacheTs = Date.now() / 1000;
+      console.log(`[ao-vivo] poll OK ${new Date().toISOString()} (${Math.round(_cacheTs - startS)}s)`);
     } catch (e) {
-      _pollReject(e);
-      console.error('[ao-vivo]', e.message);
-      if (_cache) return res.json({ ..._cache, _stale: true });
-      res.status(500).json({ error: e.message });
+      console.error('[ao-vivo] poll falhou:', e.message);
     } finally {
-      _pollInProgress = null;
+      clearTimeout(_releaseTimer);
+      _pollRunning = false;
     }
-  });
+  }
+
+  setInterval(_runPoll, CFG.POLL_TTL_S * 1000);
+  _runPoll(); // primeiro poll ao iniciar
 
   // Tabela de completude: (verificado + N2) vs v2 por agente — requer DEBUG_TOKEN
   router.get('/debug-completude', async (req, res) => {

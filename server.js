@@ -497,20 +497,27 @@ app.get('/indevidas-resumo', async (req, res) => {
 const CLOUDCHAT_BASE = 'https://cloudchat3.cloudhumans.com';
 const CLOUDCHAT_ACCOUNT = 73;
 
-async function fetchCloudChat(path, token, method = 'GET', body = null) {
+async function fetchCloudChat(path, token, method = 'GET', body = null, timeoutMs = 30000) {
+  const ac  = new AbortController();
+  const tid = setTimeout(() => ac.abort(), timeoutMs);
   const opts = {
     method,
     headers: { 'api_access_token': token, 'Content-Type': 'application/json' },
+    signal: ac.signal,
   };
   if (body) opts.body = JSON.stringify(body);
-  const resp = await fetch(`${CLOUDCHAT_BASE}${path}`, opts);
-  if (!resp.ok) {
-    const text = await resp.text();
-    const err = new Error(`CloudChat ${resp.status}: ${text.slice(0, 200)}`);
-    err.httpStatus = resp.status;
-    throw err;
+  try {
+    const resp = await fetch(`${CLOUDCHAT_BASE}${path}`, opts);
+    if (!resp.ok) {
+      const text = await resp.text();
+      const err = new Error(`CloudChat ${resp.status}: ${text.slice(0, 200)}`);
+      err.httpStatus = resp.status;
+      throw err;
+    }
+    return resp.json();
+  } finally {
+    clearTimeout(tid);
   }
-  return resp.json();
 }
 
 // Cache de bot handoff (última msg da Claudia bot antes de transferir para fila humana)

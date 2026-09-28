@@ -489,7 +489,6 @@ const DISP  = { 'Mari':'Mari','Fernanda Cavalcante':'Fer','Paty':'Paty','Lu Alme
 const DIAS_SEM = ['dom','seg','ter','qua','qui','sex','sáb'];
 
 let lastData     = null;
-let _countdown   = POLL_MS / 1000;
 let _hasOverview = false;
 
 function fmtMin(m) {
@@ -761,11 +760,12 @@ function render(data) {
 }
 
 function updateHdrCountdown() {
-  if (!lastData) return;
-  const av   = lastData.ao_vivo;
-  const secs = Math.max(0, _countdown);
-  document.getElementById('hdr-update').textContent =
-    `atualizado ${fmtHora(av.updated_at)} · próx. em ${secs}s`;
+  if (!lastData?._server_ts) return;
+  const hhmm  = fmtHoraS(lastData._server_ts);
+  const stale = lastData._stale || (Date.now() / 1000 - lastData._server_ts > 15 * 60);
+  document.getElementById('hdr-update').textContent = stale
+    ? `⚠ dados desatualizados desde ${hhmm}`
+    : `dados de ${hhmm}`;
 }
 
 async function fetchStatus() {
@@ -774,15 +774,20 @@ async function fetchStatus() {
     if (r.status === 401) { window.location.href = '/login?r=' + encodeURIComponent(window.location.pathname); return; }
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     const data = await r.json();
+    if (data.loading) {
+      // Servidor ainda no primeiro poll após restart — ciclo normal vai tentar de novo
+      document.getElementById('hdr-update').textContent = 'Atualizando dados…';
+      return;
+    }
     lastData = data;
     document.getElementById('error-bar').style.display = 'none';
     render(data);
+    updateHdrCountdown();
   } catch (e) {
     const bar = document.getElementById('error-bar');
     bar.textContent = `Erro ao atualizar: ${e.message}`;
     bar.style.display = 'block';
   }
-  _countdown = POLL_MS / 1000;
 }
 
 // Pausa polling quando aba está oculta, retoma + atualiza imediatamente ao voltar
@@ -861,7 +866,7 @@ async function fetchDisponibilidade() {
 fetchStatus();
 fetchDisponibilidade();
 startPolling();
-setInterval(() => { _countdown = Math.max(0, _countdown - 1); updateHdrCountdown(); }, 1000);
+setInterval(updateHdrCountdown, 60_000);
 setInterval(fetchDisponibilidade, 60_000);
 </script>
 
