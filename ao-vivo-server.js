@@ -964,7 +964,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     });
   });
 
-  router.post('/ao-vivo/diag-reset', (req, res) => {
+  router.get('/ao-vivo/diag-reset', (req, res) => {
     _backlogVerified   = null;
     _backlogVerifyBusy = false;
     _cacheTs           = 0; // força próximo poll a rebuscar
