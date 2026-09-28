@@ -719,6 +719,75 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     }
   });
 
+  // Tabela de completude: (verificado + N2) vs v2 por agente
+  router.get('/debug-completude', async (req, res) => {
+    const token = process.env.CLOUDCHAT_TOKEN;
+    const cache = _cache?.ao_vivo?.hoje;
+    if (!cache) return res.json({ erro: 'Cache não pronto — abre o painel ao-vivo primeiro.' });
+    const bv = _backlogVerified;
+    if (!bv) return res.json({ status: 'verificando', message: 'Aguarde ~1 min e tente novamente.' });
+
+    // Início do dia em América/São Paulo (UTC-3, sem DST desde 2019)
+    const off = CFG.BRT_OFFSET_H * 3600000;
+    const d   = new Date(Date.now() + off);
+    d.setUTCHours(0, 0, 0, 0);
+    const todayStartS = (d.getTime() - off) / 1000;
+    const nowS        = Math.floor(Date.now() / 1000);
+
+    const agentIds = await _getAgentIds(token);
+
+    // N2 por agente (resolv_fechados_hoje_precisos tem campo agent = nome da atendente)
+    const n2Map = {};
+    for (const t of (cache.resolv_fechados_hoje_precisos || [])) {
+      n2Map[t.agent] = (n2Map[t.agent] || 0) + 1;
+    }
+
+    // Verificado (backlog) por agente — bv.tickets são objetos brutos do CloudChat
+    const verifMap = {};
+    for (const c of bv.tickets) {
+      const ag = c.meta?.assignee?.name;
+      if (ag) verifMap[ag] = (verifMap[ag] || 0) + 1;
+    }
+
+    // v2 resolutions_count por agente + tabela comparativa
+    const tabela = [];
+    for (const ag of CFG.AGENTES) {
+      const agId = agentIds[ag];
+      let v2 = null;
+      if (agId) {
+        try {
+          const r = await fetchCloudChat(
+            `/api/v2/accounts/${CLOUDCHAT_ACCOUNT}/reports?metric=resolutions_count&type=agent&id=${agId}&since=${todayStartS}&until=${nowS}`,
+            token
+          );
+          v2 = Array.isArray(r) && r[0]?.value !== undefined ? r[0].value : null;
+        } catch { /* silencioso */ }
+      }
+      const n2    = n2Map[ag]    || 0;
+      const verif = verifMap[ag] || 0;
+      const soma  = n2 + verif;
+      tabela.push({
+        agente:             CFG.DISPLAY[ag] || ag,
+        n2_hoje:            n2,
+        verificado_backlog: verif,
+        soma,
+        v2_resolutions:     v2,
+        diferenca:          v2 !== null ? soma - v2 : '(sem id)',
+        ok:                 v2 !== null ? soma === v2 : null,
+      });
+    }
+
+    const totalSoma = tabela.reduce((s, r) => s + r.soma, 0);
+    const totalV2   = tabela.reduce((s, r) => s + (r.v2_resolutions ?? 0), 0);
+
+    res.json({
+      tabela,
+      totais: { soma: totalSoma, v2_por_agente: totalV2, v2_conta_toda: cache.resolv_v2_total },
+      candidatos_usados:   cache.resolv_backlog_candidatos,
+      janela_200_risco:    cache.resolv_backlog_candidatos >= 190,
+    });
+  });
+
   // Comparação backlog: lista antiga vs verificada via activity messages
   router.get('/debug-backlog', async (req, res) => {
     const cache = _cache?.ao_vivo?.hoje;
