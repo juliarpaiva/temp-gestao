@@ -635,12 +635,11 @@ function renderHojeGrid(av) {
 
   // Verificado via activity messages (null = ainda processando)
   const verificado      = hoje.resolv_backlog_verificado;       // null | array
-  const verificadoCount = hoje.resolv_backlog_verificado_count; // null | number
-  const autoCount       = hoje.resolv_backlog_auto_count ?? 0;
   const hitLimit        = hoje.resolv_janela_hit_limit ?? false;
-  const verificadoTix   = verificado !== null
-    ? (verificado || []).filter(t => !precisosIds.has(t.id))
-    : [];
+  // Filtra tickets auto-resolvidos: não aparecem no card de produtividade das agentes
+  const verificadoTixTodos   = verificado !== null ? (verificado || []).filter(t => !precisosIds.has(t.id)) : [];
+  const verificadoTix        = verificadoTixTodos.filter(t => !t.auto);
+  const verificadoCount      = verificadoTix.length;
 
   const mkCard = (label, num, sub, tix, cor, aviso) => {
     const inner = `<div class="agora-num" style="color:${cor}">${num}</div>
@@ -653,11 +652,9 @@ function renderHojeGrid(av) {
       : `<div class="agora-card"><div class="agora-label">${label}</div>${inner}</div>`;
   };
 
-  const backlogSub = [
-    'inclui tickets antigos',
-    autoCount > 0 ? `${autoCount} por automação` : '',
-    hitLimit   ? '⚠️ janela incompleta' : '',
-  ].filter(Boolean).join(' · ');
+  const backlogSub = hitLimit
+    ? 'inclui tickets antigos · ⚠️ janela incompleta'
+    : 'inclui tickets antigos';
 
   const backlogCard = verificado === null
     ? `<div class="agora-card">

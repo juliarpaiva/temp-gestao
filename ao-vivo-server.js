@@ -423,10 +423,11 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     const bv = _backlogVerified;
     const backlogVerificadoTickets = (bv && bv.todayStartS === todayStartS)
       ? bv.tickets.map(c => ({
-          id:           c.id,
-          link:         `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}`,
-          agent:        c.meta?.assignee?.name || '',
+          id:            c.id,
+          link:          `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}`,
+          agent:         c.meta?.assignee?.name || '',
           resolved_at_s: _resolvedAtCache.get(c.id)?.resolvedAt_s ?? null,
+          auto:          _resolvedAtCache.get(c.id)?.auto ?? false,
         }))
       : null; // null = ainda verificando
 
@@ -797,10 +798,12 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     }
 
     // Verificado (backlog) por agente — bv.tickets são objetos brutos do CloudChat
-    const verifMap = {};
+    const verifMap = {}, autoMap = {};
     for (const c of bv.tickets) {
       const ag = c.meta?.assignee?.name;
-      if (ag) verifMap[ag] = (verifMap[ag] || 0) + 1;
+      if (!ag) continue;
+      verifMap[ag] = (verifMap[ag] || 0) + 1;
+      if (_resolvedAtCache.get(c.id)?.auto) autoMap[ag] = (autoMap[ag] || 0) + 1;
     }
 
     // v2 resolutions_count por agente + tabela comparativa
@@ -817,16 +820,23 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           v2 = Array.isArray(r) && r[0]?.value !== undefined ? r[0].value : null;
         } catch { /* silencioso */ }
       }
-      const n2    = n2Map[ag]    || 0;
-      const verif = verifMap[ag] || 0;
-      const soma  = n2 + verif;
+      const n2         = n2Map[ag]    || 0;
+      const verif      = verifMap[ag] || 0;
+      const backlogAuto = autoMap[ag] || 0;
+      const soma       = n2 + verif;
+      const somaHumano = n2 + (verif - backlogAuto);
       tabela.push({
         agente:             CFG.DISPLAY[ag] || ag,
         n2_hoje:            n2,
         verificado_backlog: verif,
+        backlog_auto:       backlogAuto,
         soma,
+        soma_humano:        somaHumano,
         v2_resolutions:     v2,
+        // diferenca: valida completude total (deve ser 0 — inclui automação)
         diferenca:          v2 !== null ? soma - v2 : '(sem id)',
+        // diferenca_auto: se v2 conta resoluções por automação sob esta agente, este valor > 0
+        diferenca_auto:     v2 !== null ? somaHumano - v2 : '(sem id)',
         ok:                 v2 !== null ? soma === v2 : null,
       });
     }
