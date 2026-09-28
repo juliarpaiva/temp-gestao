@@ -363,7 +363,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         return { count: total ?? all.length, tickets: all, pages: page, hitLimit, hitBoundary, error: false };
       } catch (e) {
         console.error('[ao-vivo] postFilterUntilOlderThanToday error:', e.message);
-        return { count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false, error: true };
+        return { count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false, error: true, errorMsg: e.message };
       }
     };
 
@@ -480,6 +480,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       resolv_janela_hit_limit:          resolvRecentes.hitLimit,
       resolv_janela_hit_boundary:       resolvRecentes.hitBoundary,
       resolv_janela_error:              resolvRecentes.error,
+      resolv_janela_error_msg:          resolvRecentes.errorMsg ?? null,
       resolv_fechados_hoje_tickets: [...totalResolvidosMap.values()].map(c => ({
         id:    c.id,
         link:  `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}`,
@@ -780,6 +781,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
             resolv_janela_hit_limit:          n2Counts.resolv_janela_hit_limit,
             resolv_janela_hit_boundary:       n2Counts.resolv_janela_hit_boundary,
             resolv_janela_error:              n2Counts.resolv_janela_error,
+            resolv_janela_error_msg:          n2Counts.resolv_janela_error_msg,
             resolv_recentes_tickets:          n2Counts.resolv_recentes_tickets,
           },
 
@@ -958,6 +960,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       janela_hit_limit:      cache.resolv_janela_hit_limit,
       janela_hit_boundary:   cache.resolv_janela_hit_boundary,
       janela_error:          cache.resolv_janela_error,
+      janela_error_msg:      cache.resolv_janela_error_msg,
       backlog_verificado:    _backlogVerified ? { count: _backlogVerified.count, tickets: _backlogVerified.tickets.length } : null,
       amostra_recentes: recentes.slice(0, 5).map(c => ({
         id: c.id, assignee: c.meta?.assignee?.name,
