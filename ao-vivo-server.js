@@ -567,6 +567,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
             resolv_criados_hoje:          n2Counts.resolv_criados_hoje,
             resolv_criados_hoje_tickets:  n2Counts.resolv_criados_hoje_tickets,
             resolv_fechados_hoje:         n2Counts.resolv_fechados_hoje,
+            resolv_total_hoje:            n2Counts.resolv_total_hoje,
             resolv_fechados_hoje_tickets: n2Counts.resolv_fechados_hoje_tickets,
           },
 
