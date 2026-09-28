@@ -719,6 +719,60 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     }
   });
 
+  // Comparação backlog: lista antiga vs verificada via activity messages
+  router.get('/debug-backlog', async (req, res) => {
+    const cache = _cache?.ao_vivo?.hoje;
+    if (!cache) return res.json({ erro: 'Cache ainda não pronto — abre o painel ao-vivo primeiro.' });
+
+    const bv = _backlogVerified;
+    if (!bv) return res.json({ status: 'verificando', message: 'Aguarde ~1 min e tente novamente.' });
+
+    const token = process.env.CLOUDCHAT_TOKEN;
+
+    // Listas base
+    const antigas  = (cache.resolv_fechados_hoje_tickets || []).filter(t => !t.created_today);
+    const verifs   = bv.tickets;
+    const antigasIds = new Set(antigas.map(t => t.id));
+    const verifsIds  = new Set(verifs.map(t => t.id));
+
+    const emAmbas      = antigas.filter(t => verifsIds.has(t.id));
+    const soAntigas    = antigas.filter(t => !verifsIds.has(t.id));  // falsos positivos
+    const soVerificada = verifs.filter(t => !antigasIds.has(t.id));  // novos encontrados
+
+    // Para falsos positivos: busca última activity de resolução e última activity geral
+    const detalhes = await Promise.all(soAntigas.map(async t => {
+      try {
+        const r    = await fetchCloudChat(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${t.id}/messages`, token);
+        const msgs = r?.payload || r?.data?.payload || [];
+        const acts = msgs.filter(m => m.message_type === 2).sort((a, b) => b.created_at - a.created_at);
+        const resAct  = acts.find(m => /resolvid/i.test(m.content || ''));
+        const lastAct = acts[0];
+        return {
+          id:             t.id,
+          agent:          t.agent,
+          link:           t.link,
+          resolvido_em:   resAct ? new Date(resAct.created_at * 1000).toISOString() : 'não encontrado',
+          ult_atividade:  lastAct ? lastAct.content?.slice(0, 80) : '—',
+          ult_ativ_em:    lastAct ? new Date(lastAct.created_at * 1000).toISOString() : '—',
+        };
+      } catch (e) { return { id: t.id, erro: e.message }; }
+    }));
+
+    res.json({
+      resumo: {
+        antigos_total:         antigas.length,
+        verificados_total:     verifs.length,
+        em_ambas:              emAmbas.length,
+        so_na_antiga:          soAntigas.length,
+        so_na_verificada:      soVerificada.length,
+        v2_total_conta:        cache.resolv_v2_total,
+        verificado_ok:         verifs.length <= (cache.resolv_v2_total ?? Infinity),
+      },
+      falsos_positivos: detalhes,
+      so_na_verificada: soVerificada.map(t => ({ id: t.id, agent: t.agent, link: t.link, resolved_at_s: t.resolved_at_s })),
+    });
+  });
+
   // Debug endpoint — testa 3 perguntas sobre a API do CloudChat
   router.get('/debug-ct', async (req, res) => {
     const token = process.env.CLOUDCHAT_TOKEN;
