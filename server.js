@@ -497,18 +497,13 @@ app.get('/indevidas-resumo', async (req, res) => {
 const CLOUDCHAT_BASE = 'https://cloudchat3.cloudhumans.com';
 const CLOUDCHAT_ACCOUNT = 73;
 
-async function fetchCloudChat(path, token, method = 'GET', body = null, _retries = 2) {
+async function fetchCloudChat(path, token, method = 'GET', body = null) {
   const opts = {
     method,
     headers: { 'api_access_token': token, 'Content-Type': 'application/json' },
   };
   if (body) opts.body = JSON.stringify(body);
   const resp = await fetch(`${CLOUDCHAT_BASE}${path}`, opts);
-  if (resp.status === 429 && _retries > 0) {
-    // Retry rápido (5s) para não travar request dentro do timeout Heroku de 30s
-    await new Promise(r => setTimeout(r, 5000));
-    return fetchCloudChat(path, token, method, body, _retries - 1);
-  }
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(`CloudChat ${resp.status}: ${text.slice(0, 200)}`);
