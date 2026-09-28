@@ -394,17 +394,20 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     // Se backlog já foi verificado hoje, não refaz a busca cara (evita 429 em calls repetidos)
     const backlogJaVerificado = _backlogVerified && _backlogVerified.todayStartS === todayStartS_pre;
 
-    // Filtros serializados — evita burst que causa 429 no endpoint /filter
-    const open          = await postFilter([N2A, ST('open')]);
-    const pending       = await postFilter([N2A, ST('pending')]);
-    const snoozed       = await postFilter([N2A, ST('snoozed')]);
-    const novosRaw      = await postFilterAll([CA(todayStartISO), { ...COM_AT, query_operator: null }]);
-    const resolvCriados = await postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]);
-    const naoAtrib      = await postFilterAll([{ ...NAL }, ST('open')]);
-    const resolvHoje    = await postFilterAll([CA(todayStartISO), COM_AT, ST('resolved')]);
+    // Backlog primeiro (cota de rate limit fresca) — só quando não verificado ainda hoje
     const resolvRecentes = backlogJaVerificado
       ? { count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false, error: false }
       : await postFilterUntilOlderThanToday([COM_MON, ST('resolved')], todayStartS_pre, 40);
+    // Outros 7 filtros em paralelo depois do backlog
+    const [open, pending, snoozed, novosRaw, resolvCriados, naoAtrib, resolvHoje] = await Promise.all([
+      postFilter([N2A, ST('open')]),
+      postFilter([N2A, ST('pending')]),
+      postFilter([N2A, ST('snoozed')]),
+      postFilterAll([CA(todayStartISO), { ...COM_AT, query_operator: null }]),
+      postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
+      postFilterAll([{ ...NAL }, ST('open')]),
+      postFilterAll([CA(todayStartISO), COM_AT, ST('resolved')]),
+    ]);
 
     // Conta apenas tickets criados hoje atribuídos às agentes monitoradas (exclui N1/Claudia etc.)
     const novosHoje      = novosRaw.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name)).length;
