@@ -1,6 +1,7 @@
 'use strict';
 const express = require('express');
 const { Pool } = require('pg');
+const cron = require('node-cron');
 
 // ── Config — ajuste aqui ──────────────────────────────────────────────────────
 const CFG = {
@@ -774,8 +775,10 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     }
   });
 
-  // Tabela de completude: (verificado + N2) vs v2 por agente
+  // Tabela de completude: (verificado + N2) vs v2 por agente — requer DEBUG_TOKEN
   router.get('/debug-completude', async (req, res) => {
+    const debugToken = process.env.DEBUG_TOKEN;
+    if (debugToken && req.query.token !== debugToken) return res.status(401).json({ erro: 'Unauthorized — passe ?token=DEBUG_TOKEN' });
     const token = process.env.CLOUDCHAT_TOKEN;
     const cache = _cache?.ao_vivo?.hoje;
     if (!cache) return res.json({ erro: 'Cache não pronto — abre o painel ao-vivo primeiro.' });
@@ -853,12 +856,31 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       rejMap[r.agent][r.motivo]?.push(r.id);
     }
 
+    // Outros agentes (não monitorados) — v2 resolutions apenas, para fechar a conta
+    const outrosAgentes = [];
+    const monitoradosSet = new Set(CFG.AGENTES);
+    for (const [nome, agId] of Object.entries(agentIds)) {
+      if (monitoradosSet.has(nome)) continue;
+      let v2 = null;
+      try {
+        const r = await fetchCloudChat(
+          `/api/v2/accounts/${CLOUDCHAT_ACCOUNT}/reports?metric=resolutions_count&type=agent&id=${agId}&since=${todayStartS}&until=${nowS}`,
+          token
+        );
+        v2 = Array.isArray(r) && r[0]?.value !== undefined ? r[0].value : null;
+      } catch { /* silencioso */ }
+      if (v2 !== null && v2 > 0) outrosAgentes.push({ agente: nome, v2_resolutions: v2 });
+    }
+    outrosAgentes.sort((a, b) => b.v2_resolutions - a.v2_resolutions);
+    const totalOutrosV2 = outrosAgentes.reduce((s, r) => s + r.v2_resolutions, 0);
+
     res.json({
       tabela: tabela.map(row => {
         const ag = CFG.AGENTES.find(a => (CFG.DISPLAY[a] || a) === row.agente);
         return { ...row, rejeitados: rejMap[ag] || {} };
       }),
-      totais:              { soma: totalSoma, v2_por_agente: totalV2, v2_conta_toda: cache.resolv_v2_total },
+      totais:              { soma: totalSoma, v2_por_agente: totalV2, v2_outros_agentes: totalOutrosV2, v2_conta_toda: cache.resolv_v2_total },
+      outros_agentes:      outrosAgentes,
       candidatos_usados:        cache.resolv_backlog_candidatos,
       janela_paginas:           cache.resolv_janela_paginas,
       janela_hit_limit:         cache.resolv_janela_hit_limit,
@@ -874,146 +896,6 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     });
   });
 
-  // Inspeção de activity messages de um ticket específico (debug)
-  // GET /debug-msgs?id=12345
-  router.get('/debug-msgs', async (req, res) => {
-    const id = parseInt(req.query.id, 10);
-    if (!id) return res.json({ erro: 'Passe ?id=NUMERO_DO_TICKET' });
-    const token = process.env.CLOUDCHAT_TOKEN;
-    try {
-      const r = await fetchCloudChat(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${id}/messages`, token);
-      const msgs = r?.payload || r?.data?.payload || [];
-      const activities = msgs
-        .filter(m => m.message_type === 2)
-        .sort((a, b) => b.created_at - a.created_at);
-      res.json({
-        ticket:          id,
-        total_msgs:      msgs.length,
-        total_activities: activities.length,
-        activities: activities.map(m => ({
-          id:         m.id,
-          created_at: new Date(m.created_at * 1000).toISOString(),
-          content:    m.content,
-          bate_regex: /resolv(id|ed)/i.test(m.content || ''),
-          auto:       /automat(ion|ão)|by System/i.test(m.content || ''),
-        })),
-      });
-    } catch (e) { res.json({ erro: e.message }); }
-  });
-
-  // Comparação backlog: lista antiga vs verificada via activity messages
-  router.get('/debug-backlog', async (req, res) => {
-    const cache = _cache?.ao_vivo?.hoje;
-    if (!cache) return res.json({ erro: 'Cache ainda não pronto — abre o painel ao-vivo primeiro.' });
-
-    const bv = _backlogVerified;
-    if (!bv) return res.json({ status: 'verificando', message: 'Aguarde ~1 min e tente novamente.' });
-
-    const token = process.env.CLOUDCHAT_TOKEN;
-
-    // Listas base
-    const antigas  = (cache.resolv_fechados_hoje_tickets || []).filter(t => !t.created_today);
-    const verifs   = bv.tickets;
-    const antigasIds = new Set(antigas.map(t => t.id));
-    const verifsIds  = new Set(verifs.map(t => t.id));
-
-    const emAmbas      = antigas.filter(t => verifsIds.has(t.id));
-    const soAntigas    = antigas.filter(t => !verifsIds.has(t.id));  // falsos positivos
-    const soVerificada = verifs.filter(t => !antigasIds.has(t.id));  // novos encontrados
-
-    // Para falsos positivos: busca última activity de resolução e última activity geral
-    const detalhes = await Promise.all(soAntigas.map(async t => {
-      try {
-        const r    = await fetchCloudChat(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${t.id}/messages`, token);
-        const msgs = r?.payload || r?.data?.payload || [];
-        const acts = msgs.filter(m => m.message_type === 2).sort((a, b) => b.created_at - a.created_at);
-        const resAct  = acts.find(m => /resolv(id|ed)/i.test(m.content || ''));
-        const lastAct = acts[0];
-        return {
-          id:             t.id,
-          agent:          t.agent,
-          link:           t.link,
-          resolvido_em:   resAct ? new Date(resAct.created_at * 1000).toISOString() : 'não encontrado',
-          ult_atividade:  lastAct ? lastAct.content?.slice(0, 80) : '—',
-          ult_ativ_em:    lastAct ? new Date(lastAct.created_at * 1000).toISOString() : '—',
-        };
-      } catch (e) { return { id: t.id, erro: e.message }; }
-    }));
-
-    res.json({
-      resumo: {
-        antigos_total:         antigas.length,
-        verificados_total:     verifs.length,
-        em_ambas:              emAmbas.length,
-        so_na_antiga:          soAntigas.length,
-        so_na_verificada:      soVerificada.length,
-        v2_total_conta:        cache.resolv_v2_total,
-        verificado_ok:         verifs.length <= (cache.resolv_v2_total ?? Infinity),
-      },
-      falsos_positivos: detalhes,
-      so_na_verificada: soVerificada.map(t => ({ id: t.id, agent: t.agent, link: t.link, resolved_at_s: t.resolved_at_s })),
-    });
-  });
-
-  // Debug endpoint — testa 3 perguntas sobre a API do CloudChat
-  router.get('/debug-ct', async (req, res) => {
-    const token = process.env.CLOUDCHAT_TOKEN;
-    const result = {};
-
-    try {
-      // Busca algumas conversas resolvidas para usar nos testes
-      const r = await fetchCloudChat(
-        `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=1`,
-        token, 'POST',
-        { payload: [{ attribute_key: 'assignee_id', filter_operator: 'is_present', values: [], query_operator: 'AND' }, { attribute_key: 'status', filter_operator: 'equal_to', values: ['resolved'], query_operator: null }] }
-      );
-      const convs = (r?.payload || r?.data?.payload || []).slice(0, 3);
-
-      // TESTE 1: mensagens de activity (message_type=2) com resolução/atribuição
-      result.teste1_activity_messages = [];
-      for (const conv of convs) {
-        try {
-          const msgs = await fetchCloudChat(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${conv.id}/messages`, token);
-          const activities = (msgs?.payload || []).filter(m => m.message_type === 2);
-          result.teste1_activity_messages.push({
-            conv_id: conv.id,
-            total_activities: activities.length,
-            exemplos: activities.slice(0, 5).map(m => ({
-              id: m.id,
-              content: m.content,
-              created_at: m.created_at,
-              created_at_iso: new Date(m.created_at * 1000).toISOString(),
-            })),
-          });
-        } catch (e) { result.teste1_activity_messages.push({ conv_id: conv.id, erro: e.message }); }
-      }
-
-      // TESTE 2: campos first_reply_created_at e waiting_since nas conversas
-      result.teste2_campos_conversa = convs.map(c => ({
-        conv_id: c.id,
-        first_reply_created_at: c.first_reply_created_at ?? 'AUSENTE',
-        waiting_since: c.waiting_since ?? 'AUSENTE',
-        todos_campos: Object.keys(c),
-      }));
-
-      // TESTE 3: v2 reports com type=agent
-      try {
-        const agentsR = await fetchCloudChat(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/agents`, token);
-        const agents = Array.isArray(agentsR) ? agentsR : (agentsR?.data || []);
-        const primeiro = agents[0];
-        const nowS = Math.floor(Date.now() / 1000);
-        const todayS = nowS - (nowS % 86400);
-        const v2Agent = await fetchCloudChat(
-          `/api/v2/accounts/${CLOUDCHAT_ACCOUNT}/reports?metric=avg_first_response_time&type=agent&id=${primeiro?.id}&since=${todayS}&until=${nowS}`,
-          token
-        );
-        result.teste3_v2_por_agente = { agente: primeiro?.name, id: primeiro?.id, resposta: v2Agent };
-      } catch (e) { result.teste3_v2_por_agente = { erro: e.message }; }
-
-    } catch (e) { result.erro_geral = e.message; }
-
-    res.json(result);
-  });
 
   // Disponibilidade por agente: hoje ou range
   router.get('/ao-vivo/disponibilidade', async (req, res) => {
@@ -1066,6 +948,79 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       res.status(500).json({ error: e.message });
     }
   });
+
+  // ── Cron diário de completude — 21h30 UTC (18h30 BRT), seg–sex ──────────────
+  cron.schedule('30 21 * * 1-5', async () => {
+    const token = process.env.CLOUDCHAT_TOKEN;
+    const webhookUrl = process.env.DISCORD_WEBHOOK_AO_VIVO;
+    const cache = _cache?.ao_vivo?.hoje;
+    if (!cache) { console.log('[completude-cron] cache vazio — pulando'); return; }
+    if (!_backlogVerified) { console.log('[completude-cron] backlog não verificado — pulando'); return; }
+
+    const off = CFG.BRT_OFFSET_H * 3600000;
+    const d = new Date(Date.now() + off);
+    d.setUTCHours(0, 0, 0, 0);
+    const todayStartS = (d.getTime() - off) / 1000;
+    const nowS = Math.floor(Date.now() / 1000);
+
+    const agentIds = await _getAgentIds(token);
+    const n2Map = {};
+    for (const t of (cache.resolv_fechados_hoje_precisos || [])) {
+      n2Map[t.agent] = (n2Map[t.agent] || 0) + 1;
+    }
+    const verifMap = {}, autoMap = {};
+    for (const c of _backlogVerified.tickets) {
+      const ag = c.meta?.assignee?.name;
+      if (!ag) continue;
+      verifMap[ag] = (verifMap[ag] || 0) + 1;
+      if (_resolvedAtCache.get(c.id)?.auto) autoMap[ag] = (autoMap[ag] || 0) + 1;
+    }
+
+    const problemas = [];
+    for (const ag of CFG.AGENTES) {
+      const agId = agentIds[ag];
+      if (!agId) continue;
+      let v2 = null;
+      try {
+        const r = await fetchCloudChat(
+          `/api/v2/accounts/${CLOUDCHAT_ACCOUNT}/reports?metric=resolutions_count&type=agent&id=${agId}&since=${todayStartS}&until=${nowS}`,
+          token
+        );
+        v2 = Array.isArray(r) && r[0]?.value !== undefined ? r[0].value : null;
+      } catch { /* silencioso */ }
+      const n2 = n2Map[ag] || 0;
+      const verif = verifMap[ag] || 0;
+      const backlogAuto = autoMap[ag] || 0;
+      const soma = n2 + verif;
+      const somaHumano = n2 + (verif - backlogAuto);
+      const diferenca = v2 !== null ? soma - v2 : null;
+      const diferencaAuto = v2 !== null ? somaHumano - v2 : null;
+      if (diferenca !== 0 || diferencaAuto !== 0) {
+        problemas.push({ ag: CFG.DISPLAY[ag] || ag, soma, v2, diferenca, diferencaAuto, backlogAuto });
+      }
+    }
+
+    if (problemas.length === 0) {
+      console.log('[completude-cron] ✅ todas as agentes OK — diferenca=0');
+    } else {
+      const msg = `⚠️ Completude ao-vivo — diferença detectada:\n` +
+        problemas.map(p =>
+          `• ${p.ag}: soma=${p.soma}, v2=${p.v2}, diferenca=${p.diferenca}, diferenca_auto=${p.diferencaAuto}` +
+          (p.backlogAuto > 0 ? ` (${p.backlogAuto} auto)` : '')
+        ).join('\n');
+      console.warn('[completude-cron]', msg);
+      if (webhookUrl) {
+        try {
+          const { default: https } = await import('https');
+          const body = JSON.stringify({ content: msg });
+          const u = new URL(webhookUrl);
+          const req = https.request({ hostname: u.hostname, path: u.pathname + u.search, method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } });
+          req.write(body); req.end();
+        } catch (e) { console.error('[completude-cron] discord webhook error:', e.message); }
+      }
+    }
+  }, { timezone: 'UTC' });
 
   return router;
 };

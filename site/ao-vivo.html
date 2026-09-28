@@ -631,7 +631,6 @@ function renderHojeGrid(av) {
   const precisosTix   = hoje.resolv_fechados_hoje_precisos ?? [];
   const precisosIds   = new Set(precisosTix.map(t => t.id));
   const v2Total       = hoje.resolv_v2_total ?? null;
-  const v2Aviso       = v2Total !== null ? `conta toda: ${v2Total}` : '';
 
   // Verificado via activity messages (null = ainda processando)
   const verificado      = hoje.resolv_backlog_verificado;       // null | array
@@ -661,9 +660,8 @@ function renderHojeGrid(av) {
          <div class="agora-label">Fechados hoje · backlog</div>
          <div class="agora-num" style="color:var(--muted);font-size:18px;font-weight:600">verificando…</div>
          <div class="agora-sub">via histórico de atividades</div>
-         ${v2Aviso ? `<div style="font-size:10px;color:var(--muted);margin-top:5px">${v2Aviso}</div>` : ''}
        </div>`
-    : mkCard('Fechados hoje · backlog', verificadoCount ?? '—', backlogSub, verificadoTix, hitLimit ? 'var(--amber)' : 'var(--azul)', v2Aviso);
+    : mkCard('Fechados hoje · backlog', verificadoCount ?? '—', backlogSub, verificadoTix, hitLimit ? 'var(--amber)' : 'var(--azul)');
 
   document.getElementById('hoje-grid').innerHTML = `
     <div class="agora-card">
