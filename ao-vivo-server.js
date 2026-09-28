@@ -65,6 +65,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   const _resolvedAtCache = new Map();
   let _backlogVerified    = null; // { tickets, count, todayStartS, verifiedAt_s }
   let _backlogVerifyBusy  = false;
+  let _pollInProgress     = null; // mutex: apenas 1 poll ativo por vez
 
   // Retorna Unix timestamp da última activity de resolução (ou null).
   // Cobre português ("resolvida") e inglês ("resolved by automation").
@@ -285,56 +286,80 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
 
   const _fetchAllOpen = () => _fetchAllByStatus('open');
 
+  // Limitador de taxa para /filter endpoint: máx 6 chamadas/47s, com fila e penalidade por 429.
+  // Compartilhado entre todos os polls (módulo singleton).
+  const _filterRL = (() => {
+    const WINDOW_MS = 47000;
+    const MAX = 6;
+    const slots = [];      // timestamps das chamadas na janela atual
+    let _penaltyUntil = 0; // Unix ms — bloqueia novas chamadas até este instante
+    return {
+      async acquire() {
+        while (true) {
+          const now = Date.now();
+          if (now < _penaltyUntil) {
+            await new Promise(r => setTimeout(r, _penaltyUntil - now + 50));
+            continue;
+          }
+          while (slots.length && now - slots[0] >= WINDOW_MS) slots.shift();
+          if (slots.length < MAX) { slots.push(Date.now()); return; }
+          const wait = WINDOW_MS - (Date.now() - slots[0]) + 50;
+          await new Promise(r => setTimeout(r, wait));
+        }
+      },
+      penalize(s) { _penaltyUntil = Math.max(_penaltyUntil, Date.now() + s * 1000); },
+    };
+  })();
+
   // Contagens N2 via filter API (uma chamada por métrica, paralelas).
   // Fonte: CloudChat filter API — tempo real (não usa DW).
   //
   // Métricas:
-  //   open_count          — Em aberto agora (status=open, n2_ticket)
-  //   pending_count       — Pendentes agora (status=pending, n2_ticket)
-  //   snoozed_count       — Adiados agora   (status=snoozed, n2_ticket)
   //   novos_hoje          — Criados hoje, todos os status (created_at >= 00:00 BRT)
   //   resolv_criados_hoje — Criados hoje E atualmente resolved
-  //   nao_atribuidos      — open N2 sem assignee (null) + lista de tickets
+  //   nao_atribuidos      — open sem assignee (null) + lista de tickets
   async function _fetchN2Counts(todayStartISO) {
     const token = process.env.CLOUDCHAT_TOKEN;
 
-    const postFilter = async (payload) => {
+    // Toda chamada ao /filter passa pelo rate limiter compartilhado.
+    // Qualquer erro (429, 5xx, rede) é relançado — o route handler serve stale cache.
+    const fetchFilter = async (page, payload) => {
+      await _filterRL.acquire();
       try {
-        const r = await fetchCloudChat(
-          `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=1`,
-          token,
-          'POST',
-          { payload }
+        return await fetchCloudChat(
+          `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=${page}`,
+          token, 'POST', { payload }
         );
-        // Filter API retorna estrutura FLAT: { meta, payload } — não aninhado em data
-        const meta = r?.meta || r?.data?.meta || {};
-        const items = r?.payload || r?.data?.payload || [];
-        return {
-          count:   meta.all_count ?? 0,
-          tickets: items,
-        };
-      } catch { return { count: 0, tickets: [] }; }
+      } catch (e) {
+        if (e.httpStatus === 429) {
+          const ra = e.message.match(/"retry_after":(\d+)/)?.[1];
+          if (ra) _filterRL.penalize(parseInt(ra, 10));
+        }
+        throw e; // sempre relança — sem zeros silenciosos
+      }
+    };
+
+    const postFilter = async (payload) => {
+      const r = await fetchFilter(1, payload);
+      const meta  = r?.meta || r?.data?.meta || {};
+      const items = r?.payload || r?.data?.payload || [];
+      return { count: meta.all_count ?? 0, tickets: items };
     };
 
     // Versão paginada: busca todas as páginas até esgotar (max maxPages páginas).
     const postFilterAll = async (payload, maxPages = 10) => {
-      try {
-        const all = [];
-        let page = 1, total = null;
-        while (true) {
-          const r = await fetchCloudChat(
-            `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=${page}`,
-            token, 'POST', { payload }
-          );
-          const meta  = r?.meta || r?.data?.meta || {};
-          const items = r?.payload || r?.data?.payload || [];
-          if (total === null) total = meta.all_count ?? items.length;
-          all.push(...items);
-          if (all.length >= total || items.length === 0 || page >= maxPages) break;
-          page++;
-        }
-        return { count: total ?? all.length, tickets: all };
-      } catch { return { count: 0, tickets: [] }; }
+      const all = [];
+      let page = 1, total = null;
+      while (true) {
+        const r = await fetchFilter(page, payload);
+        const meta  = r?.meta || r?.data?.meta || {};
+        const items = r?.payload || r?.data?.payload || [];
+        if (total === null) total = meta.all_count ?? items.length;
+        all.push(...items);
+        if (all.length >= total || items.length === 0 || page >= maxPages) break;
+        page++;
+      }
+      return { count: total ?? all.length, tickets: all };
     };
 
     // Versão adaptativa: pagina resolvRecentes até encontrar ticket com last_activity_at antes de hoje.
@@ -345,10 +370,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         const all = [];
         let page = 1, total = null, hitLimit = false, hitBoundary = false;
         while (true) {
-          const r = await fetchCloudChat(
-            `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=${page}`,
-            token, 'POST', { payload }
-          );
+          const r = await fetchFilter(page, payload);
           const meta  = r?.meta || r?.data?.meta || {};
           const items = r?.payload || r?.data?.payload || [];
           if (total === null) total = meta.all_count ?? items.length;
@@ -398,11 +420,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     const resolvRecentes = backlogJaVerificado
       ? { count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false, error: false }
       : await postFilterUntilOlderThanToday([COM_MON, ST('resolved')], todayStartS_pre, 40);
-    // Outros 7 filtros em paralelo depois do backlog
-    const [open, pending, snoozed, novosRaw, resolvCriados, naoAtrib, resolvHoje] = await Promise.all([
-      postFilter([N2A, ST('open')]),
-      postFilter([N2A, ST('pending')]),
-      postFilter([N2A, ST('snoozed')]),
+    // 4 filtros em paralelo (open/pending/snoozed N2 removidos — vêm de allOpenConvs via GET)
+    const [novosRaw, resolvCriados, naoAtrib, resolvHoje] = await Promise.all([
       postFilterAll([CA(todayStartISO), { ...COM_AT, query_operator: null }]),
       postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
       postFilterAll([{ ...NAL }, ST('open')]),
@@ -461,9 +480,6 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       : null; // null = ainda verificando
 
     return {
-      open_count:          open.count,
-      pending_count:       pending.count,
-      snoozed_count:       snoozed.count,
       novos_hoje:          novosHoje,
       resolv_criados_hoje:         resolvCriados.count,
       resolv_criados_hoje_tickets: resolvCriados.tickets.map(mt),
@@ -524,6 +540,15 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   router.get('/ao-vivo/status', async (req, res) => {
     const nowS = Date.now() / 1000;
     if (_cache && (nowS - _cacheTs) < CFG.POLL_TTL_S) return res.json(_cache);
+
+    // Poll único: se já há um em andamento, aguarda e serve o resultado (evita burst de calls)
+    if (_pollInProgress) {
+      try { await _pollInProgress; } catch { /* serve stale abaixo */ }
+      if (_cache) return res.json(_cache);
+      return res.status(503).json({ error: 'poll em andamento falhou' });
+    }
+    let _pollResolve, _pollReject;
+    _pollInProgress = new Promise((ok, fail) => { _pollResolve = ok; _pollReject = fail; });
 
     try {
       // Início do dia em BRT como ISO UTC (para filtro de criação no filter API)
@@ -805,11 +830,15 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       };
       _cache   = result;
       _cacheTs = nowS;
+      _pollResolve();
       res.json(result);
     } catch (e) {
+      _pollReject(e);
       console.error('[ao-vivo]', e.message);
       if (_cache) return res.json({ ..._cache, _stale: true });
       res.status(500).json({ error: e.message });
+    } finally {
+      _pollInProgress = null;
     }
   });
 

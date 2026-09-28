@@ -506,7 +506,9 @@ async function fetchCloudChat(path, token, method = 'GET', body = null) {
   const resp = await fetch(`${CLOUDCHAT_BASE}${path}`, opts);
   if (!resp.ok) {
     const text = await resp.text();
-    throw new Error(`CloudChat ${resp.status}: ${text.slice(0, 200)}`);
+    const err = new Error(`CloudChat ${resp.status}: ${text.slice(0, 200)}`);
+    err.httpStatus = resp.status;
+    throw err;
   }
   return resp.json();
 }
