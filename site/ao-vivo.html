@@ -630,9 +630,10 @@ function renderHojeGrid(av) {
   const precisos      = hoje.resolv_fechados_hoje        ?? '—';
   const precisosTix   = hoje.resolv_fechados_hoje_precisos ?? [];
   const precisosIds   = new Set(precisosTix.map(t => t.id));
-  const totalBacklog  = hoje.resolv_total_hoje           ?? null;
   const backlogTixAll = hoje.resolv_fechados_hoje_tickets ?? [];
   const backlogTix    = backlogTixAll.filter(t => !precisosIds.has(t.id));
+  const v2Total       = hoje.resolv_v2_total ?? null;
+  const backlogAviso  = v2Total !== null ? `Total conta: ${v2Total}` : '';
 
   const mkCard = (label, num, sub, tix, cor, aviso) => {
     const inner = `<div class="agora-num" style="color:${cor}">${num}</div>
@@ -652,7 +653,7 @@ function renderHojeGrid(av) {
       <div class="agora-sub">com atribuição</div>
     </div>
     ${mkCard('Fechados hoje · N2', precisos, 'abertos + fechados hoje', precisosTix, 'var(--verde)', '')}
-    ${mkCard('Fechados hoje · backlog', backlogTix.length || (totalBacklog ?? '—'), 'inclui tickets antigos', backlogTix, 'var(--azul, #4a9eff)', '~ estimado')}
+    ${mkCard('Fechados hoje · backlog', backlogTix.length || '—', 'inclui tickets antigos', backlogTix, 'var(--azul)', backlogAviso)}
   `;
 }
 
