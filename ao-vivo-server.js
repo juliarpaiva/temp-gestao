@@ -380,6 +380,15 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     // Não atribuído: todas as conversas abertas sem assignee, sem filtro de label
     // (espelha o que CloudChat exibe na aba "Não atribuída")
     const NAL = { attribute_key: 'assignee_id', filter_operator: 'is_not_present', values: [], query_operator: 'AND' };
+
+    // IDs das agentes monitoradas para filtrar resolvRecentes (evita paginação infinita da ClaudIA)
+    const agentIdsMap = await _getAgentIds(token);
+    const monitoradosIds = CFG.AGENTES.map(a => agentIdsMap[a]).filter(Boolean);
+    // Filtro só para monitoradas (intermediário → AND); fallback para COM_AT se IDs não carregaram
+    const COM_MON = monitoradosIds.length > 0
+      ? { attribute_key: 'assignee_id', filter_operator: 'equal_to', values: monitoradosIds, query_operator: 'AND' }
+      : COM_AT;
+
     const [open, pending, snoozed, novosRaw, resolvCriados, naoAtrib, resolvHoje, resolvRecentes] = await Promise.all([
       postFilter([N2A, ST('open')]),
       postFilter([N2A, ST('pending')]),
@@ -388,7 +397,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
       postFilterAll([{ ...NAL }, ST('open')]),  // sem n2_ticket — espelha CloudChat; paginado p/ total exato
       postFilterAll([CA(todayStartISO), COM_AT, ST('resolved')]),  // resolvidos criados hoje (com assignee, qualquer label)
-      postFilterUntilOlderThanToday([COM_AT, ST('resolved')], todayStartS_pre, 40),  // adaptativo: para quando tickets ficam anteriores a hoje
+      postFilterUntilOlderThanToday([COM_MON, ST('resolved')], todayStartS_pre, 40),  // só monitoradas: evita paginação infinita da ClaudIA
     ]);
 
     // Conta apenas tickets criados hoje atribuídos às agentes monitoradas (exclui N1/Claudia etc.)
