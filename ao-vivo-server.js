@@ -61,94 +61,120 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   let _agentIdsDay = null;
 
   // ── resolved_at via activity messages ───────────────────────────────────────
-  // Cache: convId → { resolvedAt_s: number|null, fetchedAt_s: number }
+  // Cache: convId → { resolvedAt_s: number|null, auto: bool, lastActivityAt_s: number, fetchedAt_s: number }
+  // Invalida quando last_activity_at do ticket muda; limpo na virada do dia.
   const _resolvedAtCache = new Map();
-  let _backlogVerified    = null; // { tickets, count, todayStartS, verifiedAt_s }
+  let _backlogVerified    = null; // { tickets, count, auto_count, rejected, todayStartS, verifiedAt_s }
   let _backlogVerifyBusy  = false;
   let _pollRunning        = false; // background poll: apenas 1 ativo por vez
   let _resolvState        = null;            // estado incremental de resolvidos hoje
   let _pollGen            = 0;               // geração do poll — poll atrasado não sobrescreve cache novo
   const _UNCHANGED        = Symbol('unchanged'); // sentinela para pendingState
 
-  // Retorna Unix timestamp da última activity de resolução (ou null).
-  // Cobre português ("resolvida") e inglês ("resolved by automation").
-  // Cache TTL = 5 min. Não lança exceção.
-  const _getResolvedAt = async (convId, token) => {
-    const now_s  = Date.now() / 1000;
+  // Retorna entrada do cache para convId após verificação via activity messages.
+  // Invalida pelo last_activity_at do ticket (não por TTL). Não lança exceção.
+  // Ajuste 1: erro (429, 5xx, timeout) → não grava no cache; retenta no próximo poll.
+  // Nota: endpoint /messages tem cota separada do /filter — não passa por _filterRL.
+  const _getResolvedAt = async (convId, token, lastActivityAt_s) => {
     const cached = _resolvedAtCache.get(convId);
-    if (cached && (now_s - cached.fetchedAt_s) < 300) return cached.resolvedAt_s;
-    try {
+    if (cached && cached.lastActivityAt_s === lastActivityAt_s) return cached;
+
+    const doFetch = async () => {
       const r    = await fetchCloudChat(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${convId}/messages`, token);
       const msgs = r?.payload || r?.data?.payload || [];
       const resActs = msgs
         .filter(m => m.message_type === 2 && /resolv(id|ed)/i.test(m.content || ''))
         .sort((a, b) => b.created_at - a.created_at);
       const resolvedAt_s = resActs[0]?.created_at ?? null;
-      // Marca automação: "by automation", "por automação" ou "by System"
       const auto = resolvedAt_s !== null && /automat(ion|ão)|by System/i.test(resActs[0]?.content || '');
-      _resolvedAtCache.set(convId, { resolvedAt_s, fetchedAt_s: now_s, auto });
-      return resolvedAt_s;
-    } catch { return null; }
-  };
+      return { resolvedAt_s, auto };
+    };
 
-  // Processa lote de convIds com concorrência limitada (evita burst na API).
-  const _batchResolvedAt = async (convIds, token, concurrency = 5) => {
-    const out = new Map();
-    for (let i = 0; i < convIds.length; i += concurrency) {
-      await Promise.all(convIds.slice(i, i + concurrency).map(async id => {
-        out.set(id, await _getResolvedAt(id, token));
-      }));
-    }
-    return out;
-  };
-
-  // Dispara verificação em background sem bloquear o endpoint.
-  // Respeita fuso America/Sao_Paulo (sempre UTC-3 após abolição do horário de verão).
-  const _triggerBacklogVerify = (candidates, token, todayStartS, resolvRecentesError = false) => {
-    // Invalida resultado do dia anterior
-    if (_backlogVerified && _backlogVerified.todayStartS !== todayStartS) _backlogVerified = null;
-    if (candidates.length === 0) {
-      // Só confirma vazio se a busca foi bem-sucedida (sem erro de API)
-      if (!resolvRecentesError) {
-        _backlogVerified = { tickets: [], count: 0, auto_count: 0, rejected: [], todayStartS, verifiedAt_s: Date.now() / 1000 };
+    try {
+      let result;
+      try {
+        result = await doFetch();
+      } catch (e) {
+        if (e.httpStatus === 429) {
+          const ra = e.message.match(/"retry_after":(\d+)/)?.[1];
+          await new Promise(r => setTimeout(r, (parseInt(ra, 10) || 30) * 1000));
+          result = await doFetch();
+        } else throw e;
       }
+      const entry = { resolvedAt_s: result.resolvedAt_s, auto: result.auto, lastActivityAt_s, fetchedAt_s: Date.now() / 1000 };
+      _resolvedAtCache.set(convId, entry);
+      return entry;
+    } catch {
+      return null; // erro → não grava; tenta de novo no próximo poll
+    }
+  };
+
+  // Reconstrói _backlogVerified a partir do Map snapshot + _resolvedAtCache.
+  // Se algum candidato ainda não tiver resultado → não atualiza (card mantém "verificando…" ou valor anterior).
+  const _rebuildBacklogVerified = (allCandidates, todayStartS) => {
+    const verified = [], rejected = [];
+    let pendingCount = 0;
+    for (const c of allCandidates) {
+      const entry = _resolvedAtCache.get(c.id);
+      if (!entry) { pendingCount++; continue; }
+      if (entry.resolvedAt_s !== null && entry.resolvedAt_s >= todayStartS) {
+        verified.push(c);
+      } else {
+        rejected.push({
+          id: c.id, agent: c.meta?.assignee?.name,
+          motivo: entry.resolvedAt_s === null ? 'sem_activity_resolvida' : 'resolvido_antes_de_hoje',
+          resolved_at_s: entry.resolvedAt_s, last_activity_at_s: c.last_activity_at,
+        });
+      }
+    }
+    // Ajuste 3: só atualiza quando todos os candidatos têm resultado
+    if (pendingCount > 0) return;
+    const autoCount = verified.filter(c => _resolvedAtCache.get(c.id)?.auto).length;
+    _backlogVerified = {
+      tickets: verified, count: verified.length, auto_count: autoCount,
+      rejected, todayStartS, verifiedAt_s: Date.now() / 1000,
+    };
+    console.log(`[ao-vivo] backlog rebuild: ${verified.length}/${allCandidates.length} verificados, ${autoCount} auto, ${rejected.length} rejeitados`);
+  };
+
+  // Dispara verificação incremental em background: só verifica candidatos novos ou com last_activity_at alterado.
+  // Ajuste 2: concorrência limitada a 5 chamadas simultâneas ao /messages.
+  const _triggerBacklogVerify = (allCandidates, token, todayStartS) => {
+    // Virada de dia → limpa cache e reseta
+    if (_backlogVerified && _backlogVerified.todayStartS !== todayStartS) {
+      _backlogVerified = null;
+      _resolvedAtCache.clear();
+    }
+    // Filtra candidatos que precisam verificação (novos ou last_activity_at mudou)
+    const toVerify = allCandidates.filter(c => {
+      const cached = _resolvedAtCache.get(c.id);
+      return !cached || cached.lastActivityAt_s !== (c.last_activity_at || 0);
+    });
+    if (toVerify.length === 0) {
+      _rebuildBacklogVerified(allCandidates, todayStartS);
       return;
     }
     if (_backlogVerifyBusy) return;
     _backlogVerifyBusy = true;
-    _batchResolvedAt(candidates.map(c => c.id), token)
-      .then(resolvedAtMap => {
-        const verified = candidates.filter(c => {
-          const rAt = resolvedAtMap.get(c.id);
-          return rAt !== null && rAt >= todayStartS;
-        });
-        const rejected = candidates
-          .filter(c => {
-            const rAt = resolvedAtMap.get(c.id);
-            return !(rAt !== null && rAt >= todayStartS);
-          })
-          .map(c => {
-            const rAt = resolvedAtMap.get(c.id);
-            return {
-              id:                c.id,
-              agent:             c.meta?.assignee?.name,
-              motivo:            rAt === null ? 'sem_activity_resolvida' : 'resolvido_antes_de_hoje',
-              resolved_at_s:     rAt,
-              last_activity_at_s: c.last_activity_at,
-            };
-          });
-        const autoCount = verified.filter(c => _resolvedAtCache.get(c.id)?.auto).length;
-        _backlogVerified = {
-          tickets:      verified,
-          count:        verified.length,
-          auto_count:   autoCount,
-          rejected,
-          todayStartS,
-          verifiedAt_s: Date.now() / 1000,
-        };
-      })
-      .catch(e => console.error('[ao-vivo] backlog verify error:', e.message))
-      .finally(() => { _backlogVerifyBusy = false; });
+    console.log(`[ao-vivo] backlog verify: ${toVerify.length} novos/alterados, ${allCandidates.length} total`);
+    setImmediate(async () => {
+      let errors = 0;
+      try {
+        const CONC = 5;
+        for (let i = 0; i < toVerify.length; i += CONC) {
+          await Promise.all(toVerify.slice(i, i + CONC).map(async c => {
+            const r = await _getResolvedAt(c.id, token, c.last_activity_at || 0);
+            if (r === null) errors++;
+          }));
+        }
+        if (errors > 0) console.warn(`[ao-vivo] backlog verify: ${errors} erros (sem cache — retenta no próximo poll)`);
+        _rebuildBacklogVerified(allCandidates, todayStartS);
+      } catch (e) {
+        console.error('[ao-vivo] backlog verify error:', e.message);
+      } finally {
+        _backlogVerifyBusy = false;
+      }
+    });
   };
 
   function _brtDateStr(ts_s) {
@@ -334,8 +360,12 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   // Busca incremental + varredura completa em pedaços de 8 páginas para resolvidos recentes hoje.
   // Retorna { resolvRecentes, pendingState } — pendingState só é aplicado ao gravar o cache.
   async function _computeResolvUpdate(todayStartS, pollStartS) {
-    // Virada de dia → zera estado
-    if (_resolvState && _resolvState.todayStartS !== todayStartS) _resolvState = null;
+    // Virada de dia → zera estado e cache de verificação
+    if (_resolvState && _resolvState.todayStartS !== todayStartS) {
+      _resolvState = null;
+      _resolvedAtCache.clear();
+      _backlogVerified = null;
+    }
 
     const token          = process.env.CLOUDCHAT_TOKEN;
     const agentIdsMap    = await _getAgentIds(token);
@@ -559,15 +589,9 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       ? { attribute_key: 'assignee_id', filter_operator: 'equal_to', values: monitoradosIds, query_operator: 'AND' }
       : COM_AT;
 
-    // Se backlog já foi verificado hoje, não refaz a busca cara (evita 429 em calls repetidos)
-    const backlogJaVerificado = _backlogVerified && _backlogVerified.todayStartS === todayStartS_pre;
-
-    // Backlog primeiro (cota de rate limit fresca) — só quando não verificado ainda hoje
-    const resolvRecentes = resolvRecentesParam ?? (
-      backlogJaVerificado
-        ? { count: 0, tickets: [], pages: 0, hitLimit: false, hitBoundary: false, error: false }
-        : await postFilterUntilOlderThanToday([COM_MON, ST('resolved')], todayStartS_pre, 40)
-    );
+    // resolvRecentes sempre vem de _computeResolvUpdate (incremental); fallback para varredura completa se chamado sem param
+    const resolvRecentes = resolvRecentesParam ??
+      await postFilterUntilOlderThanToday([COM_MON, ST('resolved')], todayStartS_pre, 40);
     // 4 filtros em paralelo (open/pending/snoozed N2 removidos — vêm de allOpenConvs via GET)
     const [novosRaw, resolvCriados, naoAtrib, resolvHoje, novosRawMon] = await Promise.all([
       postFilterAll([CA(todayStartISO), { ...COM_AT, query_operator: null }]),
@@ -612,9 +636,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       (c.created_at || 0) < todayStartS &&   // excluir criados hoje (já no card N2)
       !fechadosHojeTickets.find(f => f.id === c.id)
     );
-    if (!backlogJaVerificado) {
-      _triggerBacklogVerify(backlogCandidates, token, todayStartS, resolvRecentes.error);
-    }
+    // Verificação incremental: verifica só candidatos novos ou com last_activity_at alterado
+    _triggerBacklogVerify(backlogCandidates, token, todayStartS);
 
     // Snapshot do resultado verificado (pode ser null ou do poll anterior)
     const bv = _backlogVerified;
@@ -1184,6 +1207,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   router.get('/ao-vivo/diag-reset', (req, res) => {
     _backlogVerified   = null;
     _backlogVerifyBusy = false;
+    _resolvedAtCache.clear();
     // NÃO zera _cacheTs: o reset de backlog não força poll imediato (evita burst duplo)
     res.json({ ok: true, msg: 'backlog reset — aguarde o próximo ciclo orgânico (~2min)' });
   });
