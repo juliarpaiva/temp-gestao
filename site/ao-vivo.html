@@ -631,7 +631,7 @@ function renderHojeGrid(av) {
   const precisosTix   = hoje.resolv_fechados_hoje_precisos ?? [];
   const precisosIds   = new Set(precisosTix.map(t => t.id));
   const backlogTixAll = hoje.resolv_fechados_hoje_tickets ?? [];
-  const backlogTix    = backlogTixAll.filter(t => !precisosIds.has(t.id));
+  const backlogTix    = backlogTixAll.filter(t => !precisosIds.has(t.id) && !t.created_today);
   const v2Total       = hoje.resolv_v2_total ?? null;
   const backlogAviso  = v2Total !== null ? `Total conta: ${v2Total}` : '';
 
