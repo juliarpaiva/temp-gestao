@@ -56,6 +56,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   const _convMsgCache   = new Map(); // conv_id → { lastAct, agentMsgsToday: Map<name,ts> }
   let _dbPool  = null;
   let _dbReady = false;
+  let _agentIds = null;    // { agentName → chatwoot_id }, cache diário
+  let _agentIdsDay = null;
 
   function _brtDateStr(ts_s) {
     const d = new Date((ts_s * 1000) + (CFG.BRT_OFFSET_H * 3600000));
@@ -156,6 +158,21 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       }
       return map;
     } catch { return null; }
+  }
+
+  // IDs dos agentes Chatwoot (cache diário, para reports API).
+  async function _getAgentIds(token) {
+    const todayKey = new Date().toISOString().slice(0, 10);
+    if (_agentIds && _agentIdsDay === todayKey) return _agentIds;
+    try {
+      const r = await fetchCloudChat(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/agents`, token);
+      const agents = Array.isArray(r) ? r : (r?.data || []);
+      const map = {};
+      for (const a of agents) { if (a.name && a.id) map[a.name] = a.id; }
+      _agentIds = map;
+      _agentIdsDay = todayKey;
+      return map;
+    } catch { return {}; }
   }
 
   // Tickets por status, paginado (open / pending / snoozed).
@@ -259,16 +276,23 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     const novosHoje      = novosRaw.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name)).length;
     const mt = c => ({ id: c.id, link: `${CLOUDCHAT_BASE}/app/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${c.id}` });
     const todayStartS = Math.floor(new Date(todayStartISO).getTime() / 1000);
-    // Fechados hoje (preciso) = criados hoje E resolvidos, filtrados por monitoradas
+    // Criados hoje E resolvidos pelas monitoradas (tickets para exibir na lista)
     const fechadosHojeTickets = resolvHoje.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name));
-    // Total resolvidos hoje (aprox.) = inclui antigos com last_activity_at >= hoje (backlog)
-    const totalResolvidosMap = new Map();
-    for (const c of [...resolvRecentes.tickets, ...resolvHoje.tickets]) {
-      if (CFG.AGENTES.includes(c.meta?.assignee?.name) && (c.last_activity_at || 0) >= todayStartS) {
-        totalResolvidosMap.set(c.id, c);
-      }
-    }
-    const totalResolvidosHoje = totalResolvidosMap.size;
+    // Total resolvidos hoje (preciso) via reports API — conta resoluções reais, não last_activity_at
+    const agentIdMap = await _getAgentIds(token);
+    const nowS = Math.floor(Date.now() / 1000);
+    const resolsPorAgente = await Promise.all(CFG.AGENTES.map(async ag => {
+      const id = agentIdMap[ag];
+      if (!id) return 0;
+      try {
+        const r = await fetchCloudChat(
+          `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/reports/summary?type=agent&id=${id}&since=${todayStartS}&until=${nowS}`,
+          token
+        );
+        return r?.resolutions_count ?? 0;
+      } catch { return 0; }
+    }));
+    const totalResolvidosHoje = resolsPorAgente.reduce((s, n) => s + n, 0);
 
     return {
       open_count:          open.count,
