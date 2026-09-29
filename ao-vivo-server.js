@@ -1220,11 +1220,11 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       const from   = req.query.from || today;
       const to     = req.query.to   || today;
 
-      // Busca dados persistidos do período
+      // Busca dados persistidos do período (exclui hoje — _statusAccum cobre hoje com dados frescos)
       const { rows } = await _dbPool.query(
         `SELECT date::text AS date, agente, data FROM support_bi.agent_status_daily
-         WHERE date >= $1 AND date <= $2 ORDER BY date, agente`,
-        [from, to]
+         WHERE date >= $1 AND date < $2 ORDER BY date, agente`,
+        [from, today]
       );
 
       // Mescla com acumulado em memória de hoje (pode ter dados mais recentes)
