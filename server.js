@@ -768,6 +768,8 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
     const until  = Math.floor(new Date(d1 + 'T03:00:00Z').getTime() / 1000);
     const frData = {};
     let page = 1;
+    let pagesOutsideRange = 0;
+    console.log(`[first-reply-cc] computing ${cacheKey} since=${since} until=${until}`);
     while (true) {
       let data;
       try {
@@ -775,9 +777,7 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
           `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=${page}`,
           token, 'POST',
           { payload: [
-            { attribute_key: 'status',     filter_operator: 'equal_to',      values: ['resolved'], query_operator: 'AND' },
-            { attribute_key: 'created_at', filter_operator: 'is_greater_than', values: [since],    query_operator: 'AND' },
-            { attribute_key: 'created_at', filter_operator: 'is_less_than',    values: [until],    query_operator: null  },
+            { attribute_key: 'status', filter_operator: 'equal_to', values: ['resolved'], query_operator: null },
           ]},
           60000
         );
@@ -788,7 +788,22 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
       const convs = data?.data?.payload || data?.payload || [];
       if (!convs.length) break;
 
-      const monitored = convs.filter(c => {
+      // Filter by date in JS (API created_at operators expect number of days, not Unix timestamps)
+      const inRange = convs.filter(c => c.created_at >= since && c.created_at < until);
+      if (page === 1) {
+        const names = [...new Set(convs.map(c => c.meta?.assignee?.name || c.assignee?.name || '(sem)'))];
+        console.log(`[first-reply-cc] p1: ${convs.length} total, ${inRange.length} in range, assignees sample: ${names.slice(0,8).join(', ')}`);
+      }
+
+      // Early termination: stop if well past the date range for 3 consecutive pages
+      const oldestTs = Math.min(...convs.map(c => c.created_at || Infinity));
+      if (inRange.length === 0 && oldestTs < since - 7 * 86400) {
+        if (++pagesOutsideRange >= 3) { console.log(`[first-reply-cc] early exit at page ${page}`); break; }
+      } else {
+        pagesOutsideRange = 0;
+      }
+
+      const monitored = inRange.filter(c => {
         const name = c.meta?.assignee?.name || c.assignee?.name || '';
         return _MONITORED_CC.includes(name);
       });
@@ -849,6 +864,7 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
       const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
       byAgent[ag]  = { avg: Math.round(avg / 60 * 10) / 10, median: Math.round(median / 60 * 10) / 10 };
     }
+    console.log(`[first-reply-cc] done ${cacheKey}: ${Object.keys(byAgent).length} agents, pages=${page}`, JSON.stringify(byAgent));
 
     _frCC[cacheKey] = { loading: false, by_agent: byAgent, computed_at: Date.now() };
     pool.query(
