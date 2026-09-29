@@ -233,10 +233,15 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       const { rows } = await _dbPool.query('SELECT agent, status, reason, since_s FROM support_bi.ao_vivo_agent_status');
       const initNow = Date.now() / 1000;
       const today = _brtDateStr(initNow);
+      // Início do turno de hoje em BRT (9h), para não contar reinicializações noturnas do Heroku
+      const _d0 = new Date((initNow * 1000) + (CFG.BRT_OFFSET_H * 3600000));
+      _d0.setUTCHours(0, 0, 0, 0);
+      const todayShiftStart_s = (_d0.getTime() - (CFG.BRT_OFFSET_H * 3600000)) / 1000
+                               + (CFG.HORARIO.inicio_min * 60);
       for (const row of rows) {
         const since_s = Number(row.since_s);
-        // Se since_s é de um dia anterior, reseta para agora (evita curDate !== today no endpoint)
-        const effectiveSince = _brtDateStr(since_s) < today ? initNow : since_s;
+        // Se since_s é de um dia anterior, reseta para o início do turno de hoje (ou initNow se já passou)
+        const effectiveSince = _brtDateStr(since_s) < today ? Math.max(initNow, todayShiftStart_s) : since_s;
         _statusHistory[row.agent] = { status: row.status, reason: row.reason, since_s: effectiveSince };
         _prevConfirmed[row.agent] = { status: row.status, reason: row.reason, since_s: effectiveSince };
       }
