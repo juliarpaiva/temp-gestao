@@ -775,9 +775,9 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
           `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=${page}`,
           token, 'POST',
           { payload: [
-            { attribute_key: 'status',     filter_operator: 'equal_to',           values: ['resolved'],   query_operator: 'AND' },
-            { attribute_key: 'created_at', filter_operator: 'greater_than_equal', values: [since],        query_operator: 'AND' },
-            { attribute_key: 'created_at', filter_operator: 'less_than',          values: [until],        query_operator: null  },
+            { attribute_key: 'status',     filter_operator: 'equal_to',      values: ['resolved'], query_operator: 'AND' },
+            { attribute_key: 'created_at', filter_operator: 'is_greater_than', values: [since],    query_operator: 'AND' },
+            { attribute_key: 'created_at', filter_operator: 'is_less_than',    values: [until],    query_operator: null  },
           ]},
           60000
         );
