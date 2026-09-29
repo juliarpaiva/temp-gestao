@@ -694,14 +694,13 @@
       });
     }
     const tabelaHtml = _opsAgentes.map(ag => {
-      const _tot = (ag.tempo_fila_h ?? 0) + (ag.tempo_resp_h ?? 0) || null;
-      const trCor = _tot !== null ? (_tot <= 1 ? '#16a34a' : _tot <= 2 ? '#ca8a04' : '#dc2626') : 'inherit';
+      const trCor = ag.tempo_resp_h !== null ? (ag.tempo_resp_h <= 1 ? '#16a34a' : ag.tempo_resp_h <= 2 ? '#ca8a04' : '#dc2626') : 'inherit';
       return `
       <tr>
         <td class="ops-agente">${escHtml(ag.agente)}</td>
         <td class="r" style="color:${ag.volume >= metaVol ? '#16a34a' : ag.volume >= metaVol * 0.8 ? '#ca8a04' : '#dc2626'};font-weight:700">${ag.volume}</td>
         <td class="r">${!!atual.csat_cc_loading ? '<span style="color:#94a3b8;font-size:11px">...</span>' : opsCsatPill(ag.csat)}</td>
-        <td class="r" style="color:${trCor};font-weight:700">${fmtHora((ag.tempo_fila_h ?? 0) + (ag.tempo_resp_h ?? 0) || null)}</td>
+        <td class="r" style="color:${trCor};font-weight:700">${!!kpisOp?.first_reply_loading ? '<span style="color:#94a3b8;font-size:11px">...</span>' : fmtHora(ag.tempo_resp_h)}</td>
         <td class="r">${fmtHora(ag.tempo_enc_h)}</td>
       </tr>`;
     }).join('');
@@ -714,6 +713,22 @@
     const volCor  = totalAgentesOp > 0 && agentesComMeta === totalAgentesOp ? '#16a34a' : agentesComMeta > 0 ? '#ca8a04' : '#dc2626';
     const csatLoading = !!atual.csat_cc_loading;
     if (csatLoading) setTimeout(() => mudarFilterModeOp(filterModeOp), 40000);
+    const frLoading = !!kpisOp?.first_reply_loading;
+    if (frLoading) {
+      const _frPollQs = filterModeOp === 'dia'     ? `dia=${opsDiaAtivo}` :
+                        filterModeOp === 'mes'     ? `mes=${opsMesAtivo}` :
+                        filterModeOp === 'periodo' || filterModeOp === 'acumulado' ? `inicio=${opsPeriodoI}&fim=${opsPeriodoF}` :
+                        `semana=${semanaOp}`;
+      const _frPollFn = async () => {
+        try {
+          const r = await fetch(`${API}/kpis-semanais/first-reply-poll?${_frPollQs}`);
+          const d = await r.json();
+          if (!d.loading) { mudarFilterModeOp(filterModeOp); return; }
+        } catch (_) {}
+        setTimeout(_frPollFn, 5000);
+      };
+      setTimeout(_frPollFn, 5000);
+    }
     const csatOk  = !csatLoading && atual.csat_time  !== null && atual.csat_time  >= 75;
     const csatCor = csatLoading ? '#94a3b8' : atual.csat_time  !== null ? (atual.csat_time  >= 75 ? '#16a34a' : atual.csat_time  >= 55 ? '#ca8a04' : '#dc2626') : 'var(--rosa)';
     const respOk  = atual.tempo_resposta_h !== null && atual.tempo_resposta_h <= 1;
@@ -809,15 +824,12 @@
             ids_adiados: s.ids || [],
             total: enc,
             csat: p.csat ?? null,
-            tempo_fila_h: p.tempo_fila_h ?? null, mediana_fila_h: p.mediana_fila_h ?? null,
             tempo_resp_h: p.tempo_resp_h ?? null, mediana_resp_h: p.mediana_resp_h ?? null,
             tempo_enc_h: p.tempo_enc_h ?? null, mediana_enc_h: p.mediana_enc_h ?? null,
-            tempo_total_h:    (p.tempo_fila_h    != null && p.tempo_resp_h    != null) ? p.tempo_fila_h    + p.tempo_resp_h    : (p.tempo_fila_h    ?? p.tempo_resp_h    ?? null),
-            mediana_total_h:  (p.mediana_fila_h  != null && p.mediana_resp_h  != null) ? p.mediana_fila_h  + p.mediana_resp_h  : null,
           };
         });
         _opsUnified = unified;
-        const validKeys = ['agente','encerrados','pendentes','em_aberto','adiados_total','total','csat','tempo_total_h','tempo_enc_h'];
+        const validKeys = ['agente','encerrados','pendentes','em_aberto','adiados_total','total','csat','tempo_resp_h','tempo_enc_h'];
         if (opsSortCol && validKeys.includes(opsSortCol)) {
           unified.sort((a, b) => {
             const av = a[opsSortCol], bv = b[opsSortCol];
@@ -840,7 +852,7 @@
         }
         const agRows = unified.filter(u => (u.encerrados || 0) + (u.pendentes || 0) + (u.em_aberto || 0) + (u.adiados_total || 0) > 0).map(u => {
           const nome = u.agente === 'Fernanda Cavalcante' ? 'Fernanda' : u.agente;
-          const trCor = u.tempo_total_h !== null ? (u.tempo_total_h <= 1 ? '#16a34a' : u.tempo_total_h <= 2 ? '#ca8a04' : '#dc2626') : 'inherit';
+          const trCor = u.tempo_resp_h !== null ? (u.tempo_resp_h <= 1 ? '#16a34a' : u.tempo_resp_h <= 2 ? '#ca8a04' : '#dc2626') : 'inherit';
           const adTotal = u.adiados_total > 0
             ? snCnt(u.ids_adiados, nome+' — Adiados', '#d97706')
             : '—';
@@ -852,7 +864,7 @@
             <td class="r" ${u.em_aberto > 0 ? `style="font-weight:700;color:#1d4ed8;cursor:pointer" onclick="abrirAbertosAgente('${u.agente}')" title="Ver tickets em aberto"` : `style="font-weight:600"`}>${u.em_aberto || '—'}</td>
             <td class="r"><div style="font-weight:700">${adTotal}</div>${adSub}</td>
             <td class="r">${csatLoading ? '<span style="color:#94a3b8;font-size:11px">...</span>' : opsCsatPill(u.csat)}</td>
-            <td class="r" style="color:${trCor};font-weight:700">${fmtHora(u.tempo_total_h)}${u.mediana_total_h !== null ? `<div style="font-size:10px;color:var(--muted);font-weight:400">${fmtHora(u.mediana_total_h)} med</div>` : ''}</td>
+            <td class="r" style="color:${trCor};font-weight:700">${frLoading ? '<span style="color:#94a3b8;font-size:11px">calculando…</span>' : fmtHora(u.tempo_resp_h)}${!frLoading && u.mediana_resp_h !== null ? `<div style="font-size:10px;color:var(--muted);font-weight:400">${fmtHora(u.mediana_resp_h)} med</div>` : ''}</td>
             <td class="r">${fmtHora(u.tempo_enc_h)}${u.mediana_enc_h !== null ? `<div style="font-size:10px;color:var(--muted);font-weight:400">${fmtHora(u.mediana_enc_h)} med</div>` : ''}</td>
           </tr>`;
         }).join('');
@@ -884,7 +896,7 @@
               ${th('em_aberto','Em aberto','r','Tickets em andamento na caixa de entrada')}
               ${th('adiados_total','Adiados','r','Tickets em snooze — retornam automaticamente na data agendada')}
               ${th('csat','CSAT','r','Porcentagem de avaliações positivas do período')}
-              ${th('tempo_total_h','1ª Resposta','r','Tempo médio desde que a Claudia transferiu o ticket até a atendente responder (fila + resposta)')}
+              ${th('tempo_resp_h','1ª Resposta','r','Tempo médio em horas comerciais desde a criação do ticket até a primeira resposta da agente (via CloudChat)')}
               ${th('tempo_enc_h','Encerramento','r','Tempo médio do ticket desde a abertura até o encerramento')}
             </tr></thead>
             <tbody>${agRows}${claudiaRow}${outrosHeader}${emAbertoRow}</tbody>

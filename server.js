@@ -713,6 +713,175 @@ app.get('/admin/puxar-indevidas-cloudchat', async (req, res) => {
   }
 });
 
+// ── CloudChat-based "1ª Resposta" async cache ────────────────────────────────
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS support_bi.first_reply_cc_cache (
+        cache_key   TEXT PRIMARY KEY,
+        by_agent    JSONB NOT NULL,
+        computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+  } catch (e) { console.error('[first-reply-cache] table create:', e.message); }
+})();
+
+function _bhMinsServer(start_s, end_s) {
+  if (!start_s || !end_s || end_s <= start_s) return null;
+  const BRT_OFF = -3 * 3600000;
+  const INICIO  = 9 * 60;
+  const FIM     = 18 * 60 + 30;
+  const DIAS    = [1, 2, 3, 4, 5];
+  const startMs = start_s * 1000 + BRT_OFF;
+  const endMs   = end_s   * 1000 + BRT_OFF;
+  let total = 0;
+  const d = new Date(startMs);
+  d.setUTCHours(0, 0, 0, 0);
+  while (d.getTime() < endMs) {
+    if (DIAS.includes(d.getUTCDay())) {
+      const open  = d.getTime() + INICIO * 60000;
+      const close = d.getTime() + FIM    * 60000;
+      const from  = Math.max(startMs, open);
+      const to    = Math.min(endMs, close);
+      if (to > from) total += (to - from) / 60000;
+    }
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return total;
+}
+
+const _frCC        = {};          // cacheKey → { loading, by_agent, computed_at }
+const _frCCRunning = new Set();
+const _MONITORED_CC = ['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz'];
+
+async function _computeFirstReplyCC(d0, d1, cacheKey) {
+  if (_frCCRunning.has(cacheKey)) return;
+  _frCCRunning.add(cacheKey);
+  const token = process.env.CLOUDCHAT_TOKEN;
+  if (!token) {
+    _frCC[cacheKey] = { loading: false, by_agent: null, computed_at: Date.now() };
+    _frCCRunning.delete(cacheKey);
+    return;
+  }
+  try {
+    const since = Math.floor(new Date(d0 + 'T03:00:00Z').getTime() / 1000);
+    const until  = Math.floor(new Date(d1 + 'T03:00:00Z').getTime() / 1000);
+    const frData = {};
+    let page = 1;
+    while (true) {
+      let data;
+      try {
+        data = await fetchCloudChat(
+          `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=${page}`,
+          token, 'POST',
+          { payload: [
+            { attribute_key: 'status',     filter_operator: 'equal_to',           values: ['resolved'],   query_operator: 'AND' },
+            { attribute_key: 'created_at', filter_operator: 'greater_than_equal', values: [since],        query_operator: 'AND' },
+            { attribute_key: 'created_at', filter_operator: 'less_than',          values: [until],        query_operator: null  },
+          ]},
+          60000
+        );
+      } catch (e) {
+        console.error('[first-reply-cc] filter page', page, e.message);
+        break;
+      }
+      const convs = data?.data?.payload || data?.payload || [];
+      if (!convs.length) break;
+
+      const monitored = convs.filter(c => {
+        const name = c.meta?.assignee?.name || c.assignee?.name || '';
+        return _MONITORED_CC.includes(name);
+      });
+
+      for (const conv of monitored) {
+        const agentName = conv.meta?.assignee?.name || conv.assignee?.name;
+        if (!agentName) continue;
+        const createdAt = conv.created_at;
+        if (!createdAt) continue;
+
+        let msgs = [];
+        try {
+          const msgData = await fetchCloudChat(
+            `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${conv.id}/messages`,
+            token, 'GET', null, 30000
+          );
+          msgs = Array.isArray(msgData.payload) ? msgData.payload
+               : Array.isArray(msgData)          ? msgData
+               : [];
+        } catch { continue; }
+
+        const humanMsgs = msgs.filter(m =>
+          m.message_type === 1 && !m.private && m.sender &&
+          !m.sender.is_ai_agent && m.sender.type !== 'contact'
+        );
+        humanMsgs.sort((a, b) => a.created_at - b.created_at);
+        const firstReplyTs = humanMsgs[0]?.created_at ?? null;
+        if (!firstReplyTs) continue;
+
+        const bhm = _bhMinsServer(createdAt, firstReplyTs);
+        if (bhm === null || bhm < 0 || bhm > 10080) continue;
+
+        if (!frData[agentName]) frData[agentName] = [];
+        frData[agentName].push(bhm);
+
+        await new Promise(r => setTimeout(r, 80));
+      }
+
+      const totalCount = data?.data?.meta?.all_count ?? data?.meta?.all_count ?? null;
+      if (convs.length < 25 || (totalCount !== null && page * 25 >= totalCount)) break;
+      page++;
+      if (page > 200) break;
+      await new Promise(r => setTimeout(r, 300));
+    }
+
+    const byAgent = {};
+    for (const [ag, times] of Object.entries(frData)) {
+      const v = times.filter(x => isFinite(x));
+      if (!v.length) continue;
+      const avg    = v.reduce((s, x) => s + x, 0) / v.length;
+      const sorted = [...v].sort((a, b) => a - b);
+      const mid    = Math.floor(sorted.length / 2);
+      const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+      byAgent[ag]  = { avg: Math.round(avg / 60 * 10) / 10, median: Math.round(median / 60 * 10) / 10 };
+    }
+
+    _frCC[cacheKey] = { loading: false, by_agent: byAgent, computed_at: Date.now() };
+    pool.query(
+      `INSERT INTO support_bi.first_reply_cc_cache (cache_key, by_agent, computed_at)
+       VALUES ($1,$2,NOW()) ON CONFLICT (cache_key) DO UPDATE SET by_agent=$2, computed_at=NOW()`,
+      [cacheKey, JSON.stringify(byAgent)]
+    ).catch(e => console.error('[first-reply-cc] db save:', e.message));
+  } catch (e) {
+    console.error('[first-reply-cc] compute error:', e.message);
+    _frCC[cacheKey] = { loading: false, by_agent: null, computed_at: Date.now() };
+  } finally {
+    _frCCRunning.delete(cacheKey);
+  }
+}
+
+async function _getFirstReplyCC(d0, d1) {
+  const cacheKey = `fr:${d0}:${d1}`;
+  const mem = _frCC[cacheKey];
+  if (mem) return mem.loading ? { loading: true, by_agent: null } : { loading: false, by_agent: mem.by_agent };
+  try {
+    const row = await pool.query(
+      `SELECT by_agent FROM support_bi.first_reply_cc_cache WHERE cache_key=$1 AND computed_at > NOW() - INTERVAL '24 hours'`,
+      [cacheKey]
+    );
+    if (row.rows.length) {
+      const byAgent = row.rows[0].by_agent;
+      _frCC[cacheKey] = { loading: false, by_agent: byAgent, computed_at: Date.now() };
+      return { loading: false, by_agent: byAgent };
+    }
+  } catch (_) {}
+  _frCC[cacheKey] = { loading: true, by_agent: null, computed_at: Date.now() };
+  _computeFirstReplyCC(d0, d1, cacheKey).catch(e => {
+    console.error('[first-reply-cc] bg error:', e.message);
+    delete _frCC[cacheKey];
+  });
+  return { loading: true, by_agent: null };
+}
+
 // ── Métricas Operacionais Semanais ──────────────────────────────────────────
 
 app.get('/kpis-semanais', async (req, res) => {
@@ -839,27 +1008,6 @@ app.get('/kpis-semanais', async (req, res) => {
       return data.data?.rows || [];
     }
 
-    // Query ticket-level de primeira resposta — roda em paralelo com o bloco principal
-    // fila_min  = criação do ticket → atribuição ao agente (tempo no bot + fila, fora do controle da agente)
-    // resp_min  = atribuição ao agente → primeira resposta (tempo real da agente)
-    const ticketFirstReplyPromise = dwQuery(`
-      SELECT
-        first_agent_reply_name,
-        CASE
-          WHEN created_at_local IS NOT NULL AND first_agent_assignment_at_local IS NOT NULL
-               AND first_agent_assignment_at_local >= created_at_local
-          THEN EXTRACT(EPOCH FROM (first_agent_assignment_at_local - created_at_local)) / 60.0
-          ELSE NULL
-        END AS fila_min_fallback,
-        CASE WHEN first_agent_reply_time_min >= 0 THEN first_agent_reply_time_min ELSE NULL END AS resp_min,
-        display_ticket_id::text AS ticket_id,
-        EXTRACT(EPOCH FROM (first_agent_assignment_at_local AT TIME ZONE 'America/Sao_Paulo')) AS assignment_epoch
-      FROM dw.fact_cloudchat_tickets
-      WHERE first_agent_reply_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
-        AND first_agent_first_reply_at_local IS NOT NULL
-        AND first_agent_first_reply_at_local >= '${d0}' AND first_agent_first_reply_at_local < '${d1}'
-    `).catch(() => []);
-
     const [
       volume, novosMonitoradas, respondidos, mediaDiaria, csatTimeDW, csatClaudia, retencaoN1,
       tempoResposta, tempoEncerramento, medResposta, medEncerramento,
@@ -923,65 +1071,7 @@ app.get('/kpis-semanais', async (req, res) => {
 
     const csatTime = csatTimeDW;
 
-    // ── Agrega primeira resposta por agente ───────────────────────────────────
-    const ticketRows = await ticketFirstReplyPromise;
-    const MAX_MIN = 10080; // 7 dias — acima disso = ticket histórico reaberto, excluir da média
-
-    // Busca timestamps de handoff do bot para cada ticket (em paralelo, com cache)
-    const ccToken = process.env.CLOUDCHAT_TOKEN;
-    const uniqueIds = [...new Set(ticketRows.map(t => t[3]).filter(Boolean))];
-    const botMap = {};
-    if (ccToken && uniqueIds.length > 0) {
-      const results = await Promise.allSettled(
-        uniqueIds.map(id => getBotHandoffUnix(id, ccToken).then(v => ({ id, v })))
-      );
-      for (const r of results) {
-        if (r.status === 'fulfilled') botMap[r.value.id] = r.value.v;
-      }
-    }
-
-    function calcAgg(arr) {
-      const v = arr.filter(x => x !== null && isFinite(x) && x >= 0);
-      if (!v.length) return { avg: null, median: null };
-      const avg = v.reduce((s, x) => s + x, 0) / v.length;
-      const sorted = [...v].sort((a, b) => a - b);
-      const mid = Math.floor(sorted.length / 2);
-      const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-      return { avg, median };
-    }
-    const frAgData = {};
-    for (const t of ticketRows) {
-      const ag = t[0]; if (!ag) continue;
-      if (!frAgData[ag]) frAgData[ag] = { fila: [], resp: [] };
-      const rawResp = t[2] !== null && t[2] !== undefined ? Number(t[2]) : null;
-      const ticketId = t[3];
-      const assignmentEpoch = t[4] !== null && t[4] !== undefined ? Number(t[4]) : null;
-      const botUnix = ticketId ? (botMap[ticketId] ?? null) : null;
-
-      // Fila real = atribuição ao agente humano − última msg da Claudia (bot)
-      // Fallback: criação → atribuição (inclui tempo do bot, menos preciso)
-      let rawFila;
-      if (botUnix !== null && assignmentEpoch !== null) {
-        rawFila = (assignmentEpoch - botUnix) / 60.0;
-        if (rawFila < 0) rawFila = null; // sanity check
-      } else {
-        rawFila = t[1] !== null && t[1] !== undefined ? Number(t[1]) : null;
-      }
-
-      // Cap de 8h para fila — exclui tickets de fds/madrugada que distorcem a média
-      frAgData[ag].fila.push(rawFila !== null && rawFila <= 480 ? rawFila : null);
-      frAgData[ag].resp.push(rawResp !== null && rawResp <= MAX_MIN ? rawResp : null);
-    }
-    const firstReplyByAgent = {};
-    for (const [ag, d] of Object.entries(frAgData)) {
-      const sf = calcAgg(d.fila); const sr = calcAgg(d.resp);
-      const r1 = v => v !== null ? Math.round(v / 60 * 10) / 10 : null;
-      firstReplyByAgent[ag] = {
-        tempo_fila_h:    r1(sf.avg),  mediana_fila_h:    r1(sf.median),
-        tempo_resp_h:    r1(sr.avg),  mediana_resp_h:    r1(sr.median),
-      };
-    }
-    // ─────────────────────────────────────────────────────────────────────────
+    const firstReplyCC = await _getFirstReplyCC(d0, d1);
 
     const porAgente = porAgenteRows.map(r => {
       const agente = r[0];
@@ -995,14 +1085,12 @@ app.get('/kpis-semanais', async (req, res) => {
       if (csat === null && !reportsTemDados && r[3] !== null && r[3] !== undefined) {
         csat = Number(r[3]);
       }
-      const fr = firstReplyByAgent[agente] || {};
+      const frCC = firstReplyCC.by_agent?.[agente] || {};
       return {
         agente,
         volume:          Number(r[1]) || 0,
-        tempo_fila_h:    fr.tempo_fila_h    ?? null,
-        mediana_fila_h:  fr.mediana_fila_h  ?? null,
-        tempo_resp_h:    fr.tempo_resp_h    ?? null,
-        mediana_resp_h:  fr.mediana_resp_h  ?? null,
+        tempo_resp_h:    frCC.avg    ?? null,
+        mediana_resp_h:  frCC.median ?? null,
         tempo_enc_h:     r[2] !== null && r[2] !== undefined ? Number(r[2]) : null,
         csat,
         mediana_enc_h:   r[4] !== null && r[4] !== undefined ? Number(r[4]) : null,
@@ -1018,6 +1106,7 @@ app.get('/kpis-semanais', async (req, res) => {
     const diasUteis = countBusinessDays(d0, d1);
     const kpisResult = {
       fetched_at: new Date().toISOString(),
+      first_reply_loading: firstReplyCC.loading,
       modo: modoLabel,
       semana: d0,
       semana_fim: new Date(new Date(d1) - 86400000).toISOString().slice(0, 10),
@@ -1066,12 +1155,46 @@ app.get('/kpis-semanais', async (req, res) => {
       for (const r of bgPendingRows) pendingPorAgente[r[0]] = Number(r[1]) || 0;
       kpisResult.backlog = { open: bgOpen ?? 0, pending: bgPending ?? 0, sem_agente: bgSemAgent ?? 0, pending_por_agente: pendingPorAgente };
     } catch(e) { kpisResult.backlog = null; }
-    pool.query(
-      `INSERT INTO support_bi.kpis_op_cache (period_key, data) VALUES ($1,$2)
-       ON CONFLICT (period_key) DO UPDATE SET data=$2, fetched_at=NOW()`,
-      [periodKey, JSON.stringify(kpisResult)]
-    ).catch(e => console.error('[kpis-cache]', e.message));
+    if (!firstReplyCC.loading) {
+      pool.query(
+        `INSERT INTO support_bi.kpis_op_cache (period_key, data) VALUES ($1,$2)
+         ON CONFLICT (period_key) DO UPDATE SET data=$2, fetched_at=NOW()`,
+        [periodKey, JSON.stringify(kpisResult)]
+      ).catch(e => console.error('[kpis-cache]', e.message));
+    }
     res.json(kpisResult);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Poll endpoint — frontend verifica se o cálculo de 1ª resposta CloudChat terminou
+app.get('/kpis-semanais/first-reply-poll', async (req, res) => {
+  try {
+    let d0, d1;
+    if (req.query.dia) {
+      d0 = req.query.dia;
+      const fim = new Date(d0 + 'T12:00:00Z'); fim.setUTCDate(fim.getUTCDate() + 1);
+      d1 = fim.toISOString().slice(0, 10);
+    } else if (req.query.mes) {
+      const [y, m] = req.query.mes.split('-').map(Number);
+      d0 = `${y}-${String(m).padStart(2, '0')}-01`;
+      d1 = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10);
+    } else if (req.query.inicio && req.query.fim) {
+      d0 = req.query.inicio;
+      const fimD = new Date(req.query.fim + 'T12:00:00Z'); fimD.setUTCDate(fimD.getUTCDate() + 1);
+      d1 = fimD.toISOString().slice(0, 10);
+    } else {
+      let semana = req.query.semana;
+      if (!semana) {
+        const h = new Date(); const dow = h.getUTCDay();
+        h.setUTCDate(h.getUTCDate() - dow); semana = h.toISOString().slice(0, 10);
+      }
+      const sun = new Date(semana + 'T12:00:00Z');
+      const nextSun = new Date(sun); nextSun.setUTCDate(nextSun.getUTCDate() + 7);
+      d0 = semana; d1 = nextSun.toISOString().slice(0, 10);
+    }
+    res.json(await _getFirstReplyCC(d0, d1));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
