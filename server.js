@@ -818,7 +818,12 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
         const firstReplyTs = humanMsgs[0]?.created_at ?? null;
         if (!firstReplyTs) continue;
 
-        const bhm = _bhMinsServer(createdAt, firstReplyTs);
+        // Início = última msg da Claudia bot (handoff p/ fila humana); fallback: criação do ticket
+        const botMsgs = msgs.filter(m => m.sender?.is_ai_agent && m.message_type === 1 && !m.private);
+        botMsgs.sort((a, b) => b.created_at - a.created_at);
+        const startTs = botMsgs.length > 0 ? botMsgs[0].created_at : createdAt;
+
+        const bhm = _bhMinsServer(startTs, firstReplyTs);
         if (bhm === null || bhm < 0 || bhm > 10080) continue;
 
         if (!frData[agentName]) frData[agentName] = [];
