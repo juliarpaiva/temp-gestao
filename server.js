@@ -788,11 +788,14 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
     while (true) {
       let data;
       try {
+        // is_greater_than: N → conversations created after N days ago (relative to today)
+        const sinceDays = Math.floor((Date.now() / 1000 - since) / 86400);
         data = await fetchCloudChat(
           `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=${page}`,
           token, 'POST',
           { payload: [
-            { attribute_key: 'status', filter_operator: 'equal_to', values: ['resolved'], query_operator: null },
+            { attribute_key: 'status',     filter_operator: 'equal_to',      values: ['resolved'], query_operator: 'AND' },
+            { attribute_key: 'created_at', filter_operator: 'is_greater_than', values: [sinceDays], query_operator: null },
           ]},
           60000
         );
@@ -850,14 +853,6 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
         // Detecta bot: is_ai_agent, type='agent_bot', ou nome contém 'claudia'
         const isBot = m => !!(m.sender?.is_ai_agent || m.sender?.type === 'agent_bot' ||
           m.sender?.name?.toLowerCase().includes('claudia'));
-
-        // Log sender de mensagens de saída para debug (só uma vez por job)
-        if (!frData._dbgDone) {
-          frData._dbgDone = true;
-          const outMsgs = msgs.filter(m => m.message_type === 1 && !m.private && m.sender);
-          const senderSamples = [...new Map(outMsgs.map(m => [m.sender?.id, m.sender])).values()].slice(0,5);
-          console.log(`[first-reply-cc] sender samples conv ${conv.id}:`, JSON.stringify(senderSamples.map(s => ({id:s?.id,name:s?.name,type:s?.type,is_ai_agent:s?.is_ai_agent}))));
-        }
 
         const humanMsgs = msgs.filter(m =>
           m.message_type === 1 && !m.private && m.sender &&
