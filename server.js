@@ -752,6 +752,21 @@ function _bhMinsServer(start_s, end_s) {
 
 const _frCC        = {};          // cacheKey → { loading, by_agent, computed_at }
 const _frCCRunning = new Set();
+let   _frCCActive  = false;       // serializa jobs para evitar rate limit simultâneo
+const _frCCQueue   = [];
+function _scheduleFirstReplyCC(d0, d1, cacheKey) {
+  _frCCQueue.push({ d0, d1, cacheKey });
+  _drainFirstReplyCCQueue();
+}
+function _drainFirstReplyCCQueue() {
+  if (_frCCActive || !_frCCQueue.length) return;
+  _frCCActive = true;
+  const { d0, d1, cacheKey } = _frCCQueue.shift();
+  _computeFirstReplyCC(d0, d1, cacheKey).catch(e => {
+    console.error('[first-reply-cc] bg error:', e.message);
+    delete _frCC[cacheKey];
+  }).finally(() => { _frCCActive = false; _drainFirstReplyCCQueue(); });
+}
 const _MONITORED_CC = ['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz'];
 
 async function _computeFirstReplyCC(d0, d1, cacheKey) {
@@ -782,6 +797,13 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
           60000
         );
       } catch (e) {
+        if (e.httpStatus === 429) {
+          const match = e.message.match(/"retry_after"\s*:\s*(\d+)/);
+          const waitMs = ((match ? parseInt(match[1]) : 15) + 3) * 1000;
+          console.log(`[first-reply-cc] 429 rate limit p${page}, aguardando ${waitMs}ms`);
+          await new Promise(r => setTimeout(r, waitMs));
+          continue;
+        }
         console.error('[first-reply-cc] filter page', page, e.message);
         break;
       }
@@ -825,18 +847,23 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
                : [];
         } catch { continue; }
 
+        // Detecta bot: is_ai_agent, type='agent_bot', ou nome contém 'claudia'
+        const isBot = m => !!(m.sender?.is_ai_agent || m.sender?.type === 'agent_bot' ||
+          m.sender?.name?.toLowerCase().includes('claudia'));
+
         const humanMsgs = msgs.filter(m =>
           m.message_type === 1 && !m.private && m.sender &&
-          !m.sender.is_ai_agent && m.sender.type !== 'contact'
+          !isBot(m) && m.sender.type !== 'contact'
         );
         humanMsgs.sort((a, b) => a.created_at - b.created_at);
         const firstReplyTs = humanMsgs[0]?.created_at ?? null;
         if (!firstReplyTs) continue;
 
-        // Início = última msg da Claudia bot (handoff p/ fila humana); fallback: criação do ticket
-        const botMsgs = msgs.filter(m => m.sender?.is_ai_agent && m.message_type === 1 && !m.private);
+        // Início = última msg do bot (handoff p/ fila humana); fallback: criação do ticket
+        const botMsgs = msgs.filter(m => isBot(m) && m.message_type === 1 && !m.private);
         botMsgs.sort((a, b) => b.created_at - a.created_at);
         const startTs = botMsgs.length > 0 ? botMsgs[0].created_at : createdAt;
+        if (conv.id % 200 === 0) console.log(`[first-reply-cc] conv ${conv.id}: botMsgs=${botMsgs.length} startTs=${startTs} firstReplyTs=${firstReplyTs} bhm=${_bhMinsServer(startTs, firstReplyTs)}`);
 
         const bhm = _bhMinsServer(startTs, firstReplyTs);
         if (bhm === null || bhm < 0 || bhm > 10080) continue;
@@ -896,10 +923,7 @@ async function _getFirstReplyCC(d0, d1) {
     }
   } catch (_) {}
   _frCC[cacheKey] = { loading: true, by_agent: null, computed_at: Date.now() };
-  _computeFirstReplyCC(d0, d1, cacheKey).catch(e => {
-    console.error('[first-reply-cc] bg error:', e.message);
-    delete _frCC[cacheKey];
-  });
+  _scheduleFirstReplyCC(d0, d1, cacheKey);
   return { loading: true, by_agent: null };
 }
 
