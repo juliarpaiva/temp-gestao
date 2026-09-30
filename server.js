@@ -841,6 +841,15 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
       const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
       byAgent[ag]  = { avg: Math.round(avg / 60 * 10) / 10, median: Math.round(median / 60 * 10) / 10 };
     }
+    // Global: todos os tempos das monitoradas juntos (para os cards de visão geral)
+    const allTimes = Object.values(agTimes).flat();
+    if (allTimes.length) {
+      const gAvg    = allTimes.reduce((s, x) => s + x, 0) / allTimes.length;
+      const gSorted = [...allTimes].sort((a, b) => a - b);
+      const gMid    = Math.floor(gSorted.length / 2);
+      const gMedian = gSorted.length % 2 ? gSorted[gMid] : (gSorted[gMid - 1] + gSorted[gMid]) / 2;
+      byAgent['__global__'] = { avg: Math.round(gAvg / 60 * 10) / 10, median: Math.round(gMedian / 60 * 10) / 10 };
+    }
     console.log(`[first-reply-cc] done extract:${cacheKey}: ${allRows.length} rows, ${Object.keys(byAgent).length} agents`, JSON.stringify(byAgent));
 
     _frCC[cacheKey] = { loading: false, by_agent: byAgent, computed_at: Date.now() };
@@ -1116,9 +1125,9 @@ app.get('/kpis-semanais', async (req, res) => {
         csat_time:            csatTime,
         csat_claudia:         csatClaudia,
         retencao_n1:          retencaoN1  ?? 0,
-        tempo_resposta_h:       tempoResposta,
+        tempo_resposta_h:       firstReplyCC.by_agent?.['__global__']?.avg ?? (firstReplyCC.loading ? null : tempoResposta),
         tempo_encerramento_h:   tempoEncerramento,
-        mediana_resposta_h:     medResposta,
+        mediana_resposta_h:     firstReplyCC.by_agent?.['__global__']?.median ?? (firstReplyCC.loading ? null : medResposta),
         mediana_encerramento_h: medEncerramento,
         por_agente:              porAgente,
         snoozed_por_agente:      snoozedPorAgente,
