@@ -788,21 +788,12 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
     while (true) {
       let data;
       try {
-        // is_less_than: N → conversations newer than N days ago; is_greater_than: N → older than N days ago
-        const sinceDays = Math.floor((Date.now() / 1000 - since) / 86400) + 1;
-        const untilDays = Math.floor((Date.now() / 1000 - until) / 86400);
-        // query_operator on each filter connects it to the PREVIOUS filter (null = first)
-        const payload = [
-          { attribute_key: 'status',     filter_operator: 'equal_to',    values: ['resolved'],      query_operator: null },
-          { attribute_key: 'created_at', filter_operator: 'is_less_than', values: [sinceDays],       query_operator: 'AND' },
-        ];
-        if (untilDays > 0) {
-          payload.push({ attribute_key: 'created_at', filter_operator: 'is_greater_than', values: [untilDays], query_operator: 'AND' });
-        }
         data = await fetchCloudChat(
-          `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=${page}`,
+          `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=${page}&per_page=100`,
           token, 'POST',
-          { payload },
+          { payload: [
+            { attribute_key: 'status', filter_operator: 'equal_to', values: ['resolved'], query_operator: null },
+          ]},
           60000
         );
       } catch (e) {
