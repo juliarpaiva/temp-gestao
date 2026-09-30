@@ -820,11 +820,16 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
       // Filtrar por data de resolução dentro do período (resolvedAt é string BRT)
       if (!row.resolvedAt || row.ticketStatus !== 'resolved') continue;
       if (row.resolvedAt < d0 || row.resolvedAt >= d1) continue;
-      // firstAgentReplyTimeMin: campo calculado pelo CloudChat (atribuição → 1ª resposta, já em minutos comerciais)
-      const mins = row.firstAgentReplyTimeMin;
-      if (mins == null || mins < 0 || mins > 10080) continue;
+      if (row.firstAgentReplyTimeMin == null || row.firstAgentReplyTimeMin < 0) continue;
+      if (!row.firstAgentAssignmentTime || !row.firstAgentFirstReplyTime) continue;
+      // Recalcula em horas comerciais com timestamps BRT+3h para obter UTC real
+      const BRT_OFFSET = 3 * 3600;
+      const assignedTs = Math.round(new Date(row.firstAgentAssignmentTime + 'Z').getTime() / 1000) + BRT_OFFSET;
+      const replyTs    = Math.round(new Date(row.firstAgentFirstReplyTime  + 'Z').getTime() / 1000) + BRT_OFFSET;
+      const bhm = _bhMinsServer(assignedTs, replyTs);
+      if (bhm === null || bhm < 0 || bhm > 10080) continue;
       if (!agTimes[agent]) agTimes[agent] = [];
-      agTimes[agent].push(mins);
+      agTimes[agent].push(bhm);
     }
 
     const byAgent = {};
