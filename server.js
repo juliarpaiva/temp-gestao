@@ -782,16 +782,17 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
     console.log(`[first-reply-cc] computing extract:${cacheKey} d0=${d0} d1=${d1}`);
     // Usa CloudChat data_extracts: TICKET_METRICS_WITH_AGENT_INFORMATION
     // firstAgentReplyTimeMin = atribuição da especialista → resposta (mesmo campo do Henrique)
-    // API aceita janelas de max 5 dias; setembro = 6 chamadas
+    // API aceita janelas de max 5 dias; filtra por resolvedAt no cliente
+    // Lookback 45 dias: captura tickets criados antes do período mas resolvidos nele
     const BRT_OFFSET = 3 * 3600; // timestamps do extract estão em BRT sem tz
-    const start = new Date(d0 + 'T00:00:00Z');
-    const end   = new Date(d1 + 'T00:00:00Z');
+    const endMs   = new Date(d1 + 'T00:00:00Z').getTime();
+    const startMs = new Date(d0 + 'T00:00:00Z').getTime() - 45 * 86400000;
     const allRows = [];
-    let cur = new Date(start);
-    while (cur < end) {
-      const winEnd = new Date(Math.min(cur.getTime() + 5 * 86400000, end.getTime()));
-      const sStr   = cur.toISOString().slice(0, 10) + 'T00:00:00';
-      const eStr   = winEnd.toISOString().slice(0, 10) + 'T00:00:00';
+    let cur = startMs;
+    while (cur < endMs) {
+      const winEnd = Math.min(cur + 5 * 86400000, endMs);
+      const sStr   = new Date(cur).toISOString().slice(0, 10) + 'T00:00:00';
+      const eStr   = new Date(winEnd).toISOString().slice(0, 10) + 'T00:00:00';
       try {
         const url = `${CLOUDCHAT_BASE}/api/v2/accounts/${CLOUDCHAT_ACCOUNT}/data_extracts` +
           `?account_id=${CLOUDCHAT_ACCOUNT}&startDate=${encodeURIComponent(sStr)}&endDate=${encodeURIComponent(eStr)}` +
@@ -810,13 +811,16 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
         console.warn(`[first-reply-cc] extract window error: ${e.message}`);
       }
       cur = winEnd;
-      if (cur < end) await new Promise(r => setTimeout(r, 1200)); // ~50 req/min limit
+      if (cur < endMs) await new Promise(r => setTimeout(r, 3200)); // ~18 req/min (limite: 20)
     }
 
     const agTimes = {};
     for (const row of allRows) {
       const agent = row.firstAgentReplyName;
       if (!_MONITORED_CC.includes(agent)) continue;
+      // Filtrar por data de resolução dentro do período (resolvedAt é string BRT)
+      if (!row.resolvedAt || row.ticketStatus !== 'resolved') continue;
+      if (row.resolvedAt < d0 || row.resolvedAt >= d1) continue;
       if (row.firstAgentReplyTimeMin == null || row.firstAgentReplyTimeMin < 0) continue;
       if (!row.firstAgentAssignmentTime || !row.firstAgentFirstReplyTime) continue;
       // Timestamps em BRT sem tz: adicionar +3h para obter UTC real, compatível com _bhMinsServer
