@@ -784,7 +784,6 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
     // firstAgentReplyTimeMin = atribuição da especialista → resposta (mesmo campo do Henrique)
     // API aceita janelas de max 5 dias; filtra por resolvedAt no cliente
     // Lookback 45 dias: captura tickets criados antes do período mas resolvidos nele
-    const BRT_OFFSET = 3 * 3600; // timestamps do extract estão em BRT sem tz
     const endMs   = new Date(d1 + 'T00:00:00Z').getTime();
     const startMs = new Date(d0 + 'T00:00:00Z').getTime() - 45 * 86400000;
     const allRows = [];
@@ -821,15 +820,11 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
       // Filtrar por data de resolução dentro do período (resolvedAt é string BRT)
       if (!row.resolvedAt || row.ticketStatus !== 'resolved') continue;
       if (row.resolvedAt < d0 || row.resolvedAt >= d1) continue;
-      if (row.firstAgentReplyTimeMin == null || row.firstAgentReplyTimeMin < 0) continue;
-      if (!row.firstAgentAssignmentTime || !row.firstAgentFirstReplyTime) continue;
-      // Timestamps em BRT sem tz: adicionar +3h para obter UTC real, compatível com _bhMinsServer
-      const assignedTs = Math.round(new Date(row.firstAgentAssignmentTime + 'Z').getTime() / 1000) + BRT_OFFSET;
-      const replyTs    = Math.round(new Date(row.firstAgentFirstReplyTime  + 'Z').getTime() / 1000) + BRT_OFFSET;
-      const bhm = _bhMinsServer(assignedTs, replyTs);
-      if (bhm === null || bhm < 0 || bhm > 10080) continue;
+      // firstAgentReplyTimeMin: campo calculado pelo CloudChat (atribuição → 1ª resposta, já em minutos comerciais)
+      const mins = row.firstAgentReplyTimeMin;
+      if (mins == null || mins < 0 || mins > 10080) continue;
       if (!agTimes[agent]) agTimes[agent] = [];
-      agTimes[agent].push(bhm);
+      agTimes[agent].push(mins);
     }
 
     const byAgent = {};
