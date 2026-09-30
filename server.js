@@ -772,29 +772,56 @@ const _MONITORED_CC = ['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','
 async function _computeFirstReplyCC(d0, d1, cacheKey) {
   if (_frCCRunning.has(cacheKey)) return;
   _frCCRunning.add(cacheKey);
+  const token = process.env.CLOUDCHAT_TOKEN;
+  if (!token) {
+    _frCC[cacheKey] = { loading: false, by_agent: null, computed_at: Date.now() };
+    _frCCRunning.delete(cacheKey);
+    return;
+  }
   try {
-    console.log(`[first-reply-cc] computing dw:${cacheKey} d0=${d0} d1=${d1}`);
-    // Usa DW: first_agent_assignment_at_local → first_agent_first_reply_at_local
-    // Cada linha: [agent_name, assigned_unix_ts, reply_unix_ts]
-    const rows = await dwQuery(`
-      SELECT
-        first_agent_reply_name,
-        EXTRACT(EPOCH FROM first_agent_assignment_at_local)::bigint,
-        EXTRACT(EPOCH FROM first_agent_first_reply_at_local)::bigint
-      FROM dw.fact_cloudchat_tickets
-      WHERE ticket_status = 'resolved'
-        AND first_agent_reply_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
-        AND first_agent_assignment_at_local IS NOT NULL
-        AND first_agent_first_reply_at_local IS NOT NULL
-        AND first_agent_first_reply_at_local > first_agent_assignment_at_local
-        AND resolved_at_local >= '${d0}' AND resolved_at_local < '${d1}'
-    `);
+    console.log(`[first-reply-cc] computing extract:${cacheKey} d0=${d0} d1=${d1}`);
+    // Usa CloudChat data_extracts: TICKET_METRICS_WITH_AGENT_INFORMATION
+    // firstAgentReplyTimeMin = atribuição da especialista → resposta (mesmo campo do Henrique)
+    // API aceita janelas de max 5 dias; setembro = 6 chamadas
+    const BRT_OFFSET = 3 * 3600; // timestamps do extract estão em BRT sem tz
+    const start = new Date(d0 + 'T00:00:00Z');
+    const end   = new Date(d1 + 'T00:00:00Z');
+    const allRows = [];
+    let cur = new Date(start);
+    while (cur < end) {
+      const winEnd = new Date(Math.min(cur.getTime() + 5 * 86400000, end.getTime()));
+      const sStr   = cur.toISOString().slice(0, 10) + 'T00:00:00';
+      const eStr   = winEnd.toISOString().slice(0, 10) + 'T00:00:00';
+      try {
+        const url = `${CLOUDCHAT_BASE}/api/v2/accounts/${CLOUDCHAT_ACCOUNT}/data_extracts` +
+          `?account_id=${CLOUDCHAT_ACCOUNT}&startDate=${encodeURIComponent(sStr)}&endDate=${encodeURIComponent(eStr)}` +
+          `&type=TICKET_METRICS_WITH_AGENT_INFORMATION`;
+        const resp = await fetch(url, {
+          headers: { 'api_access_token': token },
+          signal: AbortSignal.timeout(30000)
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (Array.isArray(data)) allRows.push(...data);
+        } else {
+          console.warn(`[first-reply-cc] extract ${sStr}→${eStr} status=${resp.status}`);
+        }
+      } catch (e) {
+        console.warn(`[first-reply-cc] extract window error: ${e.message}`);
+      }
+      cur = winEnd;
+      if (cur < end) await new Promise(r => setTimeout(r, 1200)); // ~50 req/min limit
+    }
 
     const agTimes = {};
-    for (const row of rows) {
-      const agent = row[0];
-      const assignedTs = Number(row[1]);
-      const replyTs    = Number(row[2]);
+    for (const row of allRows) {
+      const agent = row.firstAgentReplyName;
+      if (!_MONITORED_CC.includes(agent)) continue;
+      if (row.firstAgentReplyTimeMin == null || row.firstAgentReplyTimeMin < 0) continue;
+      if (!row.firstAgentAssignmentTime || !row.firstAgentFirstReplyTime) continue;
+      // Timestamps em BRT sem tz: adicionar +3h para obter UTC real, compatível com _bhMinsServer
+      const assignedTs = Math.round(new Date(row.firstAgentAssignmentTime + 'Z').getTime() / 1000) + BRT_OFFSET;
+      const replyTs    = Math.round(new Date(row.firstAgentFirstReplyTime  + 'Z').getTime() / 1000) + BRT_OFFSET;
       const bhm = _bhMinsServer(assignedTs, replyTs);
       if (bhm === null || bhm < 0 || bhm > 10080) continue;
       if (!agTimes[agent]) agTimes[agent] = [];
@@ -810,7 +837,7 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
       const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
       byAgent[ag]  = { avg: Math.round(avg / 60 * 10) / 10, median: Math.round(median / 60 * 10) / 10 };
     }
-    console.log(`[first-reply-cc] done dw:${cacheKey}: ${rows.length} tickets, ${Object.keys(byAgent).length} agents`, JSON.stringify(byAgent));
+    console.log(`[first-reply-cc] done extract:${cacheKey}: ${allRows.length} rows, ${Object.keys(byAgent).length} agents`, JSON.stringify(byAgent));
 
     _frCC[cacheKey] = { loading: false, by_agent: byAgent, computed_at: Date.now() };
     pool.query(
