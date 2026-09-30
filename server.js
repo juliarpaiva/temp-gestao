@@ -859,21 +859,23 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
         const firstReplyTs = humanMsgs[0]?.created_at ?? null;
         if (!firstReplyTs) continue;
 
-        // Início = atribuição ao agente humano (msg de atividade type=2 com nome do agente)
-        // Fallback: última msg do bot; fallback final: criação do ticket
+        // Início = atribuição ao agente (msg de atividade type=2):
+        // 1) atribuição direta com nome do agente no content
+        // 2) qualquer atribuição (inbox/agente) — exclui desatribuição
+        // Fallback final: criação do ticket
         const activityMsgs = msgs.filter(m => m.message_type === 2 && m.created_at < firstReplyTs);
-        if (!frData._dbgAct) {
-          frData._dbgAct = true;
-          const sample = activityMsgs.slice(0, 3).map(m => ({ type: m.message_type, content: m.content, ts: m.created_at }));
-          console.log(`[first-reply-cc] activity samples conv ${conv.id}:`, JSON.stringify(sample));
-        }
         const assignedMsg = activityMsgs
           .filter(m => m.content?.toLowerCase().includes(agentName.split(' ')[0].toLowerCase()))
           .sort((a, b) => b.created_at - a.created_at)[0];
-        const botMsgs = msgs.filter(m => isBot(m) && m.message_type === 1 && !m.private);
-        botMsgs.sort((a, b) => b.created_at - a.created_at);
-        const startTs = assignedMsg?.created_at ?? (botMsgs[0]?.created_at ?? createdAt);
-        if (conv.id % 200 === 0) console.log(`[first-reply-cc] conv ${conv.id}: assigned=${!!assignedMsg} botMsgs=${botMsgs.length} startTs=${startTs} bhm=${_bhMinsServer(startTs, firstReplyTs)}`);
+        const anyAssignedMsg = assignedMsg ?? activityMsgs
+          .filter(m => {
+            const c = m.content?.toLowerCase() || '';
+            return (c.includes('atribuíd') || c.includes('assigned')) &&
+                   !c.includes('não atribuíd') && !c.includes('desatribuíd') && !c.includes('unassigned');
+          })
+          .sort((a, b) => b.created_at - a.created_at)[0];
+        const startTs = anyAssignedMsg?.created_at ?? createdAt;
+        if (conv.id % 200 === 0) console.log(`[first-reply-cc] conv ${conv.id}: directAssign=${!!assignedMsg} anyAssign=${!!anyAssignedMsg} startTs=${startTs} bhm=${_bhMinsServer(startTs, firstReplyTs)}`);
 
         const bhm = _bhMinsServer(startTs, firstReplyTs);
         if (bhm === null || bhm < 0 || bhm > 10080) continue;
@@ -885,7 +887,7 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
       }
 
       const totalCount = data?.data?.meta?.all_count ?? data?.meta?.all_count ?? null;
-      if (convs.length < 25 || (totalCount !== null && page * 25 >= totalCount)) break;
+      if (convs.length < 25 || (totalCount !== null && page * 100 >= totalCount)) break;
       page++;
       if (page > 200) break;
       await new Promise(r => setTimeout(r, 300));
