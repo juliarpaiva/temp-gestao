@@ -769,12 +769,12 @@
         </div>
         <div class="kpi" style="border-left:4px solid ${respCor}">
           <div class="kpi-label">Tempo 1ª resposta</div>
-          <div class="ops-kpi-num" style="color:${respCor}">${fmtHora(atual.tempo_resposta_h)}</div>
-          <div class="kpi-sub" style="color:${respCor};margin-top:6px">${atual.tempo_resposta_h !== null ? (respOk?'✓':'✗')+' meta 60min' : '—'}</div>
+          <div class="ops-kpi-num" style="color:${respCor}">${frLoading ? '<span style="color:#94a3b8;font-size:14px">calculando…</span>' : fmtHora(atual.tempo_resposta_h)}</div>
+          <div class="kpi-sub" style="color:${respCor};margin-top:6px">${!frLoading && atual.tempo_resposta_h !== null ? (respOk?'✓':'✗')+' meta 60min' : '—'}</div>
         </div>
         <div class="kpi">
           <div class="kpi-label">Mediana 1ª resposta</div>
-          <div class="ops-kpi-num">${fmtHora(atual.mediana_resposta_h)}</div>
+          <div class="ops-kpi-num">${frLoading ? '<span style="color:#94a3b8;font-size:14px">calculando…</span>' : fmtHora(atual.mediana_resposta_h)}</div>
           <div class="kpi-sub flat">mediana do período</div>
         </div>
         <div class="kpi">
