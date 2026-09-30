@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "cloud-humans": {
+      "type": "http",
+      "url": "https://mcp.cloudhumans.com/openapi/cloudhumans/mcp"
+    }
+  }
+}
