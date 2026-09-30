@@ -2060,7 +2060,10 @@ app.get('/admin/clear-ops-cache', async (req, res) => {
     return res.status(403).json({ error: 'Forbidden' });
   try {
     const r = await pool.query(`DELETE FROM support_bi.kpis_op_cache`);
-    res.json({ ok: true, deleted: r.rowCount });
+    // Also reset in-memory first-reply cache so stale DB entries are ignored
+    Object.keys(_frCC).forEach(k => delete _frCC[k]);
+    const r2 = await pool.query(`DELETE FROM support_bi.first_reply_cc_cache`);
+    res.json({ ok: true, deleted_ops: r.rowCount, deleted_fr: r2.rowCount });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
