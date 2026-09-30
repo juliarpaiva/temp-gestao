@@ -772,139 +772,45 @@ const _MONITORED_CC = ['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','
 async function _computeFirstReplyCC(d0, d1, cacheKey) {
   if (_frCCRunning.has(cacheKey)) return;
   _frCCRunning.add(cacheKey);
-  const token = process.env.CLOUDCHAT_TOKEN;
-  if (!token) {
-    _frCC[cacheKey] = { loading: false, by_agent: null, computed_at: Date.now() };
-    _frCCRunning.delete(cacheKey);
-    return;
-  }
   try {
-    const since = Math.floor(new Date(d0 + 'T03:00:00Z').getTime() / 1000);
-    const until  = Math.floor(new Date(d1 + 'T03:00:00Z').getTime() / 1000);
-    const frData = {};
-    let page = 1;
-    let pagesOutsideRange = 0;
-    console.log(`[first-reply-cc] computing ${cacheKey} since=${since} until=${until}`);
-    while (true) {
-      let data;
-      try {
-        data = await fetchCloudChat(
-          `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=${page}&per_page=100`,
-          token, 'POST',
-          { payload: [
-            { attribute_key: 'status', filter_operator: 'equal_to', values: ['resolved'], query_operator: null },
-          ]},
-          60000
-        );
-      } catch (e) {
-        if (e.httpStatus === 429) {
-          const match = e.message.match(/"retry_after"\s*:\s*(\d+)/);
-          const waitMs = ((match ? parseInt(match[1]) : 15) + 3) * 1000;
-          console.log(`[first-reply-cc] 429 rate limit p${page}, aguardando ${waitMs}ms`);
-          await new Promise(r => setTimeout(r, waitMs));
-          continue;
-        }
-        console.error('[first-reply-cc] filter page', page, e.message);
-        break;
-      }
-      const convs = data?.data?.payload || data?.payload || [];
-      if (!convs.length) break;
+    console.log(`[first-reply-cc] computing dw:${cacheKey} d0=${d0} d1=${d1}`);
+    // Usa DW: first_agent_assignment_at_local → first_agent_first_reply_at_local
+    // Cada linha: [agent_name, assigned_unix_ts, reply_unix_ts]
+    const rows = await dwQuery(`
+      SELECT
+        first_agent_reply_name,
+        EXTRACT(EPOCH FROM first_agent_assignment_at_local)::bigint,
+        EXTRACT(EPOCH FROM first_agent_first_reply_at_local)::bigint
+      FROM dw.fact_cloudchat_tickets
+      WHERE ticket_status = 'resolved'
+        AND first_agent_reply_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
+        AND first_agent_assignment_at_local IS NOT NULL
+        AND first_agent_first_reply_at_local IS NOT NULL
+        AND first_agent_first_reply_at_local > first_agent_assignment_at_local
+        AND resolved_at_local >= '${d0}' AND resolved_at_local < '${d1}'
+    `);
 
-      // Filter by date in JS (API created_at operators expect number of days, not Unix timestamps)
-      const inRange = convs.filter(c => c.created_at >= since && c.created_at < until);
-      if (page === 1) {
-        const names = [...new Set(convs.map(c => c.meta?.assignee?.name || c.assignee?.name || '(sem)'))];
-        console.log(`[first-reply-cc] p1: ${convs.length} total, ${inRange.length} in range, assignees sample: ${names.slice(0,8).join(', ')}`);
-      }
-
-      // Early termination: stop if well past the date range for 3 consecutive pages
-      const oldestTs = Math.min(...convs.map(c => c.created_at || Infinity));
-      if (inRange.length === 0 && oldestTs < since - 7 * 86400) {
-        if (++pagesOutsideRange >= 3) { console.log(`[first-reply-cc] early exit at page ${page}`); break; }
-      } else {
-        pagesOutsideRange = 0;
-      }
-
-      const monitored = inRange.filter(c => {
-        const name = c.meta?.assignee?.name || c.assignee?.name || '';
-        return _MONITORED_CC.includes(name);
-      });
-
-      for (const conv of monitored) {
-        const agentName = conv.meta?.assignee?.name || conv.assignee?.name;
-        if (!agentName) continue;
-        const createdAt = conv.created_at;
-        if (!createdAt) continue;
-
-        let msgs = [];
-        try {
-          const msgData = await fetchCloudChat(
-            `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${conv.id}/messages`,
-            token, 'GET', null, 30000
-          );
-          msgs = Array.isArray(msgData.payload) ? msgData.payload
-               : Array.isArray(msgData)          ? msgData
-               : [];
-        } catch { continue; }
-
-        // Detecta bot: is_ai_agent, type='agent_bot', ou nome contém 'claudia'
-        const isBot = m => !!(m.sender?.is_ai_agent || m.sender?.type === 'agent_bot' ||
-          m.sender?.name?.toLowerCase().includes('claudia'));
-
-        const humanMsgs = msgs.filter(m =>
-          m.message_type === 1 && !m.private && m.sender &&
-          !isBot(m) && m.sender.type !== 'contact'
-        );
-        humanMsgs.sort((a, b) => a.created_at - b.created_at);
-        const firstReplyTs = humanMsgs[0]?.created_at ?? null;
-        if (!firstReplyTs) continue;
-
-        // Início = atribuição ao agente (msg de atividade type=2):
-        // 1) atribuição direta com nome do agente no content
-        // 2) qualquer atribuição (inbox/agente) — exclui desatribuição
-        // Fallback final: criação do ticket
-        const activityMsgs = msgs.filter(m => m.message_type === 2 && m.created_at < firstReplyTs);
-        const assignedMsg = activityMsgs
-          .filter(m => m.content?.toLowerCase().includes(agentName.split(' ')[0].toLowerCase()))
-          .sort((a, b) => b.created_at - a.created_at)[0];
-        const anyAssignedMsg = assignedMsg ?? activityMsgs
-          .filter(m => {
-            const c = m.content?.toLowerCase() || '';
-            return (c.includes('atribuíd') || c.includes('assigned')) &&
-                   !c.includes('não atribuíd') && !c.includes('desatribuíd') && !c.includes('unassigned');
-          })
-          .sort((a, b) => b.created_at - a.created_at)[0];
-        const startTs = anyAssignedMsg?.created_at ?? createdAt;
-        if (conv.id % 200 === 0) console.log(`[first-reply-cc] conv ${conv.id}: directAssign=${!!assignedMsg} anyAssign=${!!anyAssignedMsg} startTs=${startTs} bhm=${_bhMinsServer(startTs, firstReplyTs)}`);
-
-        const bhm = _bhMinsServer(startTs, firstReplyTs);
-        if (bhm === null || bhm < 0 || bhm > 10080) continue;
-
-        if (!frData[agentName]) frData[agentName] = [];
-        frData[agentName].push(bhm);
-
-        await new Promise(r => setTimeout(r, 80));
-      }
-
-      const totalCount = data?.data?.meta?.all_count ?? data?.meta?.all_count ?? null;
-      if (convs.length < 25 || (totalCount !== null && page * 100 >= totalCount)) break;
-      page++;
-      if (page > 200) break;
-      await new Promise(r => setTimeout(r, 300));
+    const agTimes = {};
+    for (const row of rows) {
+      const agent = row[0];
+      const assignedTs = Number(row[1]);
+      const replyTs    = Number(row[2]);
+      const bhm = _bhMinsServer(assignedTs, replyTs);
+      if (bhm === null || bhm < 0 || bhm > 10080) continue;
+      if (!agTimes[agent]) agTimes[agent] = [];
+      agTimes[agent].push(bhm);
     }
 
     const byAgent = {};
-    for (const [ag, times] of Object.entries(frData)) {
-      if (!Array.isArray(times)) continue;
-      const v = times.filter(x => isFinite(x));
-      if (!v.length) continue;
-      const avg    = v.reduce((s, x) => s + x, 0) / v.length;
-      const sorted = [...v].sort((a, b) => a - b);
+    for (const [ag, times] of Object.entries(agTimes)) {
+      if (!times.length) continue;
+      const avg    = times.reduce((s, x) => s + x, 0) / times.length;
+      const sorted = [...times].sort((a, b) => a - b);
       const mid    = Math.floor(sorted.length / 2);
       const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
       byAgent[ag]  = { avg: Math.round(avg / 60 * 10) / 10, median: Math.round(median / 60 * 10) / 10 };
     }
-    console.log(`[first-reply-cc] done ${cacheKey}: ${Object.keys(byAgent).length} agents, pages=${page}`, JSON.stringify(byAgent));
+    console.log(`[first-reply-cc] done dw:${cacheKey}: ${rows.length} tickets, ${Object.keys(byAgent).length} agents`, JSON.stringify(byAgent));
 
     _frCC[cacheKey] = { loading: false, by_agent: byAgent, computed_at: Date.now() };
     pool.query(
