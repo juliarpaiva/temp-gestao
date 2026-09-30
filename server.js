@@ -886,6 +886,7 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
 
     const byAgent = {};
     for (const [ag, times] of Object.entries(frData)) {
+      if (!Array.isArray(times)) continue;
       const v = times.filter(x => isFinite(x));
       if (!v.length) continue;
       const avg    = v.reduce((s, x) => s + x, 0) / v.length;
