@@ -859,11 +859,21 @@ async function _computeFirstReplyCC(d0, d1, cacheKey) {
         const firstReplyTs = humanMsgs[0]?.created_at ?? null;
         if (!firstReplyTs) continue;
 
-        // Início = última msg do bot (handoff p/ fila humana); fallback: criação do ticket
+        // Início = atribuição ao agente humano (msg de atividade type=2 com nome do agente)
+        // Fallback: última msg do bot; fallback final: criação do ticket
+        const activityMsgs = msgs.filter(m => m.message_type === 2 && m.created_at < firstReplyTs);
+        if (!frData._dbgAct) {
+          frData._dbgAct = true;
+          const sample = activityMsgs.slice(0, 3).map(m => ({ type: m.message_type, content: m.content, ts: m.created_at }));
+          console.log(`[first-reply-cc] activity samples conv ${conv.id}:`, JSON.stringify(sample));
+        }
+        const assignedMsg = activityMsgs
+          .filter(m => m.content?.toLowerCase().includes(agentName.split(' ')[0].toLowerCase()))
+          .sort((a, b) => b.created_at - a.created_at)[0];
         const botMsgs = msgs.filter(m => isBot(m) && m.message_type === 1 && !m.private);
         botMsgs.sort((a, b) => b.created_at - a.created_at);
-        const startTs = botMsgs.length > 0 ? botMsgs[0].created_at : createdAt;
-        if (conv.id % 200 === 0) console.log(`[first-reply-cc] conv ${conv.id}: botMsgs=${botMsgs.length} startTs=${startTs} firstReplyTs=${firstReplyTs} bhm=${_bhMinsServer(startTs, firstReplyTs)}`);
+        const startTs = assignedMsg?.created_at ?? (botMsgs[0]?.created_at ?? createdAt);
+        if (conv.id % 200 === 0) console.log(`[first-reply-cc] conv ${conv.id}: assigned=${!!assignedMsg} botMsgs=${botMsgs.length} startTs=${startTs} bhm=${_bhMinsServer(startTs, firstReplyTs)}`);
 
         const bhm = _bhMinsServer(startTs, firstReplyTs);
         if (bhm === null || bhm < 0 || bhm > 10080) continue;
