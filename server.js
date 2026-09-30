@@ -2154,12 +2154,35 @@ app.get('/data/:date', async (req, res) => {
   }
 });
 
+// Pré-aquece cache de 1ª resposta para semana e mês atuais (em sequência, respeitando rate limit)
+function _warmupFirstReplyCache() {
+  const now = new Date(Date.now() - 3 * 3600000); // hora BRT
+  const dow  = now.getDay();
+  const diff = dow === 0 ? 6 : dow - 1;
+  const monday = new Date(now.getTime() - diff * 86400000);
+  const d0Week  = monday.toISOString().slice(0, 10);
+  const d0Month = now.toISOString().slice(0, 7) + '-01';
+  const d1      = new Date(now.getTime() + 86400000).toISOString().slice(0, 10);
+  const keyWeek  = `${d0Week}_${d1}`;
+  const keyMonth = `${d0Month}_${d1}`;
+  // Semana: começa após 10s (cache já invalidado)
+  setTimeout(() => {
+    console.log('[warmup] 1ª resposta semana:', keyWeek);
+    _computeFirstReplyCC(d0Week, d1, keyWeek).catch(e => console.error('[warmup] semana:', e.message));
+  }, 10000);
+  // Mês: começa após 120s (semana já terminou, respeita rate limit)
+  setTimeout(() => {
+    console.log('[warmup] 1ª resposta mês:', keyMonth);
+    _computeFirstReplyCC(d0Month, d1, keyMonth).catch(e => console.error('[warmup] mês:', e.message));
+  }, 120000);
+}
+
 // Cron: todo dia às 10h UTC (7h Brasília) — data de criação do ticket, alinhado com CloudChat
 cron.schedule('0 10 * * *', () => {
   console.log('Cron 7h — processando ontem...');
   runDailyReport(null, false).catch(err => console.error('Erro no cron 7h:', err.message));
   pool.query(`DELETE FROM support_bi.kpis_op_cache WHERE period_key LIKE 'semana:%' OR period_key LIKE 'mes:%' OR period_key LIKE 'dia:%'`)
-    .then(() => console.log('[cron 7h] cache kpis-op invalidado'))
+    .then(() => { console.log('[cron 7h] cache kpis-op invalidado'); _warmupFirstReplyCache(); })
     .catch(err => console.error('[cron 7h] erro ao invalidar cache kpis-op:', err.message));
 });
 
