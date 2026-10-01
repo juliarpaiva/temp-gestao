@@ -55,10 +55,13 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
   const _prevConfirmed  = {}; // estado confirmado antes da última transição (debounce)
   const _statusAccum    = {}; // { 'YYYY-MM-DD|agente' → { label → segundos } }
   const _convMsgCache   = new Map(); // conv_id → { lastAct, agentMsgsToday: Map<name,ts> }
-  let _dbPool  = null;
-  let _dbReady = false;
-  let _agentIds = null;    // { agentName → chatwoot_id }, cache diário
-  let _agentIdsDay = null;
+  let _dbPool          = null;
+  let _dbReady         = false;
+  let _dbEverConnected = false;
+  let _dbRetryTimer    = null;
+  let _dbInitBusy      = false;
+  let _agentIds        = null;    // { agentName → chatwoot_id }, cache diário
+  let _agentIdsDay     = null;
 
   // ── resolved_at via activity messages ───────────────────────────────────────
   // Cache: convId → { resolvedAt_s: number|null, auto: bool, lastActivityAt_s: number, fetchedAt_s: number }
@@ -207,56 +210,125 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     } catch (e) { console.error('[ao-vivo] accum persist error:', e.message); }
   }
 
-  // Inicializa tabelas e carrega histórico persistido
-  (async () => {
+  // ── Helpers de schema (leitura antes de DDL) ────────────────────────────────
+  async function _aovTableExists(p, name) {
+    const { rows } = await p.query(`SELECT to_regclass($1) AS oid`, [`support_bi.${name}`]);
+    return rows[0].oid !== null;
+  }
+  async function _aovColumnExists(p, table, col) {
+    const { rows } = await p.query(
+      `SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'support_bi' AND table_name = $1 AND column_name = $2`,
+      [table, col]
+    );
+    return rows.length > 0;
+  }
+
+  // ── Init do banco (extraído para permitir retry) ─────────────────────────────
+  async function _initAoVivoDB() {
+    if (_dbInitBusy) return;
+    _dbInitBusy = true;
+    const newPool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
     try {
-      _dbPool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
-      await _dbPool.query(`
-        CREATE TABLE IF NOT EXISTS support_bi.ao_vivo_agent_status (
-          agent      TEXT PRIMARY KEY,
-          status     TEXT,
-          reason     TEXT,
-          since_s    BIGINT,
-          updated_at TIMESTAMPTZ DEFAULT NOW()
-        )
-      `);
-      await _dbPool.query(`ALTER TABLE support_bi.ao_vivo_agent_status ADD COLUMN IF NOT EXISTS reason TEXT`);
-      await _dbPool.query(`
-        CREATE TABLE IF NOT EXISTS support_bi.agent_status_daily (
-          date   DATE NOT NULL,
-          agente TEXT NOT NULL,
-          data   JSONB NOT NULL DEFAULT '{}',
-          PRIMARY KEY (date, agente)
-        )
-      `);
-      // Carrega status atual
-      const { rows } = await _dbPool.query('SELECT agent, status, reason, since_s FROM support_bi.ao_vivo_agent_status');
+      // DDL só se necessário — evita erro read-only quando as tabelas já existem
+      if (!await _aovTableExists(newPool, 'ao_vivo_agent_status')) {
+        await newPool.query(`
+          CREATE TABLE support_bi.ao_vivo_agent_status (
+            agent      TEXT PRIMARY KEY,
+            status     TEXT,
+            reason     TEXT,
+            since_s    BIGINT,
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+          )
+        `);
+      }
+      if (!await _aovColumnExists(newPool, 'ao_vivo_agent_status', 'reason')) {
+        await newPool.query(`ALTER TABLE support_bi.ao_vivo_agent_status ADD COLUMN reason TEXT`);
+      }
+      if (!await _aovTableExists(newPool, 'agent_status_daily')) {
+        await newPool.query(`
+          CREATE TABLE support_bi.agent_status_daily (
+            date   DATE NOT NULL,
+            agente TEXT NOT NULL,
+            data   JSONB NOT NULL DEFAULT '{}',
+            PRIMARY KEY (date, agente)
+          )
+        `);
+      }
+
+      // Carrega do DB e mescla com memória
       const initNow = Date.now() / 1000;
-      const today = _brtDateStr(initNow);
-      // Início do turno de hoje em BRT (9h), para não contar reinicializações noturnas do Heroku
+      const today   = _brtDateStr(initNow);
       const _d0 = new Date((initNow * 1000) + (CFG.BRT_OFFSET_H * 3600000));
       _d0.setUTCHours(0, 0, 0, 0);
       const todayShiftStart_s = (_d0.getTime() - (CFG.BRT_OFFSET_H * 3600000)) / 1000
                                + (CFG.HORARIO.inicio_min * 60);
+
+      const { rows } = await newPool.query(
+        'SELECT agent, status, reason, since_s FROM support_bi.ao_vivo_agent_status'
+      );
+      let mergedStatus = 0;
       for (const row of rows) {
         const since_s = Number(row.since_s);
-        // Se since_s é de um dia anterior, reseta para o início do turno de hoje (ou initNow se já passou)
-        const effectiveSince = _brtDateStr(since_s) < today ? Math.max(initNow, todayShiftStart_s) : since_s;
-        _statusHistory[row.agent] = { status: row.status, reason: row.reason, since_s: effectiveSince };
-        _prevConfirmed[row.agent] = { status: row.status, reason: row.reason, since_s: effectiveSince };
+        const mem = _statusHistory[row.agent];
+        // Registro do DB é de dia anterior e já há memória → mantém a memória
+        if (_brtDateStr(since_s) < today && mem) continue;
+        const effectiveSince = _brtDateStr(since_s) < today
+          ? Math.max(initNow, todayShiftStart_s)
+          : since_s;
+        // Mantém o mais recente pelo since_s
+        if (!mem || effectiveSince > mem.since_s) {
+          _statusHistory[row.agent] = { status: row.status, reason: row.reason, since_s: effectiveSince };
+          _prevConfirmed[row.agent] = { status: row.status, reason: row.reason, since_s: effectiveSince };
+          mergedStatus++;
+        }
       }
-      // Carrega acumulado de hoje
-      const { rows: accRows } = await _dbPool.query(
+
+      const { rows: accRows } = await newPool.query(
         `SELECT agente, data FROM support_bi.agent_status_daily WHERE date = $1`, [today]
       );
       for (const row of accRows) {
-        const key = `${today}|${row.agente}`;
-        _statusAccum[key] = row.data || {};
+        const key    = `${today}|${row.agente}`;
+        const dbData  = row.data || {};
+        const memData = _statusAccum[key] || {};
+        // Soma DB (histórico anterior) + memória (acumulado recente não gravado)
+        const merged = { ...memData };
+        for (const [label, secs] of Object.entries(dbData)) {
+          merged[label] = (merged[label] || 0) + Number(secs);
+        }
+        _statusAccum[key] = merged;
       }
+
+      if (_dbPool) { try { _dbPool.end(); } catch {} }
+      _dbPool = newPool;
       _dbReady = true;
-      console.log('[ao-vivo] DB carregado:', rows.length, 'status,', accRows.length, 'acumulados hoje');
+      _dbEverConnected = true;
+      if (_dbRetryTimer) { clearInterval(_dbRetryTimer); _dbRetryTimer = null; }
+      console.log('[ao-vivo] DB pronto:', rows.length, 'status (', mergedStatus, 'do DB),', accRows.length, 'acumulados hoje');
     } catch (e) {
-      console.error('[ao-vivo] DB init error:', e.message);
+      try { newPool.end(); } catch {}
+      throw e;
+    } finally {
+      _dbInitBusy = false;
+    }
+  }
+
+  // ── Inicializa e reconecta automaticamente a cada 60s se falhar ─────────────
+  (async () => {
+    try {
+      await _initAoVivoDB();
+    } catch (e) {
+      console.error('[ao-vivo] DB init error:', e.message, '— cache em memória, nova tentativa em 60s');
+      _dbPool  = null;
+      _dbReady = false;
+      _dbRetryTimer = setInterval(async () => {
+        console.log('[ao-vivo] tentando reconectar ao DB...');
+        try {
+          await _initAoVivoDB();
+        } catch (err) {
+          console.error('[ao-vivo] reconexão falhou:', err.message, '— nova tentativa em 60s');
+        }
+      }, 60000);
     }
   })();
 

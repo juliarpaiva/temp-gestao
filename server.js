@@ -2480,56 +2480,69 @@ async function queryMetabase(token, query) {
 
 // --- Inicialização ---
 
+async function _tableExists(name) {
+  const { rows } = await pool.query(`SELECT to_regclass($1) AS oid`, [`support_bi.${name}`]);
+  return rows[0].oid !== null;
+}
+
 async function initDb() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS support_bi.csat_reports (
-      date       VARCHAR(10) PRIMARY KEY,
-      data       JSONB       NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS support_bi.csat_indevidas (
-      ticket_id  VARCHAR(50) PRIMARY KEY,
-      date       VARCHAR(10) NOT NULL,
-      motivo     VARCHAR(100),
-      observacao TEXT,
-      marcado_em TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS support_bi.csat_users (
-      id            SERIAL PRIMARY KEY,
-      email         TEXT UNIQUE NOT NULL,
-      name          TEXT,
-      password_hash TEXT,
-      created_at    TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS support_bi.csat_reset_tokens (
-      id         SERIAL PRIMARY KEY,
-      email      TEXT NOT NULL,
-      token      TEXT UNIQUE NOT NULL,
-      expires_at TIMESTAMPTZ NOT NULL,
-      used_at    TIMESTAMPTZ,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
+  const tables = [
+    { name: 'csat_reports', ddl: `CREATE TABLE support_bi.csat_reports (
+        date       VARCHAR(10) PRIMARY KEY,
+        data       JSONB       NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )` },
+    { name: 'csat_indevidas', ddl: `CREATE TABLE support_bi.csat_indevidas (
+        ticket_id  VARCHAR(50) PRIMARY KEY,
+        date       VARCHAR(10) NOT NULL,
+        motivo     VARCHAR(100),
+        observacao TEXT,
+        marcado_em TIMESTAMPTZ DEFAULT NOW()
+      )` },
+    { name: 'csat_users', ddl: `CREATE TABLE support_bi.csat_users (
+        id            SERIAL PRIMARY KEY,
+        email         TEXT UNIQUE NOT NULL,
+        name          TEXT,
+        password_hash TEXT,
+        created_at    TIMESTAMPTZ DEFAULT NOW()
+      )` },
+    { name: 'csat_reset_tokens', ddl: `CREATE TABLE support_bi.csat_reset_tokens (
+        id         SERIAL PRIMARY KEY,
+        email      TEXT NOT NULL,
+        token      TEXT UNIQUE NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at    TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )` },
+    { name: 'kpis_op_cache', ddl: `CREATE TABLE support_bi.kpis_op_cache (
+        period_key  TEXT PRIMARY KEY,
+        data        JSONB NOT NULL,
+        fetched_at  TIMESTAMPTZ DEFAULT NOW()
+      )` },
+  ];
+  for (const { name, ddl } of tables) {
+    if (!await _tableExists(name)) {
+      await pool.query(ddl);
+      console.log(`[initDb] tabela criada: ${name}`);
+    }
+  }
   await pool.query(`ALTER TABLE support_bi.csat_users ALTER COLUMN password_hash DROP NOT NULL`).catch(() => {});
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS support_bi.kpis_op_cache (
-      period_key  TEXT PRIMARY KEY,
-      data        JSONB NOT NULL,
-      fetched_at  TIMESTAMPTZ DEFAULT NOW()
-    )
-  `);
-  console.log('Banco de dados pronto.');
+  console.log('[initDb] banco de dados pronto.');
 }
 
 app.use(require('./ao-vivo-server')({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, dwQuery }));
 
 const PORT = process.env.PORT || 3000;
-initDb()
-  .then(() => app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`)))
-  .catch(err => { console.error('Erro ao inicializar:', err.message); process.exit(1); });
+app.listen(PORT, () => console.log(`Servidor rodando na porta ${PORT}`));
+
+(async function _initDbLoop() {
+  while (true) {
+    try {
+      await initDb();
+      return;
+    } catch (err) {
+      console.error('[initDb] falhou:', err.message, '— retentando em 60s');
+      await new Promise(r => setTimeout(r, 60000));
+    }
+  }
+})();
