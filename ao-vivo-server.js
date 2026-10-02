@@ -674,7 +674,7 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
       postFilterAll([CA(todayStartISO), { ...COM_AT, query_operator: null }]),
       postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
       postFilterAll([{ ...NAL }, ST('open')]),
-      postFilterAll([{ ...NAL }, ST('pending')]),
+      postFilterAll([{ ...NAL }, ST('pending')], 1),
       postFilterAll([CA(todayStartISO), COM_AT, ST('resolved')]),
       postFilter([CA(todayStartISO), { ...COM_MON, query_operator: null }]), // _novos_raw_count_test
     ]);
