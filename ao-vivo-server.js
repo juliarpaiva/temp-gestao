@@ -669,14 +669,19 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
     // resolvRecentes sempre vem de _computeResolvUpdate (incremental); fallback para varredura completa se chamado sem param
     const resolvRecentes = resolvRecentesParam ??
       await postFilterUntilOlderThanToday([COM_MON, ST('resolved')], todayStartS_pre, 40);
-    // 4 filtros em paralelo (open/pending/snoozed N2 removidos — vêm de allOpenConvs via GET)
-    const [novosRaw, resolvCriados, naoAtrib, resolvHoje, novosRawMon] = await Promise.all([
+    // 5 filtros em paralelo (open+pending para não atribuídos — ambos aparecem na aba "Não atribuída" do CC)
+    const [novosRaw, resolvCriados, naoAtribOpen, naoAtribPending, resolvHoje, novosRawMon] = await Promise.all([
       postFilterAll([CA(todayStartISO), { ...COM_AT, query_operator: null }]),
       postFilter([N2A, { ...CA(todayStartISO), query_operator: 'AND' }, ST('resolved')]),
       postFilterAll([{ ...NAL }, ST('open')]),
+      postFilterAll([{ ...NAL }, ST('pending')]),
       postFilterAll([CA(todayStartISO), COM_AT, ST('resolved')]),
       postFilter([CA(todayStartISO), { ...COM_MON, query_operator: null }]), // _novos_raw_count_test
     ]);
+    const naoAtrib = {
+      count:   naoAtribOpen.count + naoAtribPending.count,
+      tickets: [...naoAtribOpen.tickets, ...naoAtribPending.tickets],
+    };
 
     // Conta apenas tickets criados hoje atribuídos às agentes monitoradas (exclui N1/Claudia etc.)
     const novosHoje      = novosRaw.tickets.filter(c => CFG.AGENTES.includes(c.meta?.assignee?.name)).length;
