@@ -761,11 +761,16 @@ function render(data) {
 
 function updateHdrCountdown() {
   if (!lastData?._server_ts) return;
+  const now_s = Date.now() / 1000;
   const hhmm  = fmtHoraS(lastData._server_ts);
-  const stale = lastData._stale || (Date.now() / 1000 - lastData._server_ts > 15 * 60);
+  const stale = lastData._stale || (now_s - lastData._server_ts > 15 * 60);
+  const diffS = Math.max(0, Math.round(lastData._server_ts + 300 - now_s));
+  const emStr = diffS <= 0 ? 'atualizando…'
+              : diffS < 60 ? `em ${diffS}s`
+              : `em ${Math.ceil(diffS / 60)}min`;
   document.getElementById('hdr-update').textContent = stale
     ? `⚠ dados desatualizados desde ${hhmm}`
-    : `dados de ${hhmm}`;
+    : `dados de ${hhmm} · ${emStr}`;
 }
 
 async function fetchStatus() {
@@ -866,7 +871,7 @@ async function fetchDisponibilidade() {
 fetchStatus();
 fetchDisponibilidade();
 startPolling();
-setInterval(updateHdrCountdown, 60_000);
+setInterval(updateHdrCountdown, 10_000);
 setInterval(fetchDisponibilidade, 60_000);
 </script>
 
