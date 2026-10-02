@@ -172,8 +172,8 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
         }
         if (errors > 0) console.warn(`[ao-vivo] backlog verify: ${errors} erros (sem cache — retenta no próximo poll)`);
         _rebuildBacklogVerified(allCandidates, todayStartS);
-        // Injeta no _cache imediatamente — evita "varrando..." por ~4min até o próximo poll
-        if (_backlogVerified && _cache?.hoje?.resolv_backlog_verificado === null) {
+        // Injeta no _cache imediatamente — evita "varrando..." por ~5min até o próximo poll
+        if (_backlogVerified && _cache?.ao_vivo?.hoje?.resolv_backlog_verificado === null) {
           const bv = _backlogVerified;
           const mapped = bv.tickets.map(c => ({
             id:            c.id,
@@ -184,11 +184,14 @@ module.exports = function ({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, 
           }));
           _cache = {
             ..._cache,
-            hoje: {
-              ..._cache.hoje,
-              resolv_backlog_verificado:       mapped,
-              resolv_backlog_verificado_count: mapped.length,
-              resolv_backlog_auto_count:       bv.auto_count,
+            ao_vivo: {
+              ..._cache.ao_vivo,
+              hoje: {
+                ..._cache.ao_vivo.hoje,
+                resolv_backlog_verificado:       mapped,
+                resolv_backlog_verificado_count: mapped.length,
+                resolv_backlog_auto_count:       bv.auto_count,
+              },
             },
           };
           console.log(`[ao-vivo] backlog injetado no cache: ${mapped.length} verificados`);
