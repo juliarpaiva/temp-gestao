@@ -1858,7 +1858,7 @@
   }
   function _renderTicketsPeriodo(busca) {
     const q = (busca || '').toLowerCase().trim();
-    let base = _ticketsPeriodoCache;
+    let base = _ticketsPeriodoCache.filter(t => t.tipo === 'encerrado');
     if (_ticketsPeriodoFiltro === 'pos') base = base.filter(t => t.nota !== null && t.nota >= 4);
     else if (_ticketsPeriodoFiltro === 'neg') base = base.filter(t => t.nota !== null && t.nota <= 3);
     const todos = q
