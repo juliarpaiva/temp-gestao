@@ -2519,6 +2519,43 @@ async function initDb() {
         data        JSONB NOT NULL,
         fetched_at  TIMESTAMPTZ DEFAULT NOW()
       )` },
+    { name: 'audit_absences', ddl: `CREATE TABLE support_bi.audit_absences (
+        id         SERIAL PRIMARY KEY,
+        agent      TEXT NOT NULL,
+        start_date DATE NOT NULL,
+        end_date   DATE NOT NULL,
+        type       TEXT NOT NULL DEFAULT 'ausencia',
+        created_by TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )` },
+    { name: 'audit_snooze_tickets', ddl: `CREATE TABLE support_bi.audit_snooze_tickets (
+        id               INTEGER PRIMARY KEY,
+        computed_at      DATE NOT NULL,
+        agente           TEXT,
+        snoozed_by       TEXT,
+        n_snoozes        INTEGER DEFAULT 0,
+        snoozes_com_nota INTEGER DEFAULT 0,
+        snoozes_sem_nota INTEGER DEFAULT 0,
+        is_s1            BOOLEAN DEFAULT FALSE,
+        is_s3            BOOLEAN DEFAULT FALSE,
+        s3_max_gap_bh    NUMERIC DEFAULT 0,
+        max_gap_bh       NUMERIC DEFAULT 0,
+        has_big_gap      BOOLEAN DEFAULT FALSE,
+        note_count       INTEGER DEFAULT 0,
+        excluded_absence BOOLEAN DEFAULT FALSE,
+        resolved_at      BIGINT,
+        data             JSONB
+      )` },
+    { name: 'audit_validations', ddl: `CREATE TABLE support_bi.audit_validations (
+        id           SERIAL PRIMARY KEY,
+        ticket_id    INTEGER NOT NULL,
+        indicator    TEXT NOT NULL,
+        validated_by TEXT NOT NULL,
+        status       TEXT NOT NULL,
+        reason       TEXT,
+        created_at   TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(ticket_id, indicator)
+      )` },
   ];
   for (const { name, ddl } of tables) {
     if (!await _tableExists(name)) {
@@ -2527,8 +2564,538 @@ async function initDb() {
     }
   }
   await pool.query(`ALTER TABLE support_bi.csat_users ALTER COLUMN password_hash DROP NOT NULL`).catch(() => {});
+  await auditSeedAbsences().catch(e => console.error('[initDb] seed ausências:', e.message));
   console.log('[initDb] banco de dados pronto.');
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// AUDIT PANEL — Adiamentos e follow-up (gestão apenas)
+// Rota separada: não afeta nada visível para as agentes.
+// ══════════════════════════════════════════════════════════════════════════════
+
+const MONITORED_AUDIT = ['Mari', 'Fernanda Cavalcante', 'Paty', 'Lu Almeida', 'Rafa', 'Natchely Ortiz'];
+const AUDIT_BH_START  = 9 * 60;         // 9:00 BRT em minutos
+const AUDIT_BH_END    = 18 * 60 + 48;   // 18:48 BRT em minutos (588 min/dia)
+const AUDIT_BRT_OFF   = -3 * 3600000;   // UTC-3 em ms
+const AUDIT_BH_DAY    = 588;            // minutos por dia útil
+
+function auditRequireMgmt(req, res, next) {
+  const email = verifySession(getSessionToken(req));
+  if (!email) return res.status(401).json({ error: 'Não autorizado' });
+  const mgmt = (process.env.MANAGEMENT_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  if (!mgmt.length) return res.status(403).json({ error: 'Acesso bloqueado: configure MANAGEMENT_EMAILS no Heroku' });
+  if (!mgmt.includes(email.toLowerCase())) return res.status(403).json({ error: 'Acesso restrito à gestão' });
+  req.auditEmail = email;
+  next();
+}
+
+function auditBhMins(sTs, eTs) {
+  if (!sTs || !eTs || eTs <= sTs) return 0;
+  let tot = 0;
+  const sMs = sTs * 1000 + AUDIT_BRT_OFF;
+  const eMs = eTs * 1000 + AUDIT_BRT_OFF;
+  const d = new Date(sMs); d.setUTCHours(0, 0, 0, 0);
+  while (d.getTime() < eMs) {
+    const dow = d.getUTCDay();
+    if (dow >= 1 && dow <= 5) {
+      const open  = d.getTime() + AUDIT_BH_START * 60000;
+      const close = d.getTime() + AUDIT_BH_END   * 60000;
+      const f = Math.max(sMs, open), t = Math.min(eMs, close);
+      if (t > f) tot += (t - f) / 60000;
+    }
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return tot;
+}
+
+async function auditCc(path, method = 'GET', body = null, retries = 3) {
+  const token = process.env.CLOUDCHAT_TOKEN;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const data = await fetchCloudChat(path, token, method, body);
+      return data;
+    } catch (e) {
+      if (e.httpStatus === 429) { await new Promise(r => setTimeout(r, 30000)); continue; }
+      if (attempt === retries) throw e;
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+}
+
+async function auditPooled(items, fn, concurrency = 6) {
+  const out = [];
+  for (let i = 0; i < items.length; i += concurrency)
+    out.push(...await Promise.all(items.slice(i, i + concurrency).map(fn)));
+  return out;
+}
+
+function parseSnoozedBy(content) {
+  const m = (content || '').match(/adiada?\s+por\s+(.+)/i);
+  return m ? m[1].trim() : null;
+}
+
+// Verifica se um nome de ausência corresponde ao nome de quem adiou
+function auditAgentMatches(absAgent, snoozedByName) {
+  if (!snoozedByName) return false;
+  const a = absAgent.toLowerCase().trim();
+  const s = snoozedByName.toLowerCase().trim();
+  return a === s || a.startsWith(s) || s.startsWith(a.split(' ')[0]);
+}
+
+// Data do timestamp em BRT (YYYY-MM-DD)
+function auditDateBRT(ts) {
+  return new Date(ts * 1000 + AUDIT_BRT_OFF).toISOString().slice(0, 10);
+}
+
+// Retorna true se o snooze em `actTs` caiu durante uma ausência do agente `snoozedByName`
+function isSnoozeExcused(actTs, snoozedByName, absences) {
+  const dateStr = auditDateBRT(actTs);
+  return absences.some(a => auditAgentMatches(a.agent, snoozedByName) && dateStr >= a.start_date && dateStr <= a.end_date);
+}
+
+async function auditAnalyzeTicket(ticket, absences) {
+  let msgs = [];
+  try {
+    const r = await auditCc(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${ticket.id}/messages`);
+    msgs = r?.payload || r?.data?.payload || [];
+  } catch { return null; }
+  msgs.sort((a, b) => a.created_at - b.created_at);
+
+  const snoozeActs = msgs.filter(m => m.message_type === 2 && /adiou|adiada|adiado/i.test(m.content || ''));
+  const agentOut   = msgs.filter(m => m.message_type === 1 && !m.private && !m.sender?.is_ai_agent);
+  const notes      = msgs.filter(m => m.message_type === 1 && m.private);
+  const agente     = ticket.meta?.assignee?.name || '';
+  const resolvedAt = ticket.last_activity_at || 0;
+  const createdAt  = ticket.created_at || 0;
+
+  // Quem adiou em cada atividade + nota por adiamento (30 min após cada um)
+  let snoozesCom = 0, snoozesSem = 0, snoozedBy = null;
+  const effectiveSnoozes = []; // snoozes que NÃO estão em período de ausência do adiador
+
+  for (const act of snoozeActs) {
+    const byName = parseSnoozedBy(act.content);
+    if (byName) snoozedBy = byName;
+
+    // Nota dentro de 30 min após ESTE adiamento
+    const hasNote = notes.some(n => n.created_at >= act.created_at && n.created_at <= act.created_at + 1800);
+    if (hasNote) snoozesCom++; else snoozesSem++;
+
+    // Excluir da análise de S1/S3 apenas o que acontece dentro do período de ausência do adiador
+    if (!isSnoozeExcused(act.created_at, byName || snoozedBy, absences)) {
+      effectiveSnoozes.push(act);
+    }
+  }
+
+  // S1: primeiro adiamento EFETIVO antes da 1ª resposta pública da agente
+  let isS1 = false;
+  if (effectiveSnoozes.length > 0) {
+    const firstEff = effectiveSnoozes[0].created_at;
+    isS1 = agentOut.length === 0 || firstEff < agentOut[0].created_at;
+  }
+
+  // S3: 2+ adiamentos efetivos, sem msg pública da agente entre adiamentos consecutivos efetivos
+  let isS3 = false, s3MaxGapBH = 0;
+  if (effectiveSnoozes.length >= 2) {
+    for (let i = 0; i < effectiveSnoozes.length - 1; i++) {
+      const t1 = effectiveSnoozes[i].created_at, t2 = effectiveSnoozes[i + 1].created_at;
+      if (!agentOut.some(m => m.created_at > t1 && m.created_at < t2)) {
+        isS3 = true;
+        const g = auditBhMins(t1, t2);
+        if (g > s3MaxGapBH) s3MaxGapBH = g;
+      }
+    }
+  }
+
+  // Maior gap sem mensagem pública da agente (ticket inteiro)
+  let maxGapBH = 0;
+  const aTimes = agentOut.map(m => m.created_at).sort((a, b) => a - b);
+  if (aTimes.length === 0) {
+    maxGapBH = auditBhMins(createdAt, resolvedAt);
+  } else {
+    maxGapBH = auditBhMins(createdAt, aTimes[0]);
+    for (let i = 0; i < aTimes.length - 1; i++) {
+      const g = auditBhMins(aTimes[i], aTimes[i + 1]);
+      if (g > maxGapBH) maxGapBH = g;
+    }
+    const gLast = auditBhMins(aTimes[aTimes.length - 1], resolvedAt);
+    if (gLast > maxGapBH) maxGapBH = gLast;
+  }
+
+  // excluded_absence = TRUE somente quando TODOS os adiamentos foram excluídos por ausência
+  const excludedAbsence = snoozeActs.length > 0 && effectiveSnoozes.length === 0;
+
+  return {
+    id: ticket.id, agente, snoozedBy,
+    nSnoozes: snoozeActs.length,
+    snoozesCom, snoozesSem,
+    isS1, isS3, s3MaxGapBH, maxGapBH,
+    hasBigGap: maxGapBH >= AUDIT_BH_DAY,
+    noteCount: notes.length,
+    excludedAbsence, resolvedAt,
+  };
+}
+
+async function auditComputeRange(fromDate, toDate, onProgress = null) {
+  const sinceS = Math.floor(new Date(fromDate + 'T03:00:00Z').getTime() / 1000);
+  const untilS = Math.floor(new Date(toDate   + 'T03:00:00Z').getTime() / 1000) + 86400;
+
+  const absRows  = await pool.query(`SELECT agent, start_date::text, end_date::text, type FROM support_bi.audit_absences`);
+  const absences = absRows.rows;
+
+  const agentsRaw = await auditCc(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/agents`);
+  const agentsArr = Array.isArray(agentsRaw) ? agentsRaw : (agentsRaw?.data || []);
+  const monIds    = agentsArr.filter(a => MONITORED_AUDIT.includes(a.name)).map(a => a.id);
+
+  const filterPayload = { payload: [
+    { attribute_key: 'assignee_id', filter_operator: 'equal_to', values: monIds, query_operator: 'AND' },
+    { attribute_key: 'status',      filter_operator: 'equal_to', values: ['resolved'], query_operator: null },
+  ]};
+
+  if (onProgress) onProgress({ step: 'paginando', progress: 5, total: 0, analyzed: 0 });
+
+  let tickets = [];
+  for (let page = 1; page <= 200; page++) {
+    const data  = await auditCc(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/filter?page=${page}`, 'POST', filterPayload);
+    const items = data?.data?.payload || data?.payload || [];
+    if (!items.length) break;
+    tickets.push(...items.filter(c => { const lat = c.last_activity_at || 0; return lat >= sinceS && lat < untilS; }));
+    const oldest = items.reduce((m, c) => Math.min(m, c.last_activity_at || 0), Infinity);
+    if (oldest < sinceS || items.length < 25) break;
+  }
+  const seen = new Set();
+  tickets = tickets.filter(t => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
+
+  if (onProgress) onProgress({ step: 'analisando', progress: 10, total: tickets.length, analyzed: 0 });
+
+  // Analisa em batches e atualiza progresso
+  const results = [];
+  const CONC = 3;
+  for (let i = 0; i < tickets.length; i += CONC) {
+    const batch = await Promise.all(tickets.slice(i, i + CONC).map(t => auditAnalyzeTicket(t, absences)));
+    results.push(...batch.filter(Boolean));
+    if (onProgress) {
+      const analyzed = i + CONC;
+      const progress = 10 + Math.round((analyzed / tickets.length) * 85);
+      onProgress({ step: 'analisando', progress: Math.min(progress, 95), total: tickets.length, analyzed: results.length });
+    }
+  }
+
+  // Persist/upsert computed tickets
+  for (const r of results) {
+    await pool.query(`
+      INSERT INTO support_bi.audit_snooze_tickets
+        (id, computed_at, agente, snoozed_by, n_snoozes, snoozes_com_nota, snoozes_sem_nota,
+         is_s1, is_s3, s3_max_gap_bh, max_gap_bh, has_big_gap, note_count, excluded_absence, resolved_at, data)
+      VALUES ($1, NOW()::date, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      ON CONFLICT (id) DO UPDATE SET
+        computed_at=EXCLUDED.computed_at, agente=EXCLUDED.agente, snoozed_by=EXCLUDED.snoozed_by,
+        n_snoozes=EXCLUDED.n_snoozes, snoozes_com_nota=EXCLUDED.snoozes_com_nota,
+        snoozes_sem_nota=EXCLUDED.snoozes_sem_nota, is_s1=EXCLUDED.is_s1, is_s3=EXCLUDED.is_s3,
+        s3_max_gap_bh=EXCLUDED.s3_max_gap_bh, max_gap_bh=EXCLUDED.max_gap_bh,
+        has_big_gap=EXCLUDED.has_big_gap, note_count=EXCLUDED.note_count,
+        excluded_absence=EXCLUDED.excluded_absence, resolved_at=EXCLUDED.resolved_at, data=EXCLUDED.data
+    `, [
+      r.id, r.agente, r.snoozedBy, r.nSnoozes, r.snoozesCom, r.snoozesSem,
+      r.isS1, r.isS3, r.s3MaxGapBH, r.maxGapBH, r.hasBigGap,
+      r.noteCount, r.excludedAbsence, r.resolvedAt, JSON.stringify(r),
+    ]).catch(e => console.error('[audit] upsert ticket', r.id, e.message));
+  }
+
+  if (onProgress) onProgress({ step: 'concluído', progress: 100, total: tickets.length, analyzed: results.length });
+  return { total: tickets.length, analyzed: results.length };
+}
+
+function previousBusinessDate() {
+  const d = new Date();
+  d.setUTCHours(d.getUTCHours() - 3); // BRT
+  d.setUTCDate(d.getUTCDate() - 1);
+  while ([0, 6].includes(d.getUTCDay())) d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// ── Cron: computa auditoria do dia útil anterior às 6:30 ──
+cron.schedule('30 6 * * 1-5', async () => {
+  try {
+    const prev = previousBusinessDate();
+    console.log('[audit-cron] iniciando computo para', prev);
+    await auditComputeRange(prev, prev);
+    console.log('[audit-cron] concluído para', prev);
+  } catch (e) {
+    console.error('[audit-cron] erro:', e.message);
+  }
+}, { timezone: 'America/Sao_Paulo' });
+
+// ── Cron: resumo semanal toda segunda às 7h via Discord (canal fórum) ──
+cron.schedule('0 7 * * 1', async () => {
+  const webhook = process.env.DISCORD_WEBHOOK_URL;
+  if (!webhook) return console.warn('[audit-weekly] DISCORD_WEBHOOK_URL não definido');
+  try {
+    // Semana anterior: seg a sex
+    const now  = new Date();
+    const mon  = new Date(now); mon.setDate(now.getDate() - 7); mon.setHours(0,0,0,0);
+    const fri  = new Date(mon); fri.setDate(mon.getDate() + 4);
+    const from = mon.toISOString().slice(0, 10);
+    const to   = fri.toISOString().slice(0, 10);
+    const prevMon = new Date(mon); prevMon.setDate(mon.getDate() - 7);
+    const prevFri = new Date(prevMon); prevFri.setDate(prevMon.getDate() + 4);
+
+    async function weekStats(f, t) {
+      const r = await pool.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE is_s1 AND NOT excluded_absence)       AS s1,
+          COUNT(*) FILTER (WHERE is_s3 AND NOT excluded_absence)       AS s3,
+          COUNT(*) FILTER (WHERE has_big_gap AND NOT excluded_absence) AS gap,
+          SUM(snoozes_sem_nota) FILTER (WHERE NOT excluded_absence)    AS sem_nota,
+          SUM(n_snoozes)        FILTER (WHERE NOT excluded_absence)    AS total_snooz,
+          COUNT(*)                                                     AS total
+        FROM support_bi.audit_snooze_tickets
+        WHERE computed_at >= $1::date AND computed_at <= $2::date
+      `, [f, t]);
+      return r.rows[0];
+    }
+
+    const pendRow = await pool.query(`
+      SELECT COUNT(DISTINCT t.id) AS pendentes
+      FROM support_bi.audit_snooze_tickets t
+      WHERE (t.is_s1 OR t.is_s3 OR t.has_big_gap) AND NOT t.excluded_absence
+        AND NOT EXISTS (
+          SELECT 1 FROM support_bi.audit_validations v
+          WHERE v.ticket_id = t.id
+        )
+    `);
+
+    const curr  = await weekStats(from, to);
+    const prev  = await weekStats(prevMon.toISOString().slice(0,10), prevFri.toISOString().slice(0,10));
+    const pendentes = Number(pendRow.rows[0].pendentes);
+
+    const fmtDate = s => s.split('-').reverse().join('/');
+    const pctN  = (n, d) => Number(d) > 0 ? Number(n) / Number(d) * 100 : 0;
+    const fmt   = (n, d) => `${pctN(n, d).toFixed(0)}% (${n} de ${d})`;
+    const arrPp = (cn, cd, pn, pd) => {
+      const diff = pctN(cn, cd) - pctN(pn, pd);
+      if (Math.abs(diff) < 0.5) return '→ igual';
+      const pp = Math.abs(diff).toFixed(0);
+      return diff > 0 ? `↑ +${pp} pp` : `↓ -${pp} pp`;
+    };
+
+    const msg = {
+      content: `**Auditoria de Adiamentos — ${fmtDate(from)} a ${fmtDate(to)}**`,
+      embeds: [{
+        color: 0xe91e8c,
+        fields: [
+          { name: '🔶 S1 — 1º adiamento sem resposta',        value: `${fmt(curr.s1,  curr.total)}  ${arrPp(curr.s1,  curr.total,  prev.s1,  prev.total)}`,                     inline: false },
+          { name: '🔴 S3 — sem follow-up entre adiamentos',   value: `${fmt(curr.s3,  curr.total)}  ${arrPp(curr.s3,  curr.total,  prev.s3,  prev.total)}`,                     inline: false },
+          { name: '🔵 Gap — mais de 1 dia útil sem mensagem', value: `${fmt(curr.gap, curr.total)}  ${arrPp(curr.gap, curr.total,  prev.gap, prev.total)}`,                     inline: false },
+          { name: '📝 Adiamentos sem nota (30 min)',           value: `${fmt(curr.sem_nota||0, curr.total_snooz||0)}  ${arrPp(curr.sem_nota, curr.total_snooz, prev.sem_nota, prev.total_snooz)}`, inline: false },
+          { name: '📦 Total de tickets resolvidos',            value: `${curr.total} tickets`,                                                                                  inline: true },
+          { name: '⏳ Pendentes de validação',                 value: pendentes > 0 ? `**${pendentes}** sem validação` : '✅ Todos validados',                                   inline: true },
+        ],
+        footer: { text: 'https://gestao-sup-ink-709a6d9e0c6b.herokuapp.com/audit' },
+      }],
+    };
+
+    const threadId = process.env.DISCORD_THREAD_ID;
+    const webhookUrl = threadId ? `${webhook}?thread_id=${threadId}` : webhook;
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(msg),
+    });
+    console.log('[audit-weekly] resumo Discord enviado');
+  } catch (e) {
+    console.error('[audit-weekly] erro:', e.message);
+  }
+}, { timezone: 'America/Sao_Paulo' });
+
+// ── Pré-preenche ausências iniciais apenas se cada registro ainda não existe ──
+async function auditSeedAbsences() {
+  for (const [agent, date] of [['Paty', '2026-10-05'], ['Lu Almeida', '2026-10-06']]) {
+    await pool.query(`
+      INSERT INTO support_bi.audit_absences (agent, start_date, end_date, type, created_by)
+      SELECT $1, $2::date, $2::date, 'ausencia', 'seed'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM support_bi.audit_absences WHERE agent = $1 AND start_date = $2::date
+      )
+    `, [agent, date]);
+  }
+  console.log('[audit] ausências iniciais verificadas');
+}
+
+// ── Jobs em memória para reprocessamento em background (single dyno) ──
+const _auditJobs = new Map();
+
+// ── Routes ────────────────────────────────────────────────────────────────────
+
+app.get('/audit', auditRequireMgmt, (req, res) => {
+  res.sendFile('audit.html', { root: 'site' });
+});
+
+app.get('/audit/data', auditRequireMgmt, async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    if (!from || !to) return res.status(400).json({ error: 'from e to são obrigatórios (YYYY-MM-DD)' });
+
+    const rows = await pool.query(`
+      SELECT
+        t.agente,
+        COUNT(*)                                                               AS total,
+        COUNT(*) FILTER (WHERE t.is_s1 AND NOT t.excluded_absence)            AS s1_raw,
+        COUNT(*) FILTER (WHERE t.is_s3 AND NOT t.excluded_absence)            AS s3_raw,
+        COUNT(*) FILTER (WHERE t.has_big_gap AND NOT t.excluded_absence)      AS gap_raw,
+        SUM(t.snoozes_sem_nota) FILTER (WHERE NOT t.excluded_absence)         AS snoozes_sem_nota,
+        SUM(t.n_snoozes)        FILTER (WHERE NOT t.excluded_absence)         AS snoozes_total,
+        MAX(t.s3_max_gap_bh)    FILTER (WHERE t.is_s3 AND NOT t.excluded_absence) AS s3_max_gap_bh,
+        MAX(t.max_gap_bh)       FILTER (WHERE t.has_big_gap AND NOT t.excluded_absence) AS max_gap_bh,
+        COUNT(*) FILTER (WHERE v1.status = 'confirmed')                       AS s1_validated,
+        COUNT(*) FILTER (WHERE v3.status = 'confirmed')                       AS s3_validated,
+        COUNT(*) FILTER (WHERE vg.status = 'confirmed')                       AS gap_validated,
+        COUNT(*) FILTER (WHERE v1.status = 'excluded')                        AS s1_excluded,
+        COUNT(*) FILTER (WHERE v3.status = 'excluded')                        AS s3_excluded,
+        COUNT(*) FILTER (WHERE vg.status = 'excluded')                        AS gap_excluded
+      FROM support_bi.audit_snooze_tickets t
+      LEFT JOIN support_bi.audit_validations v1 ON v1.ticket_id = t.id AND v1.indicator = 'S1'
+      LEFT JOIN support_bi.audit_validations v3 ON v3.ticket_id = t.id AND v3.indicator = 'S3'
+      LEFT JOIN support_bi.audit_validations vg ON vg.ticket_id = t.id AND vg.indicator = 'gap'
+      WHERE t.computed_at >= $1::date AND t.computed_at <= $2::date
+      GROUP BY t.agente
+      ORDER BY t.agente
+    `, [from, to]);
+
+    res.json({ from, to, byAgent: rows.rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/audit/tickets', auditRequireMgmt, async (req, res) => {
+  try {
+    const { from, to, type } = req.query;
+    if (!from || !to) return res.status(400).json({ error: 'from e to são obrigatórios' });
+
+    let where = `t.computed_at >= $1::date AND t.computed_at <= $2::date`;
+    if (type === 'S1')  where += ` AND t.is_s1 = TRUE AND t.excluded_absence = FALSE`;
+    else if (type === 'S3')  where += ` AND t.is_s3 = TRUE AND t.excluded_absence = FALSE`;
+    else if (type === 'gap') where += ` AND t.has_big_gap = TRUE AND t.excluded_absence = FALSE`;
+    else where += ` AND (t.is_s1 OR t.is_s3 OR t.has_big_gap) AND t.excluded_absence = FALSE`;
+
+    const rows = await pool.query(`
+      SELECT
+        t.id, t.agente, t.snoozed_by, t.n_snoozes,
+        t.snoozes_com_nota, t.snoozes_sem_nota,
+        t.is_s1, t.is_s3, t.has_big_gap,
+        ROUND(t.s3_max_gap_bh / 588.0, 2) AS s3_max_gap_days,
+        ROUND(t.max_gap_bh / 588.0, 2)    AS max_gap_days,
+        t.note_count, t.excluded_absence, t.computed_at::text,
+        v1.status AS s1_status, v1.reason AS s1_reason, v1.validated_by AS s1_by,
+        v3.status AS s3_status, v3.reason AS s3_reason, v3.validated_by AS s3_by,
+        vg.status AS gap_status, vg.reason AS gap_reason, vg.validated_by AS gap_by
+      FROM support_bi.audit_snooze_tickets t
+      LEFT JOIN support_bi.audit_validations v1 ON v1.ticket_id = t.id AND v1.indicator = 'S1'
+      LEFT JOIN support_bi.audit_validations v3 ON v3.ticket_id = t.id AND v3.indicator = 'S3'
+      LEFT JOIN support_bi.audit_validations vg ON vg.ticket_id = t.id AND vg.indicator = 'gap'
+      WHERE ${where}
+      ORDER BY t.computed_at DESC, t.id DESC
+    `, [from, to]);
+
+    res.json({ from, to, tickets: rows.rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/audit/validate/:id', auditRequireMgmt, express.json(), async (req, res) => {
+  try {
+    const { indicator, status, reason } = req.body;
+    const ticketId = parseInt(req.params.id);
+    if (!indicator || !status || !['S1','S3','gap'].includes(indicator) || !['confirmed','excluded'].includes(status))
+      return res.status(400).json({ error: 'indicator (S1|S3|gap) e status (confirmed|excluded) são obrigatórios' });
+
+    await pool.query(`
+      INSERT INTO support_bi.audit_validations (ticket_id, indicator, validated_by, status, reason)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (ticket_id, indicator) DO UPDATE SET
+        validated_by = EXCLUDED.validated_by,
+        status       = EXCLUDED.status,
+        reason       = EXCLUDED.reason,
+        created_at   = NOW()
+    `, [ticketId, indicator, req.auditEmail, status, reason || null]);
+
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/audit/absences', auditRequireMgmt, async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT id, agent, start_date::text, end_date::text, type, created_by, created_at::text
+      FROM support_bi.audit_absences
+      ORDER BY start_date DESC
+    `);
+    res.json({ absences: rows });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/audit/absences', auditRequireMgmt, express.json(), async (req, res) => {
+  try {
+    const { agent, start_date, end_date, type } = req.body;
+    if (!agent || !start_date || !end_date) return res.status(400).json({ error: 'agent, start_date e end_date são obrigatórios' });
+    await pool.query(`
+      INSERT INTO support_bi.audit_absences (agent, start_date, end_date, type, created_by)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [agent, start_date, end_date, type || 'ausencia', req.auditEmail]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/audit/absences/:id', auditRequireMgmt, async (req, res) => {
+  try {
+    await pool.query(`DELETE FROM support_bi.audit_absences WHERE id = $1`, [parseInt(req.params.id)]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /audit/run — dispara reprocessamento em background, retorna jobId
+app.post('/audit/run', auditRequireMgmt, express.json(), (req, res) => {
+  const { from, to } = req.body || {};
+  if (!from) return res.status(400).json({ error: 'from é obrigatório no body' });
+  const toDate = to || from;
+
+  // Bloqueia reprocessamento manual durante horário comercial (9h–18h48 BRT)
+  const nowBrt  = new Date(Date.now() - 3 * 3600000);
+  const brtMins = nowBrt.getUTCHours() * 60 + nowBrt.getUTCMinutes();
+  const brtDay  = nowBrt.getUTCDay(); // 0=dom, 6=sáb
+  if (brtDay >= 1 && brtDay <= 5 && brtMins >= 9 * 60 && brtMins < 18 * 60 + 48) {
+    return res.status(423).json({ error: 'Reprocessamento manual bloqueado durante o horário comercial (9h–18h48). Tente após as 18h48.' });
+  }
+
+  // Bloqueia segundo job se já há um rodando
+  for (const [, job] of _auditJobs) {
+    if (job.status === 'running') return res.status(409).json({ error: 'Já há um reprocessamento em andamento', jobId: job.jobId });
+  }
+
+  const jobId = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const job = { jobId, from, to: toDate, status: 'running', step: 'iniciando', progress: 0, total: 0, analyzed: 0, startedAt: new Date().toISOString() };
+  _auditJobs.set(jobId, job);
+  // Limpa jobs antigos (mantém últimos 10)
+  if (_auditJobs.size > 10) { const oldest = [..._auditJobs.keys()][0]; _auditJobs.delete(oldest); }
+
+  console.log(`[audit/run] job=${jobId} computando ${from} → ${toDate}`);
+  (async () => {
+    try {
+      await auditComputeRange(from, toDate, (prog) => Object.assign(job, prog));
+      job.status = 'done';
+      console.log(`[audit/run] job=${jobId} concluído: ${job.analyzed}/${job.total}`);
+    } catch (e) {
+      job.status = 'error'; job.error = e.message;
+      console.error(`[audit/run] job=${jobId} erro:`, e.message);
+    }
+  })();
+
+  res.json({ ok: true, jobId });
+});
+
+// GET /audit/run/status/:jobId — progresso do reprocessamento
+app.get('/audit/run/status/:jobId', auditRequireMgmt, (req, res) => {
+  const job = _auditJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: 'Job não encontrado' });
+  res.json(job);
+});
 
 app.use(require('./ao-vivo-server')({ fetchCloudChat, CLOUDCHAT_BASE, CLOUDCHAT_ACCOUNT, dwQuery }));
 

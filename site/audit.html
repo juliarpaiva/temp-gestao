@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Auditoria de Adiamentos</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap">
+<style>
+:root {
+  --bg:      #0f0f0f;
+  --surf:    #1a1a1a;
+  --surf2:   #232323;
+  --bdr:     #2e2e2e;
+  --accent:  #e91e8c;
+  --text:    #f0f0f0;
+  --muted:   #888;
+  --s1:      #f59e0b;
+  --s3:      #e91e8c;
+  --gap:     #3b82f6;
+  --ok:      #22c55e;
+  --danger:  #ef4444;
+  --warn:    #f59e0b;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+
+.app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.topbar { background: var(--surf); border-bottom: 1px solid var(--bdr); padding: 0 20px; display: flex; align-items: center; gap: 14px; height: 52px; flex-shrink: 0; }
+.topbar-logo { font-weight: 900; font-size: 18px; letter-spacing: -1px; }
+.topbar-logo span { color: var(--accent); }
+.topbar-sub { color: var(--muted); font-size: 13px; }
+.topbar-right { margin-left: auto; }
+.topbar-right a { color: var(--muted); text-decoration: none; font-size: 13px; }
+
+.main { display: flex; flex: 1; overflow: hidden; }
+
+/* Sidebar */
+.sidebar { width: 210px; flex-shrink: 0; background: var(--surf); border-right: 1px solid var(--bdr); overflow-y: auto; padding: 10px 0; }
+.nav-section { padding: 6px 14px; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-top: 8px; }
+.nav-item { display: flex; align-items: center; gap: 8px; padding: 8px 16px; cursor: pointer; color: var(--muted); font-size: 13px; border-left: 2px solid transparent; }
+.nav-item:hover { color: var(--text); background: var(--surf2); }
+.nav-item.active { color: var(--text); border-left-color: var(--accent); background: rgba(233,30,140,.08); }
+
+/* Content */
+.content { flex: 1; overflow-y: auto; padding: 20px; }
+
+/* Filter bar */
+.filters { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.fld { display: flex; flex-direction: column; gap: 3px; }
+.fld label { font-size: 11px; color: var(--muted); }
+.fld input[type=date], .fld select {
+  background: var(--surf); border: 1px solid var(--bdr); color: var(--text);
+  border-radius: 6px; padding: 6px 10px; font-size: 13px; font-family: inherit;
+}
+.btn { padding: 7px 14px; border-radius: 6px; font-size: 13px; font-family: inherit; font-weight: 500; cursor: pointer; border: none; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { filter: brightness(1.12); }
+.btn-ghost { background: var(--surf2); color: var(--text); border: 1px solid var(--bdr); }
+.btn-ghost:hover { background: var(--bdr); }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-danger { background: rgba(239,68,68,.15); color: var(--danger); border: 1px solid rgba(239,68,68,.3); }
+
+/* Cards */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 20px; }
+.card { background: var(--surf); border: 1px solid var(--bdr); border-radius: 10px; padding: 14px 16px; }
+.card-lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+.card-val { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.card-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.c-s1 .card-val { color: var(--s1); }
+.c-s3 .card-val { color: var(--s3); }
+.c-gap .card-val { color: var(--gap); }
+.c-nota .card-val { color: var(--warn); }
+.c-ok .card-val { color: var(--ok); }
+
+/* Table */
+.tbl-wrap { background: var(--surf); border: 1px solid var(--bdr); border-radius: 10px; overflow: hidden; margin-bottom: 20px; }
+.tbl-head { padding: 12px 16px; font-weight: 600; font-size: 14px; border-bottom: 1px solid var(--bdr); display: flex; align-items: center; gap: 8px; }
+.badge { display: inline-block; padding: 2px 7px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.b-s1  { background: rgba(245,158,11,.15); color: var(--s1); }
+.b-s3  { background: rgba(233,30,140,.15); color: var(--s3); }
+.b-gap { background: rgba(59,130,246,.15);  color: var(--gap); }
+.b-ok  { background: rgba(34,197,94,.12);   color: var(--ok); }
+.b-exc { background: rgba(239,68,68,.12);   color: var(--danger); }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid var(--bdr); white-space: nowrap; }
+td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.04); font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--surf2); }
+.n-s1 { color: var(--s1); font-weight: 600; }
+.n-s3 { color: var(--s3); font-weight: 600; }
+.n-gap { color: var(--gap); font-weight: 600; }
+.n-ok { color: var(--ok); }
+.n-muted { color: var(--muted); }
+.cell-split { display: flex; align-items: center; gap: 5px; }
+
+/* Chart */
+.chart-wrap { background: var(--surf); border: 1px solid var(--bdr); border-radius: 10px; padding: 16px; margin-bottom: 20px; }
+.chart-title { font-weight: 600; margin-bottom: 14px; }
+.chart-body { display: flex; gap: 5px; align-items: flex-end; height: 100px; }
+.bar-group { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; }
+.bar-row { display: flex; gap: 2px; align-items: flex-end; }
+.bar { width: 10px; border-radius: 3px 3px 0 0; min-height: 2px; }
+.b1 { background: var(--s1); }
+.b2 { background: var(--s3); }
+.b3 { background: var(--gap); }
+.bar-lbl { font-size: 9px; color: var(--muted); white-space: nowrap; }
+.chart-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
+.leg-item { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+.leg-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+/* Ticket list */
+.ticket { background: var(--surf); border: 1px solid var(--bdr); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+.ticket-hd { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; }
+.ticket-hd:hover { background: var(--surf2); }
+.ticket-id { font-weight: 700; font-size: 15px; }
+.ticket-ag { color: var(--muted); font-size: 12px; }
+.ticket-tags { display: flex; gap: 5px; margin-left: auto; flex-wrap: wrap; }
+.ticket-bd { padding: 0 14px 12px; border-top: 1px solid var(--bdr); display: none; }
+.ticket-bd.open { display: block; }
+.ticket-meta { display: flex; gap: 20px; padding: 10px 0; flex-wrap: wrap; }
+.meta-item label { font-size: 11px; color: var(--muted); display: block; }
+.meta-item span { font-weight: 600; }
+.val-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--bdr); }
+.val-row label { font-size: 12px; color: var(--muted); }
+.val-row select { background: var(--surf2); border: 1px solid var(--bdr); color: var(--text); border-radius: 5px; padding: 5px 8px; font-size: 12px; font-family: inherit; }
+.val-saved { color: var(--ok); font-size: 12px; display: none; }
+
+/* Progress bar */
+.progress-wrap { background: var(--surf); border: 1px solid var(--bdr); border-radius: 10px; padding: 16px; margin-bottom: 20px; }
+.progress-label { font-size: 13px; margin-bottom: 8px; }
+.progress-bar { background: var(--bdr); border-radius: 4px; height: 8px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width .3s; }
+.progress-info { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+/* Absences */
+.abs-item { display: flex; align-items: center; gap: 12px; background: var(--surf2); border-radius: 6px; padding: 8px 12px; font-size: 13px; margin-bottom: 6px; }
+.abs-del { margin-left: auto; cursor: pointer; color: var(--danger); font-size: 18px; background: none; border: none; line-height: 1; }
+.abs-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-top: 14px; }
+
+.empty { color: var(--muted); text-align: center; padding: 32px; font-size: 14px; }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--bdr); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 640px) {
+  .sidebar { display: none; }
+  .cards { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="topbar">
+  <div class="topbar-logo">INK<span>.</span></div>
+  <div class="topbar-sub">Auditoria de Adiamentos</div>
+  <div class="topbar-right"><a href="/">← Painel CSAT</a></div>
+</div>
+
+<div class="main">
+<div class="sidebar">
+  <div class="nav-section">Painel</div>
+  <div class="nav-item active" data-v="dashboard" onclick="switchView('dashboard')">📊 Resumo</div>
+  <div class="nav-item" data-v="tickets" onclick="switchView('tickets')">🎫 Tickets sinalizados</div>
+  <div class="nav-section">Gestão</div>
+  <div class="nav-item" data-v="absences" onclick="switchView('absences')">📅 Ausências</div>
+  <div class="nav-item" data-v="reprocess" onclick="switchView('reprocess')">🔄 Reprocessar</div>
+</div>
+
+<div class="content" id="content">
+
+  <!-- Filtros globais -->
+  <div class="filters" id="main-filters">
+    <div class="fld"><label>De</label><input type="date" id="from"></div>
+    <div class="fld"><label>Até</label><input type="date" id="to"></div>
+    <button class="btn btn-primary" onclick="loadView()">Filtrar</button>
+    <span id="loading" style="display:none"><span class="spinner"></span></span>
+  </div>
+
+  <!-- ── DASHBOARD ── -->
+  <div id="view-dashboard">
+    <div class="cards" id="summary-cards"></div>
+    <div class="chart-wrap" id="chart-section" style="display:none">
+      <div class="chart-title">Últimas 8 semanas</div>
+      <div class="chart-body" id="chart-bars"></div>
+      <div class="chart-legend">
+        <div class="leg-item"><div class="leg-dot b1"></div> S1</div>
+        <div class="leg-item"><div class="leg-dot b2"></div> S3</div>
+        <div class="leg-item"><div class="leg-dot b3"></div> Gap > 1 dia út.</div>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <div class="tbl-head">
+        Por agente
+        <span class="badge b-s1">S1</span>
+        <span class="badge b-s3">S3</span>
+        <span class="badge b-gap">Gap</span>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr>
+            <th>Agente</th>
+            <th>Total</th>
+            <th title="Adiamento antes da 1ª resposta">S1 bruto/valid.</th>
+            <th title="Sem follow-up entre adiamentos">S3 bruto/valid.</th>
+            <th title="Mais de 1 dia útil sem mensagem da agente">Gap bruto/valid.</th>
+            <th title="Adiamentos sem nota interna em 30 min">Adiam. s/nota</th>
+            <th title="% de adiamentos sem nota">% s/nota</th>
+            <th title="Maior gap S3 em dias úteis">Maior gap S3</th>
+          </tr></thead>
+          <tbody id="agent-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TICKETS ── -->
+  <div id="view-tickets" style="display:none">
+    <div class="filters" style="margin-bottom:14px;padding:0">
+      <div class="fld">
+        <label>Tipo</label>
+        <select id="ticket-type">
+          <option value="">Todos sinalizados</option>
+          <option value="S1">S1 — 1º adiamento antes da 1ª resposta</option>
+          <option value="S3">S3 — sem follow-up entre adiamentos</option>
+          <option value="gap">Gap — mais de 1 dia útil sem mensagem</option>
+        </select>
+      </div>
+    </div>
+    <div id="ticket-list"></div>
+  </div>
+
+  <!-- ── AUSÊNCIAS ── -->
+  <div id="view-absences" style="display:none">
+    <h3 style="margin-bottom:14px;font-size:15px">Ausências cadastradas</h3>
+    <div id="abs-list"></div>
+    <div class="tbl-wrap" style="padding:16px;margin-top:16px">
+      <div class="tbl-head">Adicionar ausência</div>
+      <div style="padding:12px 0">
+        <div class="abs-form">
+          <div class="fld">
+            <label>Agente</label>
+            <select id="abs-agent">
+              <option value="">Selecione</option>
+              <option>Mari</option><option>Fernanda Cavalcante</option>
+              <option>Paty</option><option>Lu Almeida</option>
+              <option>Rafa</option><option>Natchely Ortiz</option>
+            </select>
+          </div>
+          <div class="fld"><label>Início</label><input type="date" id="abs-start"></div>
+          <div class="fld"><label>Fim</label><input type="date" id="abs-end"></div>
+          <div class="fld">
+            <label>Tipo</label>
+            <select id="abs-type">
+              <option value="ausencia">Ausência</option>
+              <option value="folga">Folga</option>
+              <option value="ferias">Férias</option>
+              <option value="atestado">Atestado</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" onclick="addAbsence()">Salvar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── REPROCESSAR ── -->
+  <div id="view-reprocess" style="display:none">
+    <h3 style="margin-bottom:10px;font-size:15px">Reprocessar período</h3>
+    <p style="color:var(--muted);margin-bottom:16px;font-size:13px">
+      Defina o período no filtro acima. O processo roda em segundo plano — você pode acompanhar o progresso abaixo.
+    </p>
+    <button class="btn btn-primary" onclick="startReprocess()">Iniciar reprocessamento</button>
+    <div id="job-progress" style="margin-top:16px;display:none">
+      <div class="progress-wrap">
+        <div class="progress-label" id="job-label">Iniciando…</div>
+        <div class="progress-bar"><div class="progress-fill" id="job-fill" style="width:0%"></div></div>
+        <div class="progress-info" id="job-info"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- content -->
+</div><!-- main -->
+</div><!-- app -->
+
+<script>
+let _view = 'dashboard';
+let _pollTimer = null;
+
+// Default: últimos 7 dias
+(function() {
+  const to = new Date(); to.setHours(0,0,0,0);
+  const from = new Date(to); from.setDate(to.getDate() - 6);
+  document.getElementById('to').value   = to.toISOString().slice(0,10);
+  document.getElementById('from').value = from.toISOString().slice(0,10);
+})();
+
+function switchView(v) {
+  _view = v;
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.v === v));
+  ['dashboard','tickets','absences','reprocess'].forEach(id =>
+    document.getElementById('view-' + id).style.display = id === v ? 'block' : 'none');
+  document.getElementById('main-filters').style.display = v === 'absences' ? 'none' : 'flex';
+  if (v === 'absences') loadAbsences();
+  else loadView();
+}
+
+function loading(on) { document.getElementById('loading').style.display = on ? 'inline-block' : 'none'; }
+
+function loadView() {
+  if (_view === 'dashboard') loadDashboard();
+  else if (_view === 'tickets') loadTickets();
+}
+
+// ── Dashboard ──
+async function loadDashboard() {
+  loading(true);
+  try {
+    const from = document.getElementById('from').value;
+    const to   = document.getElementById('to').value;
+    const r = await fetch(`/audit/data?from=${from}&to=${to}`);
+    if (!r.ok) { const d = await r.json(); throw new Error(d.error || r.status); }
+    const d = await r.json();
+    renderCards(d.byAgent || []);
+    renderTable(d.byAgent || []);
+    loadChart();
+  } catch(e) {
+    document.getElementById('agent-tbody').innerHTML = `<tr><td colspan="8" class="empty">Erro: ${e.message}</td></tr>`;
+  }
+  loading(false);
+}
+
+function pct(num, den) {
+  if (!den || Number(den) === 0) return '—';
+  return (Number(num) / Number(den) * 100).toFixed(0) + '%';
+}
+function n(v) { return Number(v) || 0; }
+
+function renderCards(rows) {
+  const s1    = rows.reduce((s,r) => s + n(r.s1_raw), 0);
+  const s3    = rows.reduce((s,r) => s + n(r.s3_raw), 0);
+  const gap   = rows.reduce((s,r) => s + n(r.gap_raw), 0);
+  const sem   = rows.reduce((s,r) => s + n(r.snoozes_sem_nota), 0);
+  const tot   = rows.reduce((s,r) => s + n(r.snoozes_total), 0);
+  const total = rows.reduce((s,r) => s + n(r.total), 0);
+  document.getElementById('summary-cards').innerHTML = `
+    <div class="card c-s1"><div class="card-lbl">S1 — 1º adi. s/ resposta</div><div class="card-val">${s1}</div><div class="card-sub">${pct(s1,total)} dos tickets</div></div>
+    <div class="card c-s3"><div class="card-lbl">S3 — sem follow-up</div><div class="card-val">${s3}</div><div class="card-sub">${pct(s3,total)} dos tickets</div></div>
+    <div class="card c-gap"><div class="card-lbl">Gap &gt; 1 dia útil</div><div class="card-val">${gap}</div><div class="card-sub">${pct(gap,total)} dos tickets</div></div>
+    <div class="card c-nota"><div class="card-lbl">Adiamentos sem nota</div><div class="card-val">${sem}</div><div class="card-sub">${pct(sem,tot)} dos adiamentos</div></div>
+    <div class="card c-ok"><div class="card-lbl">Total resolvidos</div><div class="card-val">${total}</div><div class="card-sub">${rows.length} agentes</div></div>
+  `;
+}
+
+function renderTable(rows) {
+  const tbody = document.getElementById('agent-tbody');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">Sem dados. Use "Reprocessar" para calcular.</td></tr>'; return; }
+  tbody.innerHTML = rows.map(r => {
+    const s1v  = n(r.s1_validated), s3v = n(r.s3_validated), gv = n(r.gap_validated);
+    const s1e  = n(r.s1_excluded),  s3e = n(r.s3_excluded),  ge = n(r.gap_excluded);
+    const sem  = n(r.snoozes_sem_nota), tot = n(r.snoozes_total);
+    const gap3 = r.s3_max_gap_bh ? (Number(r.s3_max_gap_bh)/588).toFixed(1)+'d' : '—';
+    function cell(raw, valid, excl, cls) {
+      return `<div class="cell-split">
+        <span class="${cls}">${raw}</span>
+        ${valid ? `<span class="badge b-ok">✓${valid}</span>` : ''}
+        ${excl  ? `<span class="badge b-exc">✗${excl}</span>` : ''}
+      </div>`;
+    }
+    return `<tr>
+      <td><strong>${r.agente}</strong></td>
+      <td>${r.total}</td>
+      <td>${cell(r.s1_raw, s1v, s1e, 'n-s1')}</td>
+      <td>${cell(r.s3_raw, s3v, s3e, 'n-s3')}</td>
+      <td>${cell(r.gap_raw, gv, ge, 'n-gap')}</td>
+      <td class="${sem > 0 ? 'n-s1' : 'n-muted'}">${sem}</td>
+      <td class="${sem/tot > .5 ? 'n-s3' : 'n-muted'}">${pct(sem,tot)}</td>
+      <td>${gap3}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Chart (últimas 8 semanas) ──
+async function loadChart() {
+  try {
+    const now = new Date(); now.setHours(0,0,0,0);
+    const dow = now.getDay() || 7;
+    const lastMon = new Date(now); lastMon.setDate(now.getDate() - dow + 1 - 7);
+    const weeks = [];
+    for (let i = 7; i >= 0; i--) {
+      const mon = new Date(lastMon); mon.setDate(lastMon.getDate() - i*7);
+      const fri = new Date(mon); fri.setDate(mon.getDate()+4);
+      weeks.push({ from: mon.toISOString().slice(0,10), to: fri.toISOString().slice(0,10), lbl: mon.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) });
+    }
+    const data = await Promise.all(weeks.map(w => fetch(`/audit/data?from=${w.from}&to=${w.to}`).then(r=>r.json()).catch(()=>({byAgent:[]}))));
+    const vals = data.map(d => {
+      const rows = d.byAgent || [];
+      return {
+        s1:  rows.reduce((s,r)=>s+n(r.s1_raw),0),
+        s3:  rows.reduce((s,r)=>s+n(r.s3_raw),0),
+        gap: rows.reduce((s,r)=>s+n(r.gap_raw),0),
+      };
+    });
+    const maxV = Math.max(1, ...vals.map(v => Math.max(v.s1, v.s3, v.gap)));
+    const bars = vals.map((v,i) => {
+      const h = x => Math.max(2, Math.round(x/maxV*80));
+      return `<div class="bar-group">
+        <div class="bar-row">
+          <div class="bar b1" style="height:${h(v.s1)}px" title="S1: ${v.s1}"></div>
+          <div class="bar b2" style="height:${h(v.s3)}px" title="S3: ${v.s3}"></div>
+          <div class="bar b3" style="height:${h(v.gap)}px" title="Gap: ${v.gap}"></div>
+        </div>
+        <div class="bar-lbl">${weeks[i].lbl}</div>
+      </div>`;
+    });
+    document.getElementById('chart-bars').innerHTML = bars.join('');
+    document.getElementById('chart-section').style.display = '';
+  } catch {}
+}
+
+// ── Tickets ──
+const REASONS = ['Aguardando retorno do cliente','Investigação em andamento','Encaminhado para outro setor','Erro na detecção','Ausência já cadastrada','Outro'];
+
+async function loadTickets() {
+  loading(true);
+  try {
+    const from = document.getElementById('from').value;
+    const to   = document.getElementById('to').value;
+    const type = document.getElementById('ticket-type').value;
+    const r = await fetch(`/audit/tickets?from=${from}&to=${to}&type=${type}`);
+    if (!r.ok) { const d = await r.json(); throw new Error(d.error || r.status); }
+    const d = await r.json();
+    renderTickets(d.tickets || []);
+  } catch(e) {
+    document.getElementById('ticket-list').innerHTML = `<div class="empty">Erro: ${e.message}</div>`;
+  }
+  loading(false);
+}
+
+function renderTickets(tickets) {
+  const el = document.getElementById('ticket-list');
+  if (!tickets.length) { el.innerHTML = '<div class="empty">Nenhum ticket sinalizado no período.</div>'; return; }
+
+  function opts(cur, id) {
+    return REASONS.map(r => `<option value="${r}" ${cur===r?'selected':''}>${r}</option>`).join('');
+  }
+
+  el.innerHTML = tickets.map(t => {
+    const tags = [];
+    if (t.is_s1)     tags.push(`<span class="badge b-s1">S1</span>`);
+    if (t.is_s3)     tags.push(`<span class="badge b-s3">S3</span>`);
+    if (t.has_big_gap) tags.push(`<span class="badge b-gap">Gap ${t.max_gap_days}d</span>`);
+
+    const semNota = n(t.snoozes_sem_nota), comNota = n(t.snoozes_com_nota), total = n(t.n_snoozes);
+
+    function valRow(indicator, cls, label, status, reason) {
+      const ind = indicator.toLowerCase();
+      return `<div class="val-row">
+        <span class="badge ${cls}">${label}</span>
+        <label>Validação:</label>
+        <select id="${ind}-status-${t.id}" onchange="autoValidate(${t.id},'${indicator}')">
+          <option value="">Pendente</option>
+          <option value="confirmed" ${status==='confirmed'?'selected':''}>Confirmar</option>
+          <option value="excluded"  ${status==='excluded' ?'selected':''}>Excluir</option>
+        </select>
+        <label>Motivo:</label>
+        <select id="${ind}-reason-${t.id}" onchange="autoValidate(${t.id},'${indicator}')">
+          <option value="">—</option>${opts(reason, t.id)}
+        </select>
+        <span class="val-saved" id="${ind}-saved-${t.id}">✓ salvo</span>
+      </div>`;
+    }
+
+    return `<div class="ticket">
+      <div class="ticket-hd" onclick="toggleTicket(${t.id})">
+        <span class="ticket-id">#${t.id}</span>
+        <span class="ticket-ag">${t.agente} · ${t.computed_at}</span>
+        <div class="ticket-tags">${tags.join('')}</div>
+      </div>
+      <div class="ticket-bd" id="tbd-${t.id}">
+        <div class="ticket-meta">
+          <div class="meta-item"><label>Adiamentos</label><span>${total}</span></div>
+          <div class="meta-item"><label>Adiado por</label><span>${t.snoozed_by||'—'}</span></div>
+          <div class="meta-item"><label>c/ nota 30min</label><span class="${comNota>0?'n-ok':'n-muted'}">${comNota}</span></div>
+          <div class="meta-item"><label>s/ nota</label><span class="${semNota>0?'n-s1':'n-muted'}">${semNota}</span></div>
+          <div class="meta-item"><label>Gap máx. S3</label><span>${t.s3_max_gap_days?t.s3_max_gap_days+' d út.':'—'}</span></div>
+          <div class="meta-item"><label>Gap máx. geral</label><span class="${n(t.max_gap_days)>=1?'n-gap':''}"> ${t.max_gap_days} d út.</span></div>
+          <div class="meta-item"><label>Notas internas</label><span>${t.note_count}</span></div>
+          ${t.excluded_absence?'<div class="meta-item"><label>Excluído por</label><span style="color:var(--warn)">ausência</span></div>':''}
+        </div>
+        <div style="margin-bottom:10px">
+          <a href="https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.id}" target="_blank" class="btn btn-ghost btn-sm">Abrir no CC ↗</a>
+        </div>
+        ${t.is_s1     ? valRow('S1',  'b-s1',  'S1',  t.s1_status,  t.s1_reason)  : ''}
+        ${t.is_s3     ? valRow('S3',  'b-s3',  'S3',  t.s3_status,  t.s3_reason)  : ''}
+        ${t.has_big_gap ? valRow('gap', 'b-gap', 'Gap', t.gap_status, t.gap_reason) : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleTicket(id) { document.getElementById('tbd-'+id).classList.toggle('open'); }
+
+const _valTimers = {};
+function autoValidate(ticketId, indicator) {
+  const key = ticketId + indicator;
+  clearTimeout(_valTimers[key]);
+  _valTimers[key] = setTimeout(async () => {
+    const ind = indicator.toLowerCase();
+    const status = document.getElementById(`${ind}-status-${ticketId}`)?.value;
+    const reason = document.getElementById(`${ind}-reason-${ticketId}`)?.value;
+    if (!status) return;
+    await fetch(`/audit/validate/${ticketId}`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ indicator, status, reason }),
+    }).catch(() => {});
+    const saved = document.getElementById(`${ind}-saved-${ticketId}`);
+    if (saved) { saved.style.display='inline'; setTimeout(()=>saved.style.display='none',2000); }
+  }, 400);
+}
+
+// ── Ausências ──
+async function loadAbsences() {
+  try {
+    const r = await fetch('/audit/absences');
+    const d = await r.json();
+    const el = document.getElementById('abs-list');
+    if (!d.absences.length) { el.innerHTML = '<div class="empty">Nenhuma ausência cadastrada.</div>'; return; }
+    el.innerHTML = d.absences.map(a => `
+      <div class="abs-item">
+        <strong>${a.agent}</strong>
+        <span style="color:var(--muted)">${a.start_date} → ${a.end_date}</span>
+        <span class="badge" style="background:var(--surf);border:1px solid var(--bdr)">${a.type}</span>
+        <button class="abs-del" onclick="delAbsence(${a.id})">×</button>
+      </div>`).join('');
+  } catch(e) { document.getElementById('abs-list').innerHTML = `<div class="empty">Erro: ${e.message}</div>`; }
+}
+
+async function addAbsence() {
+  const agent = document.getElementById('abs-agent').value;
+  const start = document.getElementById('abs-start').value;
+  const end   = document.getElementById('abs-end').value || start;
+  const type  = document.getElementById('abs-type').value;
+  if (!agent || !start) return alert('Selecione agente e data início.');
+  await fetch('/audit/absences',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({agent,start_date:start,end_date:end,type}) });
+  document.getElementById('abs-agent').value = document.getElementById('abs-start').value = document.getElementById('abs-end').value = '';
+  loadAbsences();
+}
+
+async function delAbsence(id) {
+  if (!confirm('Remover ausência?')) return;
+  await fetch('/audit/absences/'+id,{method:'DELETE'});
+  loadAbsences();
+}
+
+// ── Reprocessar (background job) ──
+async function startReprocess() {
+  const from = document.getElementById('from').value;
+  const to   = document.getElementById('to').value;
+  if (!from) return alert('Defina o período no filtro acima.');
+  try {
+    const r = await fetch('/audit/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({from,to})});
+    const d = await r.json();
+    if (r.status === 423) {
+      document.getElementById('job-progress').style.display = '';
+      document.getElementById('job-label').textContent = '⏰ ' + d.error;
+      document.getElementById('job-fill').style.width = '0%';
+      document.getElementById('job-info').textContent = '';
+      return;
+    }
+    if (!r.ok) return alert('Erro: ' + d.error);
+    document.getElementById('job-progress').style.display = '';
+    pollJob(d.jobId);
+  } catch(e) { alert('Erro: ' + e.message); }
+}
+
+function pollJob(jobId) {
+  clearTimeout(_pollTimer);
+  _pollTimer = setTimeout(async () => {
+    try {
+      const r = await fetch('/audit/run/status/'+jobId);
+      const d = await r.json();
+      document.getElementById('job-label').textContent =
+        d.status === 'done'  ? `Concluído: ${d.analyzed} de ${d.total} tickets analisados` :
+        d.status === 'error' ? `Erro: ${d.error}` :
+        `${d.step || 'processando'}… ${d.analyzed}/${d.total || '?'} tickets`;
+      document.getElementById('job-fill').style.width = (d.progress||0)+'%';
+      document.getElementById('job-info').textContent =
+        `${from} → ${d.to} · iniciado ${new Date(d.startedAt).toLocaleTimeString('pt-BR')}`;
+      if (d.status === 'running') pollJob(jobId);
+      else if (d.status === 'done') { setTimeout(() => switchView('dashboard'), 1500); }
+    } catch {}
+  }, 1200);
+}
+
+// Filtro de tickets responde ao select
+document.getElementById('ticket-type')?.addEventListener('change', loadTickets);
+
+// Init
+loadDashboard();
+</script>
+</body>
+</html>
