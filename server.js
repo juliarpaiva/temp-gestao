@@ -2577,7 +2577,8 @@ async function initDb() {
 // Rota separada: não afeta nada visível para as agentes.
 // ══════════════════════════════════════════════════════════════════════════════
 
-const MONITORED_AUDIT = ['Mari', 'Fernanda Cavalcante', 'Paty', 'Lu Almeida', 'Rafa', 'Natchely Ortiz'];
+const MONITORED_AUDIT  = ['Mari', 'Fernanda Cavalcante', 'Paty', 'Lu Almeida', 'Rafa', 'Natchely Ortiz'];
+const MONITORED_FIRST  = MONITORED_AUDIT.map(n => n.toLowerCase().split(' ')[0]);
 const AUDIT_BH_START  = 9 * 60;         // 9:00 BRT em minutos
 const AUDIT_BH_END    = 18 * 60 + 48;   // 18:48 BRT em minutos (588 min/dia)
 const AUDIT_BRT_OFF   = -3 * 3600000;   // UTC-3 em ms
@@ -2711,12 +2712,16 @@ async function auditAnalyzeTicket(ticket, absences) {
   } catch { return null; }
   if (!msgs.length) return null;
 
+  const BOT_NAME_RE = /bot|claudia|automac|automat|system/i;
   const snoozeActs = msgs.filter(m => m.message_type === 2 && /adiou|adiada|adiado/i.test(m.content || ''));
-  const agentOut   = msgs.filter(m => m.message_type === 1 && !m.private && !m.sender?.is_ai_agent);
-  const notes      = msgs.filter(m => m.message_type === 1 && m.private);
+  // Só conta respostas e notas de agentes monitoradas (exclui Júlia, Hari e bots)
+  const agentOut   = msgs.filter(m => m.message_type === 1 && !m.private && !m.sender?.is_ai_agent &&
+                                      MONITORED_FIRST.includes((m.sender?.name || '').toLowerCase().split(' ')[0]));
+  const notes      = msgs.filter(m => m.message_type === 1 && m.private &&
+                                      !m.sender?.is_ai_agent && !BOT_NAME_RE.test(m.sender?.name || '') &&
+                                      MONITORED_FIRST.includes((m.sender?.name || '').toLowerCase().split(' ')[0]));
   const resolvedAt = ticket.last_activity_at || 0;
   const createdAt  = ticket.created_at || 0;
-  const BOT_NAME_RE = /bot|claudia|automac|automat|system/i;
 
   // Quem adiou em cada atividade (bot snoozes nunca contam)
   let snoozesCom = 0, snoozesSem = 0, snoozedBy = null;
@@ -2724,12 +2729,13 @@ async function auditAnalyzeTicket(ticket, absences) {
 
   for (const act of snoozeActs) {
     const byName = parseSnoozedBy(act.content);
-    // Ignorar adiamentos de bot
+    // Ignorar adiamentos de bot ou de agente não monitorada (ex: Júlia, Hari)
     if (!byName || BOT_NAME_RE.test(byName) || act.sender?.type === 'agent_bot') continue;
+    if (!MONITORED_FIRST.some(fn => byName.toLowerCase().startsWith(fn))) continue;
     snoozedBy = byName;
 
-    // Nota dentro de 30 min após ESTE adiamento
-    const hasNote = notes.some(n => n.created_at >= act.created_at && n.created_at <= act.created_at + 1800);
+    // Nota dentro de ±30 min deste adiamento (humanas monitoradas)
+    const hasNote = notes.some(n => n.created_at >= act.created_at - 1800 && n.created_at <= act.created_at + 1800);
     if (hasNote) snoozesCom++; else snoozesSem++;
 
     // Excluir da análise de S1/S3 apenas o que acontece dentro do período de ausência do adiador
@@ -2800,19 +2806,24 @@ async function auditAnalyzeTicket(ticket, absences) {
     }
   }
 
-  // Maior gap sem mensagem pública da agente (ticket inteiro)
+  // Maior gap: só conta tempo em que o cliente estava aguardando resposta
   let maxGapBH = 0;
-  const aTimes = agentOut.map(m => m.created_at).sort((a, b) => a - b);
-  if (aTimes.length === 0) {
-    maxGapBH = auditBhMins(createdAt, resolvedAt);
-  } else {
-    maxGapBH = auditBhMins(createdAt, aTimes[0]);
-    for (let i = 0; i < aTimes.length - 1; i++) {
-      const g = auditBhMins(aTimes[i], aTimes[i + 1]);
-      if (g > maxGapBH) maxGapBH = g;
+  const allGapEvents = [...clientMsgs, ...agentOut].sort((a, b) => a.created_at - b.created_at);
+  let waitStart = null;
+  for (const m of allGapEvents) {
+    if (m.message_type === 0) {
+      if (waitStart === null) waitStart = m.created_at;
+    } else {
+      if (waitStart !== null) {
+        const bh = auditBhMins(waitStart, m.created_at);
+        if (bh > maxGapBH) maxGapBH = bh;
+        waitStart = null;
+      }
     }
-    const gLast = auditBhMins(aTimes[aTimes.length - 1], resolvedAt);
-    if (gLast > maxGapBH) maxGapBH = gLast;
+  }
+  if (waitStart !== null) {
+    const bh = auditBhMins(waitStart, resolvedAt || allGapEvents.at(-1)?.created_at || waitStart);
+    if (bh > maxGapBH) maxGapBH = bh;
   }
 
   // excluded_absence = TRUE somente quando TODOS os adiamentos foram excluídos por ausência
@@ -3060,6 +3071,7 @@ app.get('/audit/data', auditRequireMgmt, async (req, res) => {
       LEFT JOIN support_bi.audit_validations v3 ON v3.ticket_id = t.id AND v3.indicator = 'S3'
       LEFT JOIN support_bi.audit_validations vg ON vg.ticket_id = t.id AND vg.indicator = 'gap'
       WHERE t.computed_at >= $1::date AND t.computed_at <= $2::date
+        AND t.agente = ANY(ARRAY['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz'])
       GROUP BY t.agente
       ORDER BY t.agente
     `, [from, to]);
@@ -3070,16 +3082,20 @@ app.get('/audit/data', auditRequireMgmt, async (req, res) => {
 
 app.get('/audit/tickets', auditRequireMgmt, async (req, res) => {
   try {
-    const { from, to, type } = req.query;
+    const { from, to, type, agent } = req.query;
     if (!from || !to) return res.status(400).json({ error: 'from e to são obrigatórios' });
 
-    let where = `t.computed_at >= $1::date AND t.computed_at <= $2::date`;
+    const params = [from, to];
+    let where = `t.computed_at >= $1::date AND t.computed_at <= $2::date
+        AND t.agente = ANY(ARRAY['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz'])`;
     if (type === 'S1pre')  where += ` AND t.is_s1_pre = TRUE AND t.excluded_absence = FALSE`;
     else if (type === 'S1post') where += ` AND t.is_s1_post = TRUE AND t.excluded_absence = FALSE`;
     else if (type === 'S1')  where += ` AND t.is_s1 = TRUE AND t.excluded_absence = FALSE`;
     else if (type === 'S3')  where += ` AND t.is_s3 = TRUE AND t.excluded_absence = FALSE`;
     else if (type === 'gap') where += ` AND t.has_big_gap = TRUE AND t.excluded_absence = FALSE`;
+    else if (type === 'nota') where += ` AND t.snoozes_sem_nota > 0 AND t.excluded_absence = FALSE`;
     else where += ` AND (t.is_s1 OR t.is_s3 OR t.has_big_gap) AND t.excluded_absence = FALSE`;
+    if (agent) { params.push(agent); where += ` AND t.agente = $${params.length}`; }
 
     const rows = await pool.query(`
       SELECT
@@ -3102,7 +3118,7 @@ app.get('/audit/tickets', auditRequireMgmt, async (req, res) => {
       LEFT JOIN support_bi.audit_validations vg ON vg.ticket_id = t.id AND vg.indicator = 'gap'
       WHERE ${where}
       ORDER BY t.computed_at DESC, t.id DESC
-    `, [from, to]);
+    `, params);
 
     res.json({ from, to, tickets: rows.rows });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -3122,28 +3138,31 @@ app.get('/audit/detail/:id', auditRequireMgmt, async (req, res) => {
     if (!msgs.length) return res.json({ timeline: [], gap: null });
 
     const BOT_NAME_RE = /bot|claudia|automac|automat|system/i;
-    const agentOut  = msgs.filter(m => m.message_type === 1 && !m.private && !m.sender?.is_ai_agent);
-    const notesMsgs = msgs.filter(m => m.message_type === 1 && m.private);
+    // Respostas e notas: só agentes monitoradas (exclui Júlia, Hari e bots)
+    const agentOut  = msgs.filter(m => m.message_type === 1 && !m.private && !m.sender?.is_ai_agent &&
+                                       MONITORED_FIRST.includes((m.sender?.name || '').toLowerCase().split(' ')[0]));
+    const notesMsgs = msgs.filter(m => m.message_type === 1 && m.private &&
+                                       !m.sender?.is_ai_agent && !BOT_NAME_RE.test(m.sender?.name || '') &&
+                                       MONITORED_FIRST.includes((m.sender?.name || '').toLowerCase().split(' ')[0]));
     const clientMsgs = msgs.filter(m => m.message_type === 0);
 
     const timeline = [];
     for (const m of msgs) {
       const senderName = m.sender?.name || '—';
-      const content = (m.content || '').replace(/\n/g, ' ').trim().slice(0, 150);
       const ts = m.created_at;
 
       if (m.message_type === 0) {
-        timeline.push({ ts, kind: 'client', sender: senderName, content });
+        timeline.push({ ts, kind: 'client' });
       } else if (m.message_type === 1 && m.private) {
-        timeline.push({ ts, kind: 'note', sender: senderName, content });
+        timeline.push({ ts, kind: 'note', sender: senderName });
       } else if (m.message_type === 1 && !m.private && !m.sender?.is_ai_agent) {
-        timeline.push({ ts, kind: 'agent', sender: senderName, content });
+        timeline.push({ ts, kind: 'agent', sender: senderName });
       } else if (m.message_type === 2 && /adiou|adiada|adiado/i.test(m.content || '')) {
         const byName = parseSnoozedBy(m.content);
         if (byName && !BOT_NAME_RE.test(byName) && m.sender?.type !== 'agent_bot') {
           const agentsBefore = agentOut.filter(mm => mm.created_at < ts);
           const hadPrior     = agentsBefore.length > 0;
-          const hadNote      = notesMsgs.some(nm => nm.created_at >= ts && nm.created_at <= ts + 1800);
+          const hadNote      = notesMsgs.some(nm => nm.created_at >= ts - 1800 && nm.created_at <= ts + 1800);
           const lastClient   = clientMsgs.filter(mm => mm.created_at < ts).at(-1);
           const lastAgBefore = agentsBefore.at(-1);
           const clientWaiting = !!lastClient && (!lastAgBefore || lastClient.created_at > lastAgBefore.created_at);
@@ -3153,20 +3172,26 @@ app.get('/audit/detail/:id', auditRequireMgmt, async (req, res) => {
     }
     timeline.sort((a, b) => a.ts - b.ts);
 
-    // Maior gap sem mensagem pública da agente
+    // Maior gap: só conta tempo em que o cliente estava aguardando resposta
     let gap = null;
-    const aTimes = agentOut.map(m => m.created_at).sort((a, b) => a - b);
-    const firstTs = msgs[0]?.created_at || 0;
-    const endTs   = resolvedAt || (msgs.at(-1)?.created_at || 0);
-    const intervals = aTimes.length === 0
-      ? [[firstTs, endTs]]
-      : [[firstTs, aTimes[0]],
-         ...aTimes.slice(0,-1).map((t,i) => [t, aTimes[i+1]]),
-         [aTimes.at(-1), endTs]].filter(([s,e]) => e > s);
+    const allGapEvts = [...clientMsgs, ...agentOut].sort((a, b) => a.created_at - b.created_at);
+    const endTs = resolvedAt || (msgs.at(-1)?.created_at || 0);
     let bestBH = 0, bestS = null, bestE = null;
-    for (const [s, e] of intervals) {
-      const bh = auditBhMins(s, e);
-      if (bh > bestBH) { bestBH = bh; bestS = s; bestE = e; }
+    let wStart = null;
+    for (const m of allGapEvts) {
+      if (m.message_type === 0) {
+        if (wStart === null) wStart = m.created_at;
+      } else {
+        if (wStart !== null) {
+          const bh = auditBhMins(wStart, m.created_at);
+          if (bh > bestBH) { bestBH = bh; bestS = wStart; bestE = m.created_at; }
+          wStart = null;
+        }
+      }
+    }
+    if (wStart !== null) {
+      const bh = auditBhMins(wStart, endTs || wStart);
+      if (bh > bestBH) { bestBH = bh; bestS = wStart; bestE = endTs; }
     }
     if (bestBH > 0) gap = { startTs: bestS, endTs: bestE, bhMins: bestBH };
 
