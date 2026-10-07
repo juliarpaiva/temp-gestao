@@ -202,12 +202,11 @@ tr:hover td { background: var(--surf2); }
           <thead><tr>
             <th>Agente</th>
             <th>Total</th>
-            <th title="Adiamento antes da 1ª resposta">S1 bruto/valid.</th>
-            <th title="Sem follow-up entre adiamentos">S3 bruto/valid.</th>
-            <th title="Mais de 1 dia útil sem mensagem da agente">Gap bruto/valid.</th>
-            <th title="Adiamentos sem nota interna em 30 min">Adiam. s/nota</th>
+            <th title="Adiado antes de responder ao cliente">S1 bruto/valid.</th>
+            <th title="Adiado mais de uma vez sem falar com o cliente">S3 bruto/valid.</th>
+            <th title="Maior tempo sem mensagem ao cliente">Gap bruto/valid.</th>
+            <th title="Adiamentos sem motivo registrado em 30 min">Adiam. s/nota</th>
             <th title="% de adiamentos sem nota">% s/nota</th>
-            <th title="Maior gap S3 em dias úteis">Maior gap S3</th>
           </tr></thead>
           <tbody id="agent-tbody"></tbody>
         </table>
@@ -222,9 +221,9 @@ tr:hover td { background: var(--surf2); }
         <label>Tipo</label>
         <select id="ticket-type">
           <option value="">Todos sinalizados</option>
-          <option value="S1">S1 — 1º adiamento antes da 1ª resposta</option>
-          <option value="S3">S3 — sem follow-up entre adiamentos</option>
-          <option value="gap">Gap — mais de 1 dia útil sem mensagem</option>
+          <option value="S1">S1 — Adiado antes de responder ao cliente</option>
+          <option value="S3">S3 — Adiado mais de uma vez sem falar com o cliente</option>
+          <option value="gap">Gap — Maior tempo sem mensagem ao cliente</option>
         </select>
       </div>
     </div>
@@ -347,22 +346,21 @@ function renderCards(rows) {
   const tot   = rows.reduce((s,r) => s + n(r.snoozes_total), 0);
   const total = rows.reduce((s,r) => s + n(r.total), 0);
   document.getElementById('summary-cards').innerHTML = `
-    <div class="card c-s1"><div class="card-lbl">S1 — 1º adi. s/ resposta</div><div class="card-val">${s1}</div><div class="card-sub">${pct(s1,total)} dos tickets</div></div>
-    <div class="card c-s3"><div class="card-lbl">S3 — sem follow-up</div><div class="card-val">${s3}</div><div class="card-sub">${pct(s3,total)} dos tickets</div></div>
-    <div class="card c-gap"><div class="card-lbl">Gap &gt; 1 dia útil</div><div class="card-val">${gap}</div><div class="card-sub">${pct(gap,total)} dos tickets</div></div>
-    <div class="card c-nota"><div class="card-lbl">Adiamentos sem nota</div><div class="card-val">${sem}</div><div class="card-sub">${pct(sem,tot)} dos adiamentos</div></div>
+    <div class="card c-s1"><div class="card-lbl">Adiado antes de responder ao cliente</div><div class="card-val">${s1}</div><div class="card-sub">${pct(s1,total)} dos tickets</div></div>
+    <div class="card c-s3"><div class="card-lbl">Adiado mais de uma vez sem falar com o cliente</div><div class="card-val">${s3}</div><div class="card-sub">${pct(s3,total)} dos tickets</div></div>
+    <div class="card c-gap"><div class="card-lbl">Maior tempo sem mensagem ao cliente</div><div class="card-val">${gap}</div><div class="card-sub">${pct(gap,total)} dos tickets</div></div>
+    <div class="card c-nota"><div class="card-lbl">Adiamentos sem motivo registrado</div><div class="card-val">${sem}</div><div class="card-sub">${pct(sem,tot)} dos adiamentos</div></div>
     <div class="card c-ok"><div class="card-lbl">Total resolvidos</div><div class="card-val">${total}</div><div class="card-sub">${rows.length} agentes</div></div>
   `;
 }
 
 function renderTable(rows) {
   const tbody = document.getElementById('agent-tbody');
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">Sem dados. Use "Reprocessar" para calcular.</td></tr>'; return; }
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">Sem dados. Use "Reprocessar" para calcular.</td></tr>'; return; }
   tbody.innerHTML = rows.map(r => {
     const s1v  = n(r.s1_validated), s3v = n(r.s3_validated), gv = n(r.gap_validated);
     const s1e  = n(r.s1_excluded),  s3e = n(r.s3_excluded),  ge = n(r.gap_excluded);
     const sem  = n(r.snoozes_sem_nota), tot = n(r.snoozes_total);
-    const gap3 = r.s3_max_gap_bh ? (Number(r.s3_max_gap_bh)/588).toFixed(1)+'d' : '—';
     function cell(raw, valid, excl, cls) {
       return `<div class="cell-split">
         <span class="${cls}">${raw}</span>
@@ -378,7 +376,6 @@ function renderTable(rows) {
       <td>${cell(r.gap_raw, gv, ge, 'n-gap')}</td>
       <td class="${sem > 0 ? 'n-s1' : 'n-muted'}">${sem}</td>
       <td class="${sem/tot > .5 ? 'n-s3' : 'n-muted'}">${pct(sem,tot)}</td>
-      <td>${gap3}</td>
     </tr>`;
   }).join('');
 }
@@ -486,7 +483,6 @@ function renderTickets(tickets) {
           <div class="meta-item"><label>Adiado por</label><span>${t.snoozed_by||'—'}</span></div>
           <div class="meta-item"><label>c/ nota 30min</label><span class="${comNota>0?'n-ok':'n-muted'}">${comNota}</span></div>
           <div class="meta-item"><label>s/ nota</label><span class="${semNota>0?'n-s1':'n-muted'}">${semNota}</span></div>
-          <div class="meta-item"><label>Gap máx. S3</label><span>${t.s3_max_gap_days?t.s3_max_gap_days+' d út.':'—'}</span></div>
           <div class="meta-item"><label>Gap máx. geral</label><span class="${n(t.max_gap_days)>=1?'n-gap':''}"> ${t.max_gap_days} d út.</span></div>
           <div class="meta-item"><label>Notas internas</label><span>${t.note_count}</span></div>
           ${t.excluded_absence?'<div class="meta-item"><label>Excluído por</label><span style="color:var(--warn)">ausência</span></div>':''}

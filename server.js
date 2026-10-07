@@ -2664,27 +2664,32 @@ async function auditAnalyzeTicket(ticket, absences) {
   const snoozeActs = msgs.filter(m => m.message_type === 2 && /adiou|adiada|adiado/i.test(m.content || ''));
   const agentOut   = msgs.filter(m => m.message_type === 1 && !m.private && !m.sender?.is_ai_agent);
   const notes      = msgs.filter(m => m.message_type === 1 && m.private);
-  const agente     = ticket.meta?.assignee?.name || '';
   const resolvedAt = ticket.last_activity_at || 0;
   const createdAt  = ticket.created_at || 0;
+  const BOT_NAME_RE = /bot|claudia|automac|automat|system/i;
 
-  // Quem adiou em cada atividade + nota por adiamento (30 min após cada um)
+  // Quem adiou em cada atividade (bot snoozes nunca contam)
   let snoozesCom = 0, snoozesSem = 0, snoozedBy = null;
-  const effectiveSnoozes = []; // snoozes que NÃO estão em período de ausência do adiador
+  const effectiveSnoozes = [];
 
   for (const act of snoozeActs) {
     const byName = parseSnoozedBy(act.content);
-    if (byName) snoozedBy = byName;
+    // Ignorar adiamentos de bot
+    if (!byName || BOT_NAME_RE.test(byName) || act.sender?.type === 'agent_bot') continue;
+    snoozedBy = byName;
 
     // Nota dentro de 30 min após ESTE adiamento
     const hasNote = notes.some(n => n.created_at >= act.created_at && n.created_at <= act.created_at + 1800);
     if (hasNote) snoozesCom++; else snoozesSem++;
 
     // Excluir da análise de S1/S3 apenas o que acontece dentro do período de ausência do adiador
-    if (!isSnoozeExcused(act.created_at, byName || snoozedBy, absences)) {
+    if (!isSnoozeExcused(act.created_at, byName, absences)) {
       effectiveSnoozes.push(act);
     }
   }
+
+  // agente = quem adiou (não o assignee atual)
+  const agente = snoozedBy || ticket.meta?.assignee?.name || '';
 
   // S1: primeiro adiamento EFETIVO antes da 1ª resposta pública da agente
   let isS1 = false;
@@ -2693,15 +2698,29 @@ async function auditAnalyzeTicket(ticket, absences) {
     isS1 = agentOut.length === 0 || firstEff < agentOut[0].created_at;
   }
 
-  // S3: 2+ adiamentos efetivos, sem msg pública da agente entre adiamentos consecutivos efetivos
+  // S3: grupo de 2+ adiamentos efetivos sem msg da agente entre eles E ≥ 2h úteis entre 1º e último
   let isS3 = false, s3MaxGapBH = 0;
   if (effectiveSnoozes.length >= 2) {
-    for (let i = 0; i < effectiveSnoozes.length - 1; i++) {
-      const t1 = effectiveSnoozes[i].created_at, t2 = effectiveSnoozes[i + 1].created_at;
+    // Agrupa adiamentos consecutivos sem mensagem da agente entre eles
+    const groups = [];
+    let cur = [effectiveSnoozes[0]];
+    for (let i = 1; i < effectiveSnoozes.length; i++) {
+      const t1 = effectiveSnoozes[i-1].created_at, t2 = effectiveSnoozes[i].created_at;
       if (!agentOut.some(m => m.created_at > t1 && m.created_at < t2)) {
-        isS3 = true;
-        const g = auditBhMins(t1, t2);
-        if (g > s3MaxGapBH) s3MaxGapBH = g;
+        cur.push(effectiveSnoozes[i]);
+      } else {
+        groups.push(cur);
+        cur = [effectiveSnoozes[i]];
+      }
+    }
+    groups.push(cur);
+    for (const grp of groups) {
+      if (grp.length >= 2) {
+        const g = auditBhMins(grp[0].created_at, grp[grp.length - 1].created_at);
+        if (g >= 120) { // ≥ 2h úteis entre 1º e último adiamento do grupo
+          isS3 = true;
+          if (g > s3MaxGapBH) s3MaxGapBH = g;
+        }
       }
     }
   }
