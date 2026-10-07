@@ -2653,13 +2653,59 @@ function isSnoozeExcused(actTs, snoozedByName, absences) {
   return absences.some(a => auditAgentMatches(a.agent, snoozedByName) && dateStr >= a.start_date && dateStr <= a.end_date);
 }
 
+// Retorna true se ts (unix seg) está fora do expediente BRT (antes 9h, após 18h48, sáb, dom)
+// Usa o mesmo padrão de auditBhMins: adiciona AUDIT_BRT_OFF para operar em espaço BRT
+function isAuditOffHours(ts) {
+  if (!ts) return false;
+  const d = new Date(ts * 1000 + AUDIT_BRT_OFF);
+  const dow = d.getUTCDay(), min = d.getUTCHours() * 60 + d.getUTCMinutes();
+  return dow === 0 || dow === 6 || min < AUDIT_BH_START || min >= AUDIT_BH_END;
+}
+
+// Retorna unix seg do início do próximo expediente (9h BRT) após ts
+// Opera em espaço BRT (+ AUDIT_BRT_OFF), depois converte de volta (- AUDIT_BRT_OFF)
+function nextAuditBizStart(ts) {
+  if (!ts) return Infinity;
+  const d = new Date(ts * 1000 + AUDIT_BRT_OFF); // espaço BRT
+  d.setUTCHours(0, 0, 0, 0);                     // meia-noite BRT
+  d.setUTCDate(d.getUTCDate() + 1);              // dia seguinte
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() + 1);
+  // 9h BRT no espaço BRT = d.getTime() + AUDIT_BH_START * 60000
+  // Converte de volta para unix: subtract AUDIT_BRT_OFF (= add 3h)
+  return Math.floor((d.getTime() + AUDIT_BH_START * 60000 - AUDIT_BRT_OFF) / 1000);
+}
+
+// Busca TODAS as mensagens de uma conversa com paginação (param ?before=id)
+// Passa pelo mesmo rate limiter do auditCc (CONC=3 no auditComputeRange)
+async function fetchAllAuditMessages(convId) {
+  const all = [];
+  let before = null;
+  for (let page = 0; page < 30; page++) {
+    const url = `/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${convId}/messages${before ? `?before=${before}` : ''}`;
+    let batch;
+    try {
+      const r = await auditCc(url);
+      batch = r?.payload || r?.data?.payload || [];
+    } catch { break; }
+    if (!batch.length) break;
+    batch.sort((a, b) => a.id - b.id);
+    before = batch[0].id;
+    all.push(...batch);
+    if (batch.length < 20) break;
+    await new Promise(r => setTimeout(r, 200));
+  }
+  const seen = new Set();
+  return all
+    .filter(m => seen.has(m.id) ? false : (seen.add(m.id), true))
+    .sort((a, b) => a.created_at - b.created_at);
+}
+
 async function auditAnalyzeTicket(ticket, absences) {
   let msgs = [];
   try {
-    const r = await auditCc(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${ticket.id}/messages`);
-    msgs = r?.payload || r?.data?.payload || [];
+    msgs = await fetchAllAuditMessages(ticket.id);
   } catch { return null; }
-  msgs.sort((a, b) => a.created_at - b.created_at);
+  if (!msgs.length) return null;
 
   const snoozeActs = msgs.filter(m => m.message_type === 2 && /adiou|adiada|adiado/i.test(m.content || ''));
   const agentOut   = msgs.filter(m => m.message_type === 1 && !m.private && !m.sender?.is_ai_agent);
@@ -2691,33 +2737,53 @@ async function auditAnalyzeTicket(ticket, absences) {
   // agente = quem adiou (não o assignee atual)
   const agente = snoozedBy || ticket.meta?.assignee?.name || '';
 
-  // S1: primeiro adiamento EFETIVO antes da 1ª resposta pública da agente
-  let isS1 = false;
-  if (effectiveSnoozes.length > 0) {
-    const firstEff = effectiveSnoozes[0].created_at;
-    isS1 = agentOut.length === 0 || firstEff < agentOut[0].created_at;
+  // Mensagens do cliente (tipo 0) e respostas públicas da agente (tipo 1, não bot, não privada)
+  const clientMsgs = msgs.filter(m => m.message_type === 0);
+
+  // Helper: havia mensagem do cliente esperando resposta no momento snoozeTs?
+  // Retorna { waiting: bool, clientTs: unix|null }
+  function clientWaitingAt(snoozeTs) {
+    const lastClient = clientMsgs.filter(m => m.created_at < snoozeTs).at(-1);
+    const lastAgent  = agentOut.filter(m => m.created_at < snoozeTs).at(-1);
+    if (!lastClient) return { waiting: false, clientTs: null };
+    const waiting = !lastAgent || lastClient.created_at > lastAgent.created_at;
+    return { waiting, clientTs: lastClient.created_at };
   }
 
-  // S3: grupo de 2+ adiamentos efetivos sem msg da agente entre eles E ≥ 2h úteis entre 1º e último
+  // S1: havia cliente esperando no momento do 1º adiamento efetivo
+  //     E não é caso off-hours (msg fora do expediente + snooze antes do próximo expediente)
+  let isS1 = false;
+  if (effectiveSnoozes.length > 0) {
+    const { waiting, clientTs } = clientWaitingAt(effectiveSnoozes[0].created_at);
+    if (waiting) {
+      const offHours       = isAuditOffHours(clientTs);
+      const snoozeBeforeNB = effectiveSnoozes[0].created_at < nextAuditBizStart(clientTs);
+      isS1 = !(offHours && snoozeBeforeNB);
+    }
+  }
+
+  // S3: grupo de 2+ adiamentos efetivos onde havia cliente esperando em CADA adiamento do grupo,
+  //     sem msg da agente entre eles, E ≥ 2h úteis entre 1º e último do grupo
   let isS3 = false, s3MaxGapBH = 0;
-  if (effectiveSnoozes.length >= 2) {
-    // Agrupa adiamentos consecutivos sem mensagem da agente entre eles
+  // Filtra para adiamentos onde havia cliente esperando
+  const snoozeWithClient = effectiveSnoozes.filter(s => clientWaitingAt(s.created_at).waiting);
+  if (snoozeWithClient.length >= 2) {
     const groups = [];
-    let cur = [effectiveSnoozes[0]];
-    for (let i = 1; i < effectiveSnoozes.length; i++) {
-      const t1 = effectiveSnoozes[i-1].created_at, t2 = effectiveSnoozes[i].created_at;
+    let cur = [snoozeWithClient[0]];
+    for (let i = 1; i < snoozeWithClient.length; i++) {
+      const t1 = snoozeWithClient[i-1].created_at, t2 = snoozeWithClient[i].created_at;
       if (!agentOut.some(m => m.created_at > t1 && m.created_at < t2)) {
-        cur.push(effectiveSnoozes[i]);
+        cur.push(snoozeWithClient[i]);
       } else {
         groups.push(cur);
-        cur = [effectiveSnoozes[i]];
+        cur = [snoozeWithClient[i]];
       }
     }
     groups.push(cur);
     for (const grp of groups) {
       if (grp.length >= 2) {
         const g = auditBhMins(grp[0].created_at, grp[grp.length - 1].created_at);
-        if (g >= 120) { // ≥ 2h úteis entre 1º e último adiamento do grupo
+        if (g >= 120) {
           isS3 = true;
           if (g > s3MaxGapBH) s3MaxGapBH = g;
         }
