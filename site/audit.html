@@ -271,7 +271,8 @@ tr:hover td { background: var(--surf2); }
     <p style="color:var(--muted);margin-bottom:16px;font-size:13px">
       Defina o período no filtro acima. O processo roda em segundo plano — você pode acompanhar o progresso abaixo.
     </p>
-    <button class="btn btn-primary" onclick="startReprocess()">Iniciar reprocessamento</button>
+    <button class="btn btn-primary" onclick="startReprocess(false)">Iniciar reprocessamento</button>
+    <button class="btn btn-ghost" id="btn-force" style="display:none" onclick="startReprocess(true)">Forçar agora (fora do horário)</button>
     <div id="job-progress" style="margin-top:16px;display:none">
       <div class="progress-wrap">
         <div class="progress-label" id="job-label">Iniciando…</div>
@@ -556,20 +557,24 @@ async function delAbsence(id) {
 }
 
 // ── Reprocessar (background job) ──
-async function startReprocess() {
+async function startReprocess(force = false) {
   const from = document.getElementById('from').value;
   const to   = document.getElementById('to').value;
   if (!from) return alert('Defina o período no filtro acima.');
   try {
-    const r = await fetch('/audit/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({from,to})});
+    const body = { from, to };
+    if (force) body.force = true;
+    const r = await fetch('/audit/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
     const d = await r.json();
     if (r.status === 423) {
       document.getElementById('job-progress').style.display = '';
       document.getElementById('job-label').textContent = '⏰ ' + d.error;
       document.getElementById('job-fill').style.width = '0%';
       document.getElementById('job-info').textContent = '';
+      document.getElementById('btn-force').style.display = '';
       return;
     }
+    document.getElementById('btn-force').style.display = 'none';
     if (!r.ok) return alert('Erro: ' + d.error);
     document.getElementById('job-progress').style.display = '';
     pollJob(d.jobId);

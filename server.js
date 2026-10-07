@@ -3057,11 +3057,14 @@ app.post('/audit/run', auditRequireMgmt, express.json(), (req, res) => {
   const toDate = to || from;
 
   // Bloqueia reprocessamento manual durante horário comercial (9h–18h48 BRT)
-  const nowBrt  = new Date(Date.now() - 3 * 3600000);
-  const brtMins = nowBrt.getUTCHours() * 60 + nowBrt.getUTCMinutes();
-  const brtDay  = nowBrt.getUTCDay(); // 0=dom, 6=sáb
-  if (brtDay >= 1 && brtDay <= 5 && brtMins >= 9 * 60 && brtMins < 18 * 60 + 48) {
-    return res.status(423).json({ error: 'Reprocessamento manual bloqueado durante o horário comercial (9h–18h48). Tente após as 18h48.' });
+  // Gestoras podem forçar com { force: true } no body
+  if (!req.body?.force) {
+    const nowBrt  = new Date(Date.now() - 3 * 3600000);
+    const brtMins = nowBrt.getUTCHours() * 60 + nowBrt.getUTCMinutes();
+    const brtDay  = nowBrt.getUTCDay();
+    if (brtDay >= 1 && brtDay <= 5 && brtMins >= 9 * 60 && brtMins < 18 * 60 + 48) {
+      return res.status(423).json({ error: 'Reprocessamento manual bloqueado durante o horário comercial (9h–18h48). Tente após as 18h48 ou use "Forçar agora".' });
+    }
   }
 
   // Bloqueia segundo job se já há um rodando
@@ -3075,7 +3078,8 @@ app.post('/audit/run', auditRequireMgmt, express.json(), (req, res) => {
   // Limpa jobs antigos (mantém últimos 10)
   if (_auditJobs.size > 10) { const oldest = [..._auditJobs.keys()][0]; _auditJobs.delete(oldest); }
 
-  console.log(`[audit/run] job=${jobId} computando ${from} → ${toDate}`);
+  const forced = !!req.body?.force;
+  console.log(`[audit/run] job=${jobId} por=${req.auditEmail} force=${forced} período=${from}→${toDate} iniciado=${new Date().toISOString()}`);
   (async () => {
     try {
       await auditComputeRange(from, toDate, (prog) => Object.assign(job, prog));
