@@ -3020,6 +3020,8 @@ app.post('/audit/validate/:id', auditRequireMgmt, express.json(), async (req, re
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.get('/audit/ping', auditRequireMgmt, (req, res) => res.json({ ok: true }));
+
 app.get('/audit/absences', auditRequireMgmt, async (req, res) => {
   try {
     const { rows } = await pool.query(`
