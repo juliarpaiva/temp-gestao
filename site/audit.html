@@ -15,6 +15,8 @@
   --text:    #f0f0f0;
   --muted:   #888;
   --s1:      #f59e0b;
+  --s1pre:   #f59e0b;
+  --s1post:  #fb923c;
   --s3:      #e91e8c;
   --gap:     #3b82f6;
   --ok:      #22c55e;
@@ -67,7 +69,9 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color
 .card-lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
 .card-val { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .card-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
-.c-s1 .card-val { color: var(--s1); }
+.c-s1    .card-val { color: var(--s1); }
+.c-s1pre .card-val { color: var(--s1pre); }
+.c-s1post .card-val { color: var(--s1post); }
 .c-s3 .card-val { color: var(--s3); }
 .c-gap .card-val { color: var(--gap); }
 .c-nota .card-val { color: var(--warn); }
@@ -77,7 +81,9 @@ body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color
 .tbl-wrap { background: var(--surf); border: 1px solid var(--bdr); border-radius: 10px; overflow: hidden; margin-bottom: 20px; }
 .tbl-head { padding: 12px 16px; font-weight: 600; font-size: 14px; border-bottom: 1px solid var(--bdr); display: flex; align-items: center; gap: 8px; }
 .badge { display: inline-block; padding: 2px 7px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-.b-s1  { background: rgba(245,158,11,.15); color: var(--s1); }
+.b-s1     { background: rgba(245,158,11,.15); color: var(--s1); }
+.b-s1pre  { background: rgba(245,158,11,.15); color: var(--s1pre); }
+.b-s1post { background: rgba(251,146,60,.15);  color: var(--s1post); }
 .b-s3  { background: rgba(233,30,140,.15); color: var(--s3); }
 .b-gap { background: rgba(59,130,246,.15);  color: var(--gap); }
 .b-ok  { background: rgba(34,197,94,.12);   color: var(--ok); }
@@ -88,7 +94,9 @@ th { padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 600; col
 td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.04); font-variant-numeric: tabular-nums; }
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: var(--surf2); }
-.n-s1 { color: var(--s1); font-weight: 600; }
+.n-s1    { color: var(--s1); font-weight: 600; }
+.n-s1pre { color: var(--s1pre); font-weight: 600; }
+.n-s1post { color: var(--s1post); font-weight: 600; }
 .n-s3 { color: var(--s3); font-weight: 600; }
 .n-gap { color: var(--gap); font-weight: 600; }
 .n-ok { color: var(--ok); }
@@ -102,7 +110,8 @@ tr:hover td { background: var(--surf2); }
 .bar-group { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; }
 .bar-row { display: flex; gap: 2px; align-items: flex-end; }
 .bar { width: 10px; border-radius: 3px 3px 0 0; min-height: 2px; }
-.b1 { background: var(--s1); }
+.b1 { background: var(--s1pre); }
+.b1post { background: var(--s1post); }
 .b2 { background: var(--s3); }
 .b3 { background: var(--gap); }
 .bar-lbl { font-size: 9px; color: var(--muted); white-space: nowrap; }
@@ -185,7 +194,8 @@ tr:hover td { background: var(--surf2); }
       <div class="chart-title">Últimas 8 semanas</div>
       <div class="chart-body" id="chart-bars"></div>
       <div class="chart-legend">
-        <div class="leg-item"><div class="leg-dot b1"></div> S1</div>
+        <div class="leg-item"><div class="leg-dot b1"></div> Adiado antes da 1ª resposta</div>
+        <div class="leg-item"><div class="leg-dot b1post"></div> Adiado depois da 1ª resposta</div>
         <div class="leg-item"><div class="leg-dot b2"></div> S3</div>
         <div class="leg-item"><div class="leg-dot b3"></div> Gap > 1 dia út.</div>
       </div>
@@ -193,7 +203,8 @@ tr:hover td { background: var(--surf2); }
     <div class="tbl-wrap">
       <div class="tbl-head">
         Por agente
-        <span class="badge b-s1">S1</span>
+        <span class="badge b-s1pre">Antes 1ª resp.</span>
+        <span class="badge b-s1post">Depois 1ª resp.</span>
         <span class="badge b-s3">S3</span>
         <span class="badge b-gap">Gap</span>
       </div>
@@ -202,7 +213,8 @@ tr:hover td { background: var(--surf2); }
           <thead><tr>
             <th>Agente</th>
             <th>Total</th>
-            <th title="Adiado antes de responder ao cliente">S1 bruto/valid.</th>
+            <th title="Adiado antes da 1ª resposta">Antes 1ª resp. bruto/valid.</th>
+            <th title="Adiado com cliente esperando, depois da 1ª resposta">Depois 1ª resp. bruto/valid.</th>
             <th title="Adiado mais de uma vez sem falar com o cliente">S3 bruto/valid.</th>
             <th title="Maior tempo sem mensagem ao cliente">Gap bruto/valid.</th>
             <th title="Adiamentos sem motivo registrado em 30 min">Adiam. s/nota</th>
@@ -221,7 +233,8 @@ tr:hover td { background: var(--surf2); }
         <label>Tipo</label>
         <select id="ticket-type">
           <option value="">Todos sinalizados</option>
-          <option value="S1">S1 — Adiado antes de responder ao cliente</option>
+          <option value="S1pre">Adiado antes da 1ª resposta</option>
+          <option value="S1post">Adiado com cliente esperando, depois da 1ª resposta</option>
           <option value="S3">S3 — Adiado mais de uma vez sem falar com o cliente</option>
           <option value="gap">Gap — Maior tempo sem mensagem ao cliente</option>
         </select>
@@ -339,6 +352,8 @@ function pct(num, den) {
 function n(v) { return Number(v) || 0; }
 
 function renderCards(rows) {
+  const s1pre  = rows.reduce((s,r) => s + n(r.s1_pre_raw), 0);
+  const s1post = rows.reduce((s,r) => s + n(r.s1_post_raw), 0);
   const s1    = rows.reduce((s,r) => s + n(r.s1_raw), 0);
   const s3    = rows.reduce((s,r) => s + n(r.s3_raw), 0);
   const gap   = rows.reduce((s,r) => s + n(r.gap_raw), 0);
@@ -346,7 +361,8 @@ function renderCards(rows) {
   const tot   = rows.reduce((s,r) => s + n(r.snoozes_total), 0);
   const total = rows.reduce((s,r) => s + n(r.total), 0);
   document.getElementById('summary-cards').innerHTML = `
-    <div class="card c-s1"><div class="card-lbl">Adiado antes de responder ao cliente</div><div class="card-val">${s1}</div><div class="card-sub">${pct(s1,total)} dos tickets</div></div>
+    <div class="card c-s1pre"><div class="card-lbl">Adiado antes da 1ª resposta</div><div class="card-val">${s1pre}</div><div class="card-sub">${pct(s1pre,total)} dos tickets</div></div>
+    <div class="card c-s1post"><div class="card-lbl">Adiado com cliente esperando, depois da 1ª resposta</div><div class="card-val">${s1post}</div><div class="card-sub">${pct(s1post,total)} dos tickets</div></div>
     <div class="card c-s3"><div class="card-lbl">Adiado mais de uma vez sem falar com o cliente</div><div class="card-val">${s3}</div><div class="card-sub">${pct(s3,total)} dos tickets</div></div>
     <div class="card c-gap"><div class="card-lbl">Maior tempo sem mensagem ao cliente</div><div class="card-val">${gap}</div><div class="card-sub">${pct(gap,total)} dos tickets</div></div>
     <div class="card c-nota"><div class="card-lbl">Adiamentos sem motivo registrado</div><div class="card-val">${sem}</div><div class="card-sub">${pct(sem,tot)} dos adiamentos</div></div>
@@ -356,7 +372,7 @@ function renderCards(rows) {
 
 function renderTable(rows) {
   const tbody = document.getElementById('agent-tbody');
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">Sem dados. Use "Reprocessar" para calcular.</td></tr>'; return; }
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty">Sem dados. Use "Reprocessar" para calcular.</td></tr>'; return; }
   tbody.innerHTML = rows.map(r => {
     const s1v  = n(r.s1_validated), s3v = n(r.s3_validated), gv = n(r.gap_validated);
     const s1e  = n(r.s1_excluded),  s3e = n(r.s3_excluded),  ge = n(r.gap_excluded);
@@ -371,7 +387,8 @@ function renderTable(rows) {
     return `<tr>
       <td><strong>${r.agente}</strong></td>
       <td>${r.total}</td>
-      <td>${cell(r.s1_raw, s1v, s1e, 'n-s1')}</td>
+      <td>${cell(r.s1_pre_raw,  n(r.s1_pre_validated),  n(r.s1_pre_excluded),  'n-s1pre')}</td>
+      <td>${cell(r.s1_post_raw, n(r.s1_post_validated), n(r.s1_post_excluded), 'n-s1post')}</td>
       <td>${cell(r.s3_raw, s3v, s3e, 'n-s3')}</td>
       <td>${cell(r.gap_raw, gv, ge, 'n-gap')}</td>
       <td class="${sem > 0 ? 'n-s1' : 'n-muted'}">${sem}</td>
@@ -396,17 +413,19 @@ async function loadChart() {
     const vals = data.map(d => {
       const rows = d.byAgent || [];
       return {
-        s1:  rows.reduce((s,r)=>s+n(r.s1_raw),0),
+        s1pre:  rows.reduce((s,r)=>s+n(r.s1_pre_raw),0),
+        s1post: rows.reduce((s,r)=>s+n(r.s1_post_raw),0),
         s3:  rows.reduce((s,r)=>s+n(r.s3_raw),0),
         gap: rows.reduce((s,r)=>s+n(r.gap_raw),0),
       };
     });
-    const maxV = Math.max(1, ...vals.map(v => Math.max(v.s1, v.s3, v.gap)));
+    const maxV = Math.max(1, ...vals.map(v => Math.max(v.s1pre, v.s1post, v.s3, v.gap)));
     const bars = vals.map((v,i) => {
       const h = x => Math.max(2, Math.round(x/maxV*80));
       return `<div class="bar-group">
         <div class="bar-row">
-          <div class="bar b1" style="height:${h(v.s1)}px" title="S1: ${v.s1}"></div>
+          <div class="bar b1"    style="height:${h(v.s1pre)}px"  title="Antes 1ª resp.: ${v.s1pre}"></div>
+          <div class="bar b1post" style="height:${h(v.s1post)}px" title="Depois 1ª resp.: ${v.s1post}"></div>
           <div class="bar b2" style="height:${h(v.s3)}px" title="S3: ${v.s3}"></div>
           <div class="bar b3" style="height:${h(v.gap)}px" title="Gap: ${v.gap}"></div>
         </div>
@@ -447,7 +466,8 @@ function renderTickets(tickets) {
 
   el.innerHTML = tickets.map(t => {
     const tags = [];
-    if (t.is_s1)     tags.push(`<span class="badge b-s1">S1</span>`);
+    if (t.is_s1_pre)  tags.push(`<span class="badge b-s1pre">Antes 1ª resp.</span>`);
+    if (t.is_s1_post) tags.push(`<span class="badge b-s1post">Depois 1ª resp.</span>`);
     if (t.is_s3)     tags.push(`<span class="badge b-s3">S3</span>`);
     if (t.has_big_gap) tags.push(`<span class="badge b-gap">Gap ${t.max_gap_days}d</span>`);
 
@@ -490,7 +510,8 @@ function renderTickets(tickets) {
         <div style="margin-bottom:10px">
           <a href="https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.id}" target="_blank" class="btn btn-ghost btn-sm">Abrir no CC ↗</a>
         </div>
-        ${t.is_s1     ? valRow('S1',  'b-s1',  'S1',  t.s1_status,  t.s1_reason)  : ''}
+        ${t.is_s1_pre  ? valRow('S1pre',  'b-s1pre',  'Adiado antes da 1ª resposta',  t.s1pre_status,  t.s1pre_reason)  : ''}
+        ${t.is_s1_post ? valRow('S1post', 'b-s1post', 'Adiado depois da 1ª resposta', t.s1post_status, t.s1post_reason) : ''}
         ${t.is_s3     ? valRow('S3',  'b-s3',  'S3',  t.s3_status,  t.s3_reason)  : ''}
         ${t.has_big_gap ? valRow('gap', 'b-gap', 'Gap', t.gap_status, t.gap_reason) : ''}
       </div>

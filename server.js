@@ -2537,6 +2537,8 @@ async function initDb() {
         snoozes_com_nota INTEGER DEFAULT 0,
         snoozes_sem_nota INTEGER DEFAULT 0,
         is_s1            BOOLEAN DEFAULT FALSE,
+        is_s1_pre        BOOLEAN DEFAULT FALSE,
+        is_s1_post       BOOLEAN DEFAULT FALSE,
         is_s3            BOOLEAN DEFAULT FALSE,
         s3_max_gap_bh    NUMERIC DEFAULT 0,
         max_gap_bh       NUMERIC DEFAULT 0,
@@ -2564,6 +2566,8 @@ async function initDb() {
     }
   }
   await pool.query(`ALTER TABLE support_bi.csat_users ALTER COLUMN password_hash DROP NOT NULL`).catch(() => {});
+  await pool.query(`ALTER TABLE support_bi.audit_snooze_tickets ADD COLUMN IF NOT EXISTS is_s1_pre BOOLEAN DEFAULT FALSE`).catch(() => {});
+  await pool.query(`ALTER TABLE support_bi.audit_snooze_tickets ADD COLUMN IF NOT EXISTS is_s1_post BOOLEAN DEFAULT FALSE`).catch(() => {});
   await auditSeedAbsences().catch(e => console.error('[initDb] seed ausências:', e.message));
   console.log('[initDb] banco de dados pronto.');
 }
@@ -2750,17 +2754,22 @@ async function auditAnalyzeTicket(ticket, absences) {
     return { waiting, clientTs: lastClient.created_at };
   }
 
-  // S1: havia cliente esperando no momento do 1º adiamento efetivo
-  //     E não é caso off-hours (msg fora do expediente + snooze antes do próximo expediente)
-  let isS1 = false;
+  // S1-pre: havia cliente esperando E nenhuma agente humana havia respondido ainda
+  // S1-post: havia cliente esperando E alguma agente já havia respondido antes
+  // Ambos excluem caso off-hours (msg do cliente fora do expediente + snooze antes do próximo)
+  let isS1Pre = false, isS1Post = false;
   if (effectiveSnoozes.length > 0) {
     const { waiting, clientTs } = clientWaitingAt(effectiveSnoozes[0].created_at);
     if (waiting) {
       const offHours       = isAuditOffHours(clientTs);
       const snoozeBeforeNB = effectiveSnoozes[0].created_at < nextAuditBizStart(clientTs);
-      isS1 = !(offHours && snoozeBeforeNB);
+      if (!(offHours && snoozeBeforeNB)) {
+        const hadPriorHumanReply = agentOut.some(m => m.created_at < effectiveSnoozes[0].created_at);
+        if (hadPriorHumanReply) { isS1Post = true; } else { isS1Pre = true; }
+      }
     }
   }
+  const isS1 = isS1Pre || isS1Post;
 
   // S3: grupo de 2+ adiamentos efetivos onde havia cliente esperando em CADA adiamento do grupo,
   //     sem msg da agente entre eles, E ≥ 2h úteis entre 1º e último do grupo
@@ -2813,7 +2822,7 @@ async function auditAnalyzeTicket(ticket, absences) {
     id: ticket.id, agente, snoozedBy,
     nSnoozes: snoozeActs.length,
     snoozesCom, snoozesSem,
-    isS1, isS3, s3MaxGapBH, maxGapBH,
+    isS1, isS1Pre, isS1Post, isS3, s3MaxGapBH, maxGapBH,
     hasBigGap: maxGapBH >= AUDIT_BH_DAY,
     noteCount: notes.length,
     excludedAbsence, resolvedAt,
@@ -2870,18 +2879,19 @@ async function auditComputeRange(fromDate, toDate, onProgress = null) {
     await pool.query(`
       INSERT INTO support_bi.audit_snooze_tickets
         (id, computed_at, agente, snoozed_by, n_snoozes, snoozes_com_nota, snoozes_sem_nota,
-         is_s1, is_s3, s3_max_gap_bh, max_gap_bh, has_big_gap, note_count, excluded_absence, resolved_at, data)
-      VALUES ($1, NOW()::date, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+         is_s1, is_s1_pre, is_s1_post, is_s3, s3_max_gap_bh, max_gap_bh, has_big_gap, note_count, excluded_absence, resolved_at, data)
+      VALUES ($1, NOW()::date, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       ON CONFLICT (id) DO UPDATE SET
         computed_at=EXCLUDED.computed_at, agente=EXCLUDED.agente, snoozed_by=EXCLUDED.snoozed_by,
         n_snoozes=EXCLUDED.n_snoozes, snoozes_com_nota=EXCLUDED.snoozes_com_nota,
-        snoozes_sem_nota=EXCLUDED.snoozes_sem_nota, is_s1=EXCLUDED.is_s1, is_s3=EXCLUDED.is_s3,
-        s3_max_gap_bh=EXCLUDED.s3_max_gap_bh, max_gap_bh=EXCLUDED.max_gap_bh,
+        snoozes_sem_nota=EXCLUDED.snoozes_sem_nota, is_s1=EXCLUDED.is_s1,
+        is_s1_pre=EXCLUDED.is_s1_pre, is_s1_post=EXCLUDED.is_s1_post,
+        is_s3=EXCLUDED.is_s3, s3_max_gap_bh=EXCLUDED.s3_max_gap_bh, max_gap_bh=EXCLUDED.max_gap_bh,
         has_big_gap=EXCLUDED.has_big_gap, note_count=EXCLUDED.note_count,
         excluded_absence=EXCLUDED.excluded_absence, resolved_at=EXCLUDED.resolved_at, data=EXCLUDED.data
     `, [
       r.id, r.agente, r.snoozedBy, r.nSnoozes, r.snoozesCom, r.snoozesSem,
-      r.isS1, r.isS3, r.s3MaxGapBH, r.maxGapBH, r.hasBigGap,
+      r.isS1, r.isS1Pre, r.isS1Post, r.isS3, r.s3MaxGapBH, r.maxGapBH, r.hasBigGap,
       r.noteCount, r.excludedAbsence, r.resolvedAt, JSON.stringify(r),
     ]).catch(e => console.error('[audit] upsert ticket', r.id, e.message));
   }
@@ -3025,19 +3035,27 @@ app.get('/audit/data', auditRequireMgmt, async (req, res) => {
         t.agente,
         COUNT(*)                                                               AS total,
         COUNT(*) FILTER (WHERE t.is_s1 AND NOT t.excluded_absence)            AS s1_raw,
+        COUNT(*) FILTER (WHERE t.is_s1_pre AND NOT t.excluded_absence)        AS s1_pre_raw,
+        COUNT(*) FILTER (WHERE t.is_s1_post AND NOT t.excluded_absence)       AS s1_post_raw,
         COUNT(*) FILTER (WHERE t.is_s3 AND NOT t.excluded_absence)            AS s3_raw,
         COUNT(*) FILTER (WHERE t.has_big_gap AND NOT t.excluded_absence)      AS gap_raw,
         SUM(t.snoozes_sem_nota) FILTER (WHERE NOT t.excluded_absence)         AS snoozes_sem_nota,
         SUM(t.n_snoozes)        FILTER (WHERE NOT t.excluded_absence)         AS snoozes_total,
         MAX(t.s3_max_gap_bh)    FILTER (WHERE t.is_s3 AND NOT t.excluded_absence) AS s3_max_gap_bh,
         MAX(t.max_gap_bh)       FILTER (WHERE t.has_big_gap AND NOT t.excluded_absence) AS max_gap_bh,
+        COUNT(*) FILTER (WHERE v1pre.status = 'confirmed')                    AS s1_pre_validated,
+        COUNT(*) FILTER (WHERE v1post.status = 'confirmed')                   AS s1_post_validated,
         COUNT(*) FILTER (WHERE v1.status = 'confirmed')                       AS s1_validated,
         COUNT(*) FILTER (WHERE v3.status = 'confirmed')                       AS s3_validated,
         COUNT(*) FILTER (WHERE vg.status = 'confirmed')                       AS gap_validated,
+        COUNT(*) FILTER (WHERE v1pre.status = 'excluded')                     AS s1_pre_excluded,
+        COUNT(*) FILTER (WHERE v1post.status = 'excluded')                    AS s1_post_excluded,
         COUNT(*) FILTER (WHERE v1.status = 'excluded')                        AS s1_excluded,
         COUNT(*) FILTER (WHERE v3.status = 'excluded')                        AS s3_excluded,
         COUNT(*) FILTER (WHERE vg.status = 'excluded')                        AS gap_excluded
       FROM support_bi.audit_snooze_tickets t
+      LEFT JOIN support_bi.audit_validations v1pre ON v1pre.ticket_id = t.id AND v1pre.indicator = 'S1pre'
+      LEFT JOIN support_bi.audit_validations v1post ON v1post.ticket_id = t.id AND v1post.indicator = 'S1post'
       LEFT JOIN support_bi.audit_validations v1 ON v1.ticket_id = t.id AND v1.indicator = 'S1'
       LEFT JOIN support_bi.audit_validations v3 ON v3.ticket_id = t.id AND v3.indicator = 'S3'
       LEFT JOIN support_bi.audit_validations vg ON vg.ticket_id = t.id AND vg.indicator = 'gap'
@@ -3056,7 +3074,9 @@ app.get('/audit/tickets', auditRequireMgmt, async (req, res) => {
     if (!from || !to) return res.status(400).json({ error: 'from e to são obrigatórios' });
 
     let where = `t.computed_at >= $1::date AND t.computed_at <= $2::date`;
-    if (type === 'S1')  where += ` AND t.is_s1 = TRUE AND t.excluded_absence = FALSE`;
+    if (type === 'S1pre')  where += ` AND t.is_s1_pre = TRUE AND t.excluded_absence = FALSE`;
+    else if (type === 'S1post') where += ` AND t.is_s1_post = TRUE AND t.excluded_absence = FALSE`;
+    else if (type === 'S1')  where += ` AND t.is_s1 = TRUE AND t.excluded_absence = FALSE`;
     else if (type === 'S3')  where += ` AND t.is_s3 = TRUE AND t.excluded_absence = FALSE`;
     else if (type === 'gap') where += ` AND t.has_big_gap = TRUE AND t.excluded_absence = FALSE`;
     else where += ` AND (t.is_s1 OR t.is_s3 OR t.has_big_gap) AND t.excluded_absence = FALSE`;
@@ -3065,14 +3085,18 @@ app.get('/audit/tickets', auditRequireMgmt, async (req, res) => {
       SELECT
         t.id, t.agente, t.snoozed_by, t.n_snoozes,
         t.snoozes_com_nota, t.snoozes_sem_nota,
-        t.is_s1, t.is_s3, t.has_big_gap,
+        t.is_s1, t.is_s1_pre, t.is_s1_post, t.is_s3, t.has_big_gap,
         ROUND(t.s3_max_gap_bh / 588.0, 2) AS s3_max_gap_days,
         ROUND(t.max_gap_bh / 588.0, 2)    AS max_gap_days,
         t.note_count, t.excluded_absence, t.computed_at::text,
+        v1pre.status AS s1pre_status, v1pre.reason AS s1pre_reason, v1pre.validated_by AS s1pre_by,
+        v1post.status AS s1post_status, v1post.reason AS s1post_reason, v1post.validated_by AS s1post_by,
         v1.status AS s1_status, v1.reason AS s1_reason, v1.validated_by AS s1_by,
         v3.status AS s3_status, v3.reason AS s3_reason, v3.validated_by AS s3_by,
         vg.status AS gap_status, vg.reason AS gap_reason, vg.validated_by AS gap_by
       FROM support_bi.audit_snooze_tickets t
+      LEFT JOIN support_bi.audit_validations v1pre ON v1pre.ticket_id = t.id AND v1pre.indicator = 'S1pre'
+      LEFT JOIN support_bi.audit_validations v1post ON v1post.ticket_id = t.id AND v1post.indicator = 'S1post'
       LEFT JOIN support_bi.audit_validations v1 ON v1.ticket_id = t.id AND v1.indicator = 'S1'
       LEFT JOIN support_bi.audit_validations v3 ON v3.ticket_id = t.id AND v3.indicator = 'S3'
       LEFT JOIN support_bi.audit_validations vg ON vg.ticket_id = t.id AND vg.indicator = 'gap'
@@ -3088,8 +3112,8 @@ app.post('/audit/validate/:id', auditRequireMgmt, express.json(), async (req, re
   try {
     const { indicator, status, reason } = req.body;
     const ticketId = parseInt(req.params.id);
-    if (!indicator || !status || !['S1','S3','gap'].includes(indicator) || !['confirmed','excluded'].includes(status))
-      return res.status(400).json({ error: 'indicator (S1|S3|gap) e status (confirmed|excluded) são obrigatórios' });
+    if (!indicator || !status || !['S1pre','S1post','S1','S3','gap'].includes(indicator) || !['confirmed','excluded'].includes(status))
+      return res.status(400).json({ error: 'indicator (S1pre|S1post|S1|S3|gap) e status (confirmed|excluded) são obrigatórios' });
 
     await pool.query(`
       INSERT INTO support_bi.audit_validations (ticket_id, indicator, validated_by, status, reason)
