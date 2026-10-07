@@ -3108,6 +3108,72 @@ app.get('/audit/tickets', auditRequireMgmt, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.get('/audit/detail/:id', auditRequireMgmt, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: 'ID inválido' });
+
+    const dbRow = await pool.query(
+      `SELECT resolved_at FROM support_bi.audit_snooze_tickets WHERE id = $1`, [id]
+    );
+    const resolvedAt = dbRow.rows[0]?.resolved_at || null;
+
+    const msgs = await fetchAllAuditMessages(id);
+    if (!msgs.length) return res.json({ timeline: [], gap: null });
+
+    const BOT_NAME_RE = /bot|claudia|automac|automat|system/i;
+    const agentOut  = msgs.filter(m => m.message_type === 1 && !m.private && !m.sender?.is_ai_agent);
+    const notesMsgs = msgs.filter(m => m.message_type === 1 && m.private);
+    const clientMsgs = msgs.filter(m => m.message_type === 0);
+
+    const timeline = [];
+    for (const m of msgs) {
+      const senderName = m.sender?.name || '—';
+      const content = (m.content || '').replace(/\n/g, ' ').trim().slice(0, 150);
+      const ts = m.created_at;
+
+      if (m.message_type === 0) {
+        timeline.push({ ts, kind: 'client', sender: senderName, content });
+      } else if (m.message_type === 1 && m.private) {
+        timeline.push({ ts, kind: 'note', sender: senderName, content });
+      } else if (m.message_type === 1 && !m.private && !m.sender?.is_ai_agent) {
+        timeline.push({ ts, kind: 'agent', sender: senderName, content });
+      } else if (m.message_type === 2 && /adiou|adiada|adiado/i.test(m.content || '')) {
+        const byName = parseSnoozedBy(m.content);
+        if (byName && !BOT_NAME_RE.test(byName) && m.sender?.type !== 'agent_bot') {
+          const agentsBefore = agentOut.filter(mm => mm.created_at < ts);
+          const hadPrior     = agentsBefore.length > 0;
+          const hadNote      = notesMsgs.some(nm => nm.created_at >= ts && nm.created_at <= ts + 1800);
+          const lastClient   = clientMsgs.filter(mm => mm.created_at < ts).at(-1);
+          const lastAgBefore = agentsBefore.at(-1);
+          const clientWaiting = !!lastClient && (!lastAgBefore || lastClient.created_at > lastAgBefore.created_at);
+          timeline.push({ ts, kind: 'snooze', sender: byName, hadPrior, hadNote, clientWaiting });
+        }
+      }
+    }
+    timeline.sort((a, b) => a.ts - b.ts);
+
+    // Maior gap sem mensagem pública da agente
+    let gap = null;
+    const aTimes = agentOut.map(m => m.created_at).sort((a, b) => a - b);
+    const firstTs = msgs[0]?.created_at || 0;
+    const endTs   = resolvedAt || (msgs.at(-1)?.created_at || 0);
+    const intervals = aTimes.length === 0
+      ? [[firstTs, endTs]]
+      : [[firstTs, aTimes[0]],
+         ...aTimes.slice(0,-1).map((t,i) => [t, aTimes[i+1]]),
+         [aTimes.at(-1), endTs]].filter(([s,e]) => e > s);
+    let bestBH = 0, bestS = null, bestE = null;
+    for (const [s, e] of intervals) {
+      const bh = auditBhMins(s, e);
+      if (bh > bestBH) { bestBH = bh; bestS = s; bestE = e; }
+    }
+    if (bestBH > 0) gap = { startTs: bestS, endTs: bestE, bhMins: bestBH };
+
+    res.json({ timeline, gap });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/audit/validate/:id', auditRequireMgmt, express.json(), async (req, res) => {
   try {
     const { indicator, status, reason } = req.body;

@@ -152,6 +152,29 @@ tr:hover td { background: var(--surf2); }
 .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--bdr); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Timeline */
+.tl-wrap { padding: 10px 0; }
+.tl-item { display: flex; gap: 10px; font-size: 12px; padding: 5px 0; border-bottom: 1px solid var(--bdr); }
+.tl-item:last-child { border-bottom: none; }
+.tl-time { color: var(--muted); white-space: nowrap; min-width: 100px; }
+.tl-body { flex: 1; line-height: 1.4; }
+.tl-content { color: var(--muted); font-style: italic; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 420px; }
+.tl-client .tl-body  { color: var(--text); }
+.tl-client .tl-kind  { color: #3b82f6; font-weight: 600; }
+.tl-agent .tl-kind   { color: var(--ok); font-weight: 600; }
+.tl-note .tl-kind    { color: #a855f7; font-weight: 600; }
+.tl-snooze .tl-kind  { font-weight: 600; }
+.tl-snooze.s-pre  .tl-kind { color: var(--s1pre); }
+.tl-snooze.s-post .tl-kind { color: var(--s1post); }
+.tl-snooze.s-ok   .tl-kind { color: var(--muted); }
+.tl-flags { display: flex; gap: 6px; margin-top: 3px; flex-wrap: wrap; }
+.tl-flag { font-size: 10px; padding: 1px 5px; border-radius: 8px; background: var(--surf2); }
+.tl-flag.warn { background: rgba(245,158,11,.15); color: var(--s1pre); }
+.tl-flag.ok   { background: rgba(22,163,74,.12);  color: var(--ok); }
+.tl-gap-box { background: rgba(59,130,246,.08); border: 1px solid rgba(59,130,246,.25); border-radius: 6px; padding: 8px 12px; font-size: 12px; margin: 10px 0; }
+.tl-gap-box strong { color: var(--gap); }
+.tl-loading { color: var(--muted); font-size: 12px; padding: 10px 0; }
+
 @media (max-width: 640px) {
   .sidebar { display: none; }
   .cards { grid-template-columns: repeat(2, 1fr); }
@@ -205,8 +228,8 @@ tr:hover td { background: var(--surf2); }
         Por agente
         <span class="badge b-s1pre">Antes 1ª resp.</span>
         <span class="badge b-s1post">Depois 1ª resp.</span>
-        <span class="badge b-s3">S3</span>
-        <span class="badge b-gap">Gap</span>
+        <span class="badge b-s3">Repetido s/ resposta</span>
+        <span class="badge b-gap">Longo s/ resposta</span>
       </div>
       <div style="overflow-x:auto">
         <table>
@@ -215,8 +238,8 @@ tr:hover td { background: var(--surf2); }
             <th>Total</th>
             <th title="Adiado antes da 1ª resposta">Antes 1ª resp. bruto/valid.</th>
             <th title="Adiado com cliente esperando, depois da 1ª resposta">Depois 1ª resp. bruto/valid.</th>
-            <th title="Adiado mais de uma vez sem falar com o cliente">S3 bruto/valid.</th>
-            <th title="Maior tempo sem mensagem ao cliente">Gap bruto/valid.</th>
+            <th title="Adiado mais de uma vez sem falar com o cliente">Repet. s/ resp. bruto/valid.</th>
+            <th title="Maior tempo sem mensagem ao cliente">Longo s/ resp. bruto/valid.</th>
             <th title="Adiamentos sem motivo registrado em 30 min">Adiam. s/nota</th>
             <th title="% de adiamentos sem nota">% s/nota</th>
           </tr></thead>
@@ -235,8 +258,8 @@ tr:hover td { background: var(--surf2); }
           <option value="">Todos sinalizados</option>
           <option value="S1pre">Adiado antes da 1ª resposta</option>
           <option value="S1post">Adiado com cliente esperando, depois da 1ª resposta</option>
-          <option value="S3">S3 — Adiado mais de uma vez sem falar com o cliente</option>
-          <option value="gap">Gap — Maior tempo sem mensagem ao cliente</option>
+          <option value="S3">Adiado repetido sem resposta</option>
+          <option value="gap">Longo sem resposta ao cliente</option>
         </select>
       </div>
     </div>
@@ -468,8 +491,8 @@ function renderTickets(tickets) {
     const tags = [];
     if (t.is_s1_pre)  tags.push(`<span class="badge b-s1pre">Antes 1ª resp.</span>`);
     if (t.is_s1_post) tags.push(`<span class="badge b-s1post">Depois 1ª resp.</span>`);
-    if (t.is_s3)     tags.push(`<span class="badge b-s3">S3</span>`);
-    if (t.has_big_gap) tags.push(`<span class="badge b-gap">Gap ${t.max_gap_days}d</span>`);
+    if (t.is_s3)       tags.push(`<span class="badge b-s3">Adiado repetido sem resposta</span>`);
+    if (t.has_big_gap) tags.push(`<span class="badge b-gap">Longo sem resposta</span>`);
 
     const semNota = n(t.snoozes_sem_nota), comNota = n(t.snoozes_com_nota), total = n(t.n_snoozes);
 
@@ -498,28 +521,130 @@ function renderTickets(tickets) {
         <div class="ticket-tags">${tags.join('')}</div>
       </div>
       <div class="ticket-bd" id="tbd-${t.id}">
-        <div class="ticket-meta">
-          <div class="meta-item"><label>Adiamentos</label><span>${total}</span></div>
-          <div class="meta-item"><label>Adiado por</label><span>${t.snoozed_by||'—'}</span></div>
-          <div class="meta-item"><label>c/ nota 30min</label><span class="${comNota>0?'n-ok':'n-muted'}">${comNota}</span></div>
-          <div class="meta-item"><label>s/ nota</label><span class="${semNota>0?'n-s1':'n-muted'}">${semNota}</span></div>
-          <div class="meta-item"><label>Gap máx. geral</label><span class="${n(t.max_gap_days)>=1?'n-gap':''}"> ${t.max_gap_days} d út.</span></div>
-          <div class="meta-item"><label>Notas internas</label><span>${t.note_count}</span></div>
-          ${t.excluded_absence?'<div class="meta-item"><label>Excluído por</label><span style="color:var(--warn)">ausência</span></div>':''}
+        <div class="tl-loading" id="tl-${t.id}">
+          ${t.excluded_absence ? '<span style="color:var(--warn);font-weight:600">Excluído por ausência · </span>' : ''}
+          Clique para expandir a linha do tempo
         </div>
-        <div style="margin-bottom:10px">
+        <div style="margin-top:8px">
           <a href="https://cloudchat3.cloudhumans.com/app/accounts/73/conversations/${t.id}" target="_blank" class="btn btn-ghost btn-sm">Abrir no CC ↗</a>
         </div>
-        ${t.is_s1_pre  ? valRow('S1pre',  'b-s1pre',  'Adiado antes da 1ª resposta',  t.s1pre_status,  t.s1pre_reason)  : ''}
-        ${t.is_s1_post ? valRow('S1post', 'b-s1post', 'Adiado depois da 1ª resposta', t.s1post_status, t.s1post_reason) : ''}
-        ${t.is_s3     ? valRow('S3',  'b-s3',  'S3',  t.s3_status,  t.s3_reason)  : ''}
-        ${t.has_big_gap ? valRow('gap', 'b-gap', 'Gap', t.gap_status, t.gap_reason) : ''}
+        ${t.is_s1_pre  ? valRow('S1pre',  'b-s1pre',  'Adiado antes da 1ª resposta',     t.s1pre_status,  t.s1pre_reason)  : ''}
+        ${t.is_s1_post ? valRow('S1post', 'b-s1post', 'Adiado com cliente esperando',     t.s1post_status, t.s1post_reason) : ''}
+        ${t.is_s3      ? valRow('S3',     'b-s3',     'Adiado repetido sem resposta',     t.s3_status,     t.s3_reason)     : ''}
+        ${t.has_big_gap ? valRow('gap',   'b-gap',    'Longo sem resposta ao cliente',    t.gap_status,    t.gap_reason)    : ''}
       </div>
     </div>`;
   }).join('');
 }
 
-function toggleTicket(id) { document.getElementById('tbd-'+id).classList.toggle('open'); }
+const _detailCache = {};
+
+function brtFmt(ts, full = false) {
+  if (!ts) return '—';
+  const d = new Date((ts - 3*3600) * 1000); // UTC-3
+  const h  = String(d.getUTCHours()).padStart(2,'0');
+  const mi = String(d.getUTCMinutes()).padStart(2,'0');
+  if (!full) return `${h}:${mi}`;
+  const dd  = String(d.getUTCDate()).padStart(2,'0');
+  const mth = String(d.getUTCMonth()+1).padStart(2,'0');
+  const days = ['dom','seg','ter','qua','qui','sex','sáb'];
+  return `${h}:${mi} · ${days[d.getUTCDay()]} ${dd}/${mth}`;
+}
+
+function bhFmt(mins) {
+  const DAY = 588;
+  if (mins <= 0) return '< 1min';
+  const days = Math.floor(mins / DAY);
+  const rem  = mins % DAY;
+  const h = Math.floor(rem / 60), m = rem % 60;
+  const parts = [];
+  if (days === 1) parts.push('1 dia útil');
+  else if (days > 1) parts.push(`${days} dias úteis`);
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0 && days === 0) parts.push(`${m}min`);
+  return parts.join(' e ') || '< 1min';
+}
+
+function renderTimeline(id, data) {
+  const el = document.getElementById(`tl-${id}`);
+  if (!el) return;
+  const { timeline, gap } = data;
+
+  const items = (timeline || []).map(e => {
+    const time = brtFmt(e.ts, true);
+    if (e.kind === 'client') {
+      return `<div class="tl-item tl-client">
+        <div class="tl-time">${time}</div>
+        <div class="tl-body"><span class="tl-kind">← Cliente</span>
+          ${e.content ? `<div class="tl-content">${e.content}</div>` : ''}
+        </div>
+      </div>`;
+    }
+    if (e.kind === 'agent') {
+      return `<div class="tl-item tl-agent">
+        <div class="tl-time">${time}</div>
+        <div class="tl-body"><span class="tl-kind">→ ${e.sender}</span>
+          ${e.content ? `<div class="tl-content">${e.content}</div>` : ''}
+        </div>
+      </div>`;
+    }
+    if (e.kind === 'note') {
+      return `<div class="tl-item tl-note">
+        <div class="tl-time">${time}</div>
+        <div class="tl-body"><span class="tl-kind">🔒 ${e.sender} (nota)</span>
+          ${e.content ? `<div class="tl-content">${e.content}</div>` : ''}
+        </div>
+      </div>`;
+    }
+    if (e.kind === 'snooze') {
+      const cls = !e.clientWaiting ? 's-ok' : !e.hadPrior ? 's-pre' : 's-post';
+      const flags = [];
+      if (e.clientWaiting)  flags.push(`<span class="tl-flag warn">cliente esperando</span>`);
+      if (!e.hadPrior && e.clientWaiting) flags.push(`<span class="tl-flag warn">sem resposta anterior</span>`);
+      if (e.hadPrior && e.clientWaiting)  flags.push(`<span class="tl-flag">com resposta anterior</span>`);
+      if (e.hadNote)   flags.push(`<span class="tl-flag ok">nota em 30min</span>`);
+      if (!e.hadNote)  flags.push(`<span class="tl-flag warn">sem nota em 30min</span>`);
+      return `<div class="tl-item tl-snooze ${cls}">
+        <div class="tl-time">${time}</div>
+        <div class="tl-body"><span class="tl-kind">⏸ ${e.sender} — adiamento</span>
+          <div class="tl-flags">${flags.join('')}</div>
+        </div>
+      </div>`;
+    }
+    return '';
+  }).join('');
+
+  let gapHtml = '';
+  if (gap && gap.bhMins > 0) {
+    gapHtml = `<div class="tl-gap-box">
+      <strong>Maior tempo sem resposta ao cliente:</strong> ${bhFmt(gap.bhMins)}
+      <span style="color:var(--muted)">· de ${brtFmt(gap.startTs, true)} até ${brtFmt(gap.endTs, true)}</span>
+    </div>`;
+  }
+
+  el.innerHTML = gapHtml + `<div class="tl-wrap">${items || '<div class="empty" style="padding:10px">Sem mensagens registradas.</div>'}</div>`;
+}
+
+async function toggleTicket(id) {
+  const bd = document.getElementById('tbd-'+id);
+  const wasOpen = bd.classList.contains('open');
+  bd.classList.toggle('open');
+  if (!wasOpen && !_detailCache[id]) {
+    const el = document.getElementById(`tl-${id}`);
+    if (el) el.innerHTML = '<span class="spinner"></span> Carregando...';
+    try {
+      const r = await fetch(`/audit/detail/${id}`);
+      const d = await r.json();
+      _detailCache[id] = d;
+      renderTimeline(id, d);
+    } catch(e) {
+      const el2 = document.getElementById(`tl-${id}`);
+      if (el2) el2.textContent = `Erro ao carregar: ${e.message}`;
+    }
+  } else if (!wasOpen && _detailCache[id]) {
+    renderTimeline(id, _detailCache[id]);
+  }
+}
 
 const _valTimers = {};
 function autoValidate(ticketId, indicator) {
