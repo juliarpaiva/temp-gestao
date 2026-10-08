@@ -2714,7 +2714,9 @@ async function fetchAllAuditMessages(convId) {
     .sort((a, b) => a.created_at - b.created_at);
 }
 
-async function auditAnalyzeTicket(ticket, absences) {
+async function auditAnalyzeTicket(ticket, absences, extractCtx = null) {
+  const extractMap          = extractCtx?.map          ?? null;
+  const allHumanFirstNames  = extractCtx?.humanFirstNames ?? null;
   let msgs = [];
   try {
     msgs = await fetchAllAuditMessages(ticket.id);
@@ -2836,15 +2838,37 @@ async function auditAnalyzeTicket(ticket, absences) {
     }
   }
 
-  // Timestamp da primeira atribuição do ticket à agente monitorada (atividade "atribu*" no histórico)
+  // Timestamp da primeira atribuição do ticket à agente monitorada — 3 fontes em ordem
   const agenteFn = agente.toLowerCase().split(' ')[0];
-  const assignTs = msgs
-    .filter(m => m.message_type === 2 && /atribu/i.test(m.content || '') &&
-                 new RegExp(agenteFn, 'i').test(m.content || ''))
-    .map(m => m.created_at)
-    .sort((a, b) => a - b)[0] ?? null;
 
-  // Fallback: se não achou atividade de atribuição, usa o primeiro ato da agente monitorada
+  // Fonte 1: atividade de atribuição (português e inglês, nome da agente como palavra inteira)
+  const assignTs = agenteFn ? msgs
+    .filter(m => m.message_type === 2 && /atribu|assign/i.test(m.content || '') &&
+                 new RegExp('\\b' + agenteFn + '\\b', 'i').test(m.content || ''))
+    .map(m => m.created_at)
+    .sort((a, b) => a - b)[0] ?? null : null;
+
+  // Fonte 2: firstAgentAssignmentTime do data_extracts
+  // Só usa se não há atribuição explícita a outra agente N2 antes (bots, automações e filas não contam)
+  let extractAssignTs = null;
+  if (assignTs == null && extractMap) {
+    const ext = extractMap.get(ticket.id);
+    // Usa lista completa de humanos (do /agents) ou, em fallback, só os monitorados
+    const humanFns = allHumanFirstNames
+      ? [...allHumanFirstNames].filter(fn => fn !== agenteFn)
+      : MONITORED_FIRST.filter(fn => fn !== agenteFn);
+    const hasAssignToOtherHuman = msgs.some(m =>
+      m.message_type === 2 &&
+      /atribu|assign/i.test(m.content || '') &&
+      humanFns.some(fn => new RegExp('\\b' + fn + '\\b', 'i').test(m.content || ''))
+    );
+    if (ext?.firstAgentAssignmentTime && !hasAssignToOtherHuman) {
+      const BRT_OFFSET = 3 * 3600;
+      extractAssignTs = Math.round(new Date(ext.firstAgentAssignmentTime + 'Z').getTime() / 1000) + BRT_OFFSET;
+    }
+  }
+
+  // Fonte 3: primeiro ato da agente monitorada (fallback atual)
   const firstMonitoredAct = Math.min(
     ...snoozeActs
       .filter(a => { const by = parseSnoozedBy(a.content);
@@ -2852,7 +2876,12 @@ async function auditAnalyzeTicket(ticket, absences) {
       .map(a => a.created_at),
     ...agentOut.map(m => m.created_at)
   );
-  const effectiveAssignTs = assignTs ?? (isFinite(firstMonitoredAct) ? firstMonitoredAct : null);
+  const fallbackTs = isFinite(firstMonitoredAct) ? firstMonitoredAct : null;
+
+  const assignSource = assignTs != null     ? 'activity'
+                     : extractAssignTs != null ? 'data_extracts'
+                     : fallbackTs != null       ? 'fallback' : 'none';
+  const effectiveAssignTs = assignTs ?? extractAssignTs ?? fallbackTs;
 
   // Maior gap: todas as msgs do cliente; se havia espera antes da atribuição, conta só a partir dela
   let maxGapBH = 0;
@@ -2888,7 +2917,46 @@ async function auditAnalyzeTicket(ticket, absences) {
     noteCount: notes.length,
     excludedAbsence, resolvedAt,
     hasAssignActivity: assignTs != null,
+    assignSource,
   };
+}
+
+async function fetchAuditExtractMap(fromDate, toDate) {
+  const token = process.env.CLOUDCHAT_TOKEN;
+  if (!token) return new Map();
+  // Lookback 14 dias: captura tickets criados antes do período mas resolvidos nele
+  const startMs = new Date(fromDate + 'T03:00:00Z').getTime() - 14 * 86400 * 1000;
+  const endMs   = new Date(toDate   + 'T03:00:00Z').getTime() +      86400 * 1000;
+  const allRows = [];
+  let cur = startMs;
+  while (cur < endMs) {
+    const winEnd = Math.min(cur + 5 * 86400 * 1000, endMs);
+    const sStr = new Date(cur).toISOString().slice(0, 10) + 'T00:00:00';
+    const eStr = new Date(winEnd).toISOString().slice(0, 10) + 'T00:00:00';
+    try {
+      const url = `${CLOUDCHAT_BASE}/api/v2/accounts/${CLOUDCHAT_ACCOUNT}/data_extracts` +
+        `?account_id=${CLOUDCHAT_ACCOUNT}&startDate=${encodeURIComponent(sStr)}&endDate=${encodeURIComponent(eStr)}` +
+        `&type=TICKET_METRICS_WITH_AGENT_INFORMATION`;
+      const resp = await fetch(url, { headers: { 'api_access_token': token }, signal: AbortSignal.timeout(30000) });
+      if (resp.ok) { const d = await resp.json(); if (Array.isArray(d)) allRows.push(...d); }
+      else console.warn(`[audit-extract] ${sStr}→${eStr} status=${resp.status}`);
+    } catch (e) {
+      console.warn(`[audit-extract] window error: ${e.message}`);
+    }
+    cur = winEnd;
+    if (cur < endMs) await new Promise(r => setTimeout(r, 3200));
+  }
+  const map = new Map();
+  for (const row of allRows) {
+    if (row.displayTicketId && row.firstAgentAssignmentTime) {
+      map.set(row.displayTicketId, {
+        firstAgentAssignmentTime: row.firstAgentAssignmentTime,
+        firstAgentReplyName: row.firstAgentReplyName || ''
+      });
+    }
+  }
+  console.log(`[audit-extract] ${allRows.length} rows → ${map.size} com assignment time`);
+  return map;
 }
 
 async function auditComputeRange(fromDate, toDate, onProgress = null) {
@@ -2901,6 +2969,14 @@ async function auditComputeRange(fromDate, toDate, onProgress = null) {
   const agentsRaw = await auditCc(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/agents`);
   const agentsArr = Array.isArray(agentsRaw) ? agentsRaw : (agentsRaw?.data || []);
   const monIds    = agentsArr.filter(a => MONITORED_AUDIT.includes(a.name)).map(a => a.id);
+  // Primeiros nomes de todos os humanos (exclui bots/automações/Claudia) para checagem de reatribuição
+  const BOT_AGENT_RE = /claudia|bot|automat|system/i;
+  const humanFirstNames = new Set(
+    agentsArr
+      .filter(a => !BOT_AGENT_RE.test(a.name || ''))
+      .map(a => (a.name || '').toLowerCase().split(' ')[0])
+      .filter(Boolean)
+  );
 
   const filterPayload = { payload: [
     { attribute_key: 'assignee_id', filter_operator: 'equal_to', values: monIds, query_operator: 'AND' },
@@ -2908,6 +2984,13 @@ async function auditComputeRange(fromDate, toDate, onProgress = null) {
   ]};
 
   if (onProgress) onProgress({ step: 'paginando', progress: 5, total: 0, analyzed: 0 });
+
+  // Pré-busca data_extracts para lookup de assignment time por ticket
+  const extractRawMap = await fetchAuditExtractMap(fromDate, toDate).catch(e => {
+    console.warn('[audit-extract] erro ao buscar data_extracts:', e.message);
+    return new Map();
+  });
+  const extractCtx = { map: extractRawMap, humanFirstNames };
 
   let tickets = [];
   for (let page = 1; page <= 200; page++) {
@@ -2927,7 +3010,7 @@ async function auditComputeRange(fromDate, toDate, onProgress = null) {
   const results = [];
   const CONC = 3;
   for (let i = 0; i < tickets.length; i += CONC) {
-    const batch = await Promise.all(tickets.slice(i, i + CONC).map(t => auditAnalyzeTicket(t, absences)));
+    const batch = await Promise.all(tickets.slice(i, i + CONC).map(t => auditAnalyzeTicket(t, absences, extractCtx)));
     results.push(...batch.filter(Boolean));
     if (onProgress) {
       const analyzed = i + CONC;
