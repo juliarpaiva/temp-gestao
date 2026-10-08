@@ -544,7 +544,7 @@ function renderTickets(tickets) {
     return `<div class="ticket">
       <div class="ticket-hd" onclick="toggleTicket(${t.id})">
         <span class="ticket-id">#${t.id}</span>
-        <span class="ticket-ag">${t.agente} · ${t.resolved_date || t.computed_at}</span>
+        <span class="ticket-ag">${t.agente} · ${fmtTicketDate(t.resolved_date || t.computed_at)}</span>
         <div class="ticket-tags">${tags.join('')}</div>
       </div>
       <div class="ticket-bd" id="tbd-${t.id}">
@@ -586,15 +586,28 @@ function brtFmt(ts, full = false) {
 function bhFmt(mins) {
   const DAY = 588;
   if (mins <= 0) return '< 1min';
-  const days = Math.floor(mins / DAY);
-  const rem  = mins % DAY;
-  const h = Math.floor(rem / 60), m = rem % 60;
-  const parts = [];
-  if (days === 1) parts.push('1 dia útil');
-  else if (days > 1) parts.push(`${days} dias úteis`);
-  if (h > 0) parts.push(`${h}h`);
-  if (m > 0 && days === 0) parts.push(`${m}min`);
-  return parts.join(' e ') || '< 1min';
+  const total = Math.round(mins); // arredonda antes de decompor para evitar carry (ex: 59.6 → 60 → 1h, não "60 min")
+  const days = Math.floor(total / DAY);
+  const rem  = total % DAY;
+  const h = Math.floor(rem / 60);
+  const m = rem % 60;
+  if (days >= 1) {
+    const label = days === 1 ? '1 dia útil' : `${days} dias úteis`;
+    return h > 0 ? `${label} e ${h}h` : label;
+  }
+  if (h > 0) return m > 0 ? `${h}h ${m}min` : `${h}h`;
+  return `${m} min`;
+}
+
+function fmtTicketDate(s) {
+  if (!s) return '';
+  const d = new Date(s + 'T12:00:00Z'); // noon UTC = 9h BRT, sem risco de virar dia
+  const p = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo', weekday: 'short', day: '2-digit', month: '2-digit'
+  }).formatToParts(d);
+  const get = t => (p.find(x => x.type === t) || {}).value || '';
+  const wdMap = { Sun: 'dom', Mon: 'seg', Tue: 'ter', Wed: 'qua', Thu: 'qui', Fri: 'sex', Sat: 'sáb' };
+  return `${wdMap[get('weekday')] || get('weekday')} ${get('day')}/${get('month')}`;
 }
 
 function renderTimeline(id, data) {
