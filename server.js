@@ -2844,24 +2844,35 @@ async function auditAnalyzeTicket(ticket, absences) {
     .map(m => m.created_at)
     .sort((a, b) => a - b)[0] ?? null;
 
-  // Maior gap: conta a partir da atribuição à agente (tempo em fila/Claudia não conta)
+  // Fallback: se não achou atividade de atribuição, usa o primeiro ato da agente monitorada
+  const firstMonitoredAct = Math.min(
+    ...snoozeActs
+      .filter(a => { const by = parseSnoozedBy(a.content);
+                     return by && MONITORED_FIRST.some(fn => by.toLowerCase().startsWith(fn)); })
+      .map(a => a.created_at),
+    ...agentOut.map(m => m.created_at)
+  );
+  const effectiveAssignTs = assignTs ?? (isFinite(firstMonitoredAct) ? firstMonitoredAct : null);
+
+  // Maior gap: todas as msgs do cliente; se havia espera antes da atribuição, conta só a partir dela
   let maxGapBH = 0;
-  const gapClientMsgs = assignTs != null ? clientMsgs.filter(m => m.created_at >= assignTs) : clientMsgs;
-  const allGapEvents = [...gapClientMsgs, ...agentOut].sort((a, b) => a.created_at - b.created_at);
+  const allGapEvents = [...clientMsgs, ...agentOut].sort((a, b) => a.created_at - b.created_at);
   let waitStart = null;
   for (const m of allGapEvents) {
     if (m.message_type === 0) {
       if (waitStart === null) waitStart = m.created_at;
     } else {
       if (waitStart !== null) {
-        const bh = auditBhMins(waitStart, m.created_at);
+        const effStart = effectiveAssignTs != null ? Math.max(waitStart, effectiveAssignTs) : waitStart;
+        const bh = auditBhMins(effStart, m.created_at);
         if (bh > maxGapBH) maxGapBH = bh;
         waitStart = null;
       }
     }
   }
   if (waitStart !== null) {
-    const bh = auditBhMins(waitStart, resolvedAt || gapClientMsgs.at(-1)?.created_at || agentOut.at(-1)?.created_at || waitStart);
+    const effStart = effectiveAssignTs != null ? Math.max(waitStart, effectiveAssignTs) : waitStart;
+    const bh = auditBhMins(effStart, resolvedAt || allGapEvents.at(-1)?.created_at || waitStart);
     if (bh > maxGapBH) maxGapBH = bh;
   }
 
@@ -2876,6 +2887,7 @@ async function auditAnalyzeTicket(ticket, absences) {
     hasBigGap: maxGapBH >= AUDIT_BH_DAY,
     noteCount: notes.length,
     excludedAbsence, resolvedAt,
+    hasAssignActivity: assignTs != null,
   };
 }
 
