@@ -591,7 +591,7 @@ function bhFmt(mins) {
   const m = rem % 60;
   if (days >= 1) {
     const label = days === 1 ? '1 dia útil' : `${days} dias úteis`;
-    return h > 0 ? `${label} e ${h}h` : label;
+    return h > 0 ? `${label} e ${h}h${m > 0 ? m : ''}` : label;
   }
   if (h > 0) return m > 0 ? `${h}h ${m}min` : `${h}h`;
   return `${m} min`;
