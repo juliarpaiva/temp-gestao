@@ -2887,15 +2887,11 @@ async function auditComputeRange(fromDate, toDate, onProgress = null) {
 
   // Persist/upsert computed tickets
   for (const r of results) {
-    // computed_at = data BRT de resolução do ticket (não a data em que rodou o cron/reprocess)
-    const brtDate = r.resolvedAt
-      ? new Date((r.resolvedAt - 3 * 3600) * 1000).toISOString().slice(0, 10)
-      : new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10);
     await pool.query(`
       INSERT INTO support_bi.audit_snooze_tickets
         (id, computed_at, agente, snoozed_by, n_snoozes, snoozes_com_nota, snoozes_sem_nota,
          is_s1, is_s1_pre, is_s1_post, is_s3, s3_max_gap_bh, max_gap_bh, has_big_gap, note_count, excluded_absence, resolved_at, data)
-      VALUES ($1, $18::date, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      VALUES ($1, NOW()::date, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       ON CONFLICT (id) DO UPDATE SET
         computed_at=EXCLUDED.computed_at, agente=EXCLUDED.agente, snoozed_by=EXCLUDED.snoozed_by,
         n_snoozes=EXCLUDED.n_snoozes, snoozes_com_nota=EXCLUDED.snoozes_com_nota,
@@ -2907,7 +2903,7 @@ async function auditComputeRange(fromDate, toDate, onProgress = null) {
     `, [
       r.id, r.agente, r.snoozedBy, r.nSnoozes, r.snoozesCom, r.snoozesSem,
       r.isS1, r.isS1Pre, r.isS1Post, r.isS3, r.s3MaxGapBH, r.maxGapBH, r.hasBigGap,
-      r.noteCount, r.excludedAbsence, r.resolvedAt, JSON.stringify(r), brtDate,
+      r.noteCount, r.excludedAbsence, r.resolvedAt, JSON.stringify(r),
     ]).catch(e => console.error('[audit] upsert ticket', r.id, e.message));
   }
 
@@ -2959,7 +2955,7 @@ cron.schedule('0 7 * * 1', async () => {
           SUM(n_snoozes)        FILTER (WHERE NOT excluded_absence)    AS total_snooz,
           COUNT(*)                                                     AS total
         FROM support_bi.audit_snooze_tickets
-        WHERE computed_at >= $1::date AND computed_at <= $2::date
+        WHERE (to_timestamp(resolved_at) AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $1::date AND $2::date
       `, [f, t]);
       return r.rows[0];
     }
@@ -3074,7 +3070,7 @@ app.get('/audit/data', auditRequireMgmt, async (req, res) => {
       LEFT JOIN support_bi.audit_validations v1 ON v1.ticket_id = t.id AND v1.indicator = 'S1'
       LEFT JOIN support_bi.audit_validations v3 ON v3.ticket_id = t.id AND v3.indicator = 'S3'
       LEFT JOIN support_bi.audit_validations vg ON vg.ticket_id = t.id AND vg.indicator = 'gap'
-      WHERE t.computed_at >= $1::date AND t.computed_at <= $2::date
+      WHERE (to_timestamp(t.resolved_at) AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $1::date AND $2::date
         AND t.agente = ANY(ARRAY['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz'])
       GROUP BY t.agente
       ORDER BY t.agente
@@ -3090,7 +3086,7 @@ app.get('/audit/tickets', auditRequireMgmt, async (req, res) => {
     if (!from || !to) return res.status(400).json({ error: 'from e to são obrigatórios' });
 
     const params = [from, to];
-    let where = `t.computed_at >= $1::date AND t.computed_at <= $2::date
+    let where = `(to_timestamp(t.resolved_at) AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $1::date AND $2::date
         AND t.agente = ANY(ARRAY['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz'])`;
     if (type === 'S1pre')  where += ` AND t.is_s1_pre = TRUE AND t.excluded_absence = FALSE`;
     else if (type === 'S1post') where += ` AND t.is_s1_post = TRUE AND t.excluded_absence = FALSE`;
@@ -3108,7 +3104,8 @@ app.get('/audit/tickets', auditRequireMgmt, async (req, res) => {
         t.is_s1, t.is_s1_pre, t.is_s1_post, t.is_s3, t.has_big_gap,
         ROUND(t.s3_max_gap_bh / 588.0, 2) AS s3_max_gap_days,
         ROUND(t.max_gap_bh / 588.0, 2)    AS max_gap_days,
-        t.note_count, t.excluded_absence, t.computed_at::text,
+        t.note_count, t.excluded_absence,
+        (to_timestamp(t.resolved_at) AT TIME ZONE 'America/Sao_Paulo')::date::text AS resolved_date,
         v1pre.status AS s1pre_status, v1pre.reason AS s1pre_reason, v1pre.validated_by AS s1pre_by,
         v1post.status AS s1post_status, v1post.reason AS s1post_reason, v1post.validated_by AS s1post_by,
         v1.status AS s1_status, v1.reason AS s1_reason, v1.validated_by AS s1_by,
@@ -3121,7 +3118,7 @@ app.get('/audit/tickets', auditRequireMgmt, async (req, res) => {
       LEFT JOIN support_bi.audit_validations v3 ON v3.ticket_id = t.id AND v3.indicator = 'S3'
       LEFT JOIN support_bi.audit_validations vg ON vg.ticket_id = t.id AND vg.indicator = 'gap'
       WHERE ${where}
-      ORDER BY t.computed_at DESC, t.id DESC
+      ORDER BY resolved_date DESC, t.id DESC
     `, params);
 
     res.json({ from, to, tickets: rows.rows });

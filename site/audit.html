@@ -544,7 +544,7 @@ function renderTickets(tickets) {
     return `<div class="ticket">
       <div class="ticket-hd" onclick="toggleTicket(${t.id})">
         <span class="ticket-id">#${t.id}</span>
-        <span class="ticket-ag">${t.agente} · ${t.computed_at}</span>
+        <span class="ticket-ag">${t.agente} · ${t.resolved_date || t.computed_at}</span>
         <div class="ticket-tags">${tags.join('')}</div>
       </div>
       <div class="ticket-bd" id="tbd-${t.id}">
