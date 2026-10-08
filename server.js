@@ -2887,11 +2887,15 @@ async function auditComputeRange(fromDate, toDate, onProgress = null) {
 
   // Persist/upsert computed tickets
   for (const r of results) {
+    // computed_at = data BRT de resolução do ticket (não a data em que rodou o cron/reprocess)
+    const brtDate = r.resolvedAt
+      ? new Date((r.resolvedAt - 3 * 3600) * 1000).toISOString().slice(0, 10)
+      : new Date(Date.now() - 3 * 3600000).toISOString().slice(0, 10);
     await pool.query(`
       INSERT INTO support_bi.audit_snooze_tickets
         (id, computed_at, agente, snoozed_by, n_snoozes, snoozes_com_nota, snoozes_sem_nota,
          is_s1, is_s1_pre, is_s1_post, is_s3, s3_max_gap_bh, max_gap_bh, has_big_gap, note_count, excluded_absence, resolved_at, data)
-      VALUES ($1, NOW()::date, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      VALUES ($1, $18::date, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       ON CONFLICT (id) DO UPDATE SET
         computed_at=EXCLUDED.computed_at, agente=EXCLUDED.agente, snoozed_by=EXCLUDED.snoozed_by,
         n_snoozes=EXCLUDED.n_snoozes, snoozes_com_nota=EXCLUDED.snoozes_com_nota,
@@ -2903,7 +2907,7 @@ async function auditComputeRange(fromDate, toDate, onProgress = null) {
     `, [
       r.id, r.agente, r.snoozedBy, r.nSnoozes, r.snoozesCom, r.snoozesSem,
       r.isS1, r.isS1Pre, r.isS1Post, r.isS3, r.s3MaxGapBH, r.maxGapBH, r.hasBigGap,
-      r.noteCount, r.excludedAbsence, r.resolvedAt, JSON.stringify(r),
+      r.noteCount, r.excludedAbsence, r.resolvedAt, JSON.stringify(r), brtDate,
     ]).catch(e => console.error('[audit] upsert ticket', r.id, e.message));
   }
 
@@ -3255,7 +3259,9 @@ app.delete('/audit/absences/:id', auditRequireMgmt, async (req, res) => {
 // POST /audit/run — dispara reprocessamento em background, retorna jobId
 app.post('/audit/run', auditRequireMgmt, express.json(), (req, res) => {
   const { from, to } = req.body || {};
-  if (!from) return res.status(400).json({ error: 'from é obrigatório no body' });
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  if (!from || !DATE_RE.test(from)) return res.status(400).json({ error: 'from deve ser uma data no formato AAAA-MM-DD' });
+  if (to && !DATE_RE.test(to))      return res.status(400).json({ error: 'to deve ser uma data no formato AAAA-MM-DD' });
   const toDate = to || from;
 
   // Bloqueia reprocessamento manual durante horário comercial (9h–18h48 BRT)

@@ -726,8 +726,9 @@ async function delAbsence(id) {
 
 // ── Reprocessar (background job) ──
 async function startReprocess(force = false) {
-  const from = document.getElementById('from').value;
-  const to   = document.getElementById('to').value;
+  const fromVal = document.getElementById('from').value;
+  const toVal   = document.getElementById('to').value;
+  const from = fromVal, to = toVal;
   if (!from) return alert('Defina o período no filtro acima.');
   try {
     const body = { from, to };
@@ -745,11 +746,11 @@ async function startReprocess(force = false) {
     document.getElementById('btn-force').style.display = 'none';
     if (!r.ok) return alert('Erro: ' + d.error);
     document.getElementById('job-progress').style.display = '';
-    pollJob(d.jobId);
+    pollJob(d.jobId, from, toVal);
   } catch(e) { alert('Erro: ' + e.message); }
 }
 
-function pollJob(jobId) {
+function pollJob(jobId, fromDate, toDate) {
   clearTimeout(_pollTimer);
   _pollTimer = setTimeout(async () => {
     try {
@@ -761,8 +762,8 @@ function pollJob(jobId) {
         `${d.step || 'processando'}… ${d.analyzed}/${d.total || '?'} tickets`;
       document.getElementById('job-fill').style.width = (d.progress||0)+'%';
       document.getElementById('job-info').textContent =
-        `${from} → ${d.to} · iniciado ${new Date(d.startedAt).toLocaleTimeString('pt-BR')}`;
-      if (d.status === 'running') pollJob(jobId);
+        `${d.from || fromDate} → ${d.to || toDate} · iniciado ${new Date(d.startedAt).toLocaleTimeString('pt-BR')}`;
+      if (d.status === 'running') pollJob(jobId, fromDate, toDate);
       else if (d.status === 'done') { setTimeout(() => switchView('dashboard'), 1500); }
     } catch {}
   }, 1200);
