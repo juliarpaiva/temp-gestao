@@ -213,6 +213,7 @@ tr:hover td { background: var(--surf2); }
 
   <!-- ── DASHBOARD ── -->
   <div id="view-dashboard">
+    <div id="cards-base" style="font-size:12px;color:var(--muted);margin-bottom:8px"></div>
     <div class="cards" id="summary-cards"></div>
     <div class="chart-wrap" id="chart-section" style="display:none">
       <div class="chart-title">Últimas 8 semanas</div>
@@ -387,7 +388,9 @@ async function loadDashboard() {
 
 function pct(num, den) {
   if (!den || Number(den) === 0) return '—';
-  return (Number(num) / Number(den) * 100).toFixed(0) + '%';
+  const v = Number(num) / Number(den) * 100;
+  if (v > 0 && v < 1) return 'menos de 1%';
+  return v.toFixed(0) + '%';
 }
 function n(v) { return Number(v) || 0; }
 
@@ -400,12 +403,13 @@ function renderCards(rows) {
   const s1postSem = rows.reduce((s,r) => s + n(r.s1_post_sem_nota), 0);
   const total     = rows.reduce((s,r) => s + n(r.total), 0);
   const pl = n => n === 1 ? 'caso' : 'casos';
+  document.getElementById('cards-base').textContent =
+    `Base: ${total} ticket${total !== 1 ? 's' : ''} resolvidos por ${rows.length} agente${rows.length !== 1 ? 's' : ''} no período`;
   document.getElementById('summary-cards').innerHTML = `
     <div class="card c-s1pre"  onclick="filterBy('S1pre')"><div class="card-lbl">Adiado antes da 1ª resposta</div><div class="card-val">${s1pre}</div><div class="card-sub">${pct(s1pre,total)} dos tickets</div><div class="card-sub2">${s1preSem} ${pl(s1preSem)} sem nota</div></div>
     <div class="card c-s1post" onclick="filterBy('S1post')"><div class="card-lbl">Adiado com cliente esperando (depois da 1ª resposta)</div><div class="card-val">${s1post}</div><div class="card-sub">${pct(s1post,total)} dos tickets</div><div class="card-sub2">${s1postSem} ${pl(s1postSem)} sem nota</div></div>
     <div class="card c-s3"    onclick="filterBy('S3')"><div class="card-lbl">Adiado várias vezes sem atualizar o cliente</div><div class="card-val">${s3}</div><div class="card-sub">${pct(s3,total)} dos tickets</div></div>
     <div class="card c-gap"   onclick="filterBy('gap')"><div class="card-lbl">Mais de 1 dia útil sem mensagem ao cliente</div><div class="card-val">${gap}</div><div class="card-sub">${pct(gap,total)} dos tickets</div></div>
-    <div class="card c-ok"    onclick="filterBy('')"><div class="card-lbl">Total resolvidos</div><div class="card-val">${total}</div><div class="card-sub">${rows.length} agentes</div></div>
   `;
 }
 
