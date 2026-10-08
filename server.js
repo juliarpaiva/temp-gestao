@@ -2836,9 +2836,18 @@ async function auditAnalyzeTicket(ticket, absences) {
     }
   }
 
-  // Maior gap: só conta tempo em que o cliente estava aguardando resposta
+  // Timestamp da primeira atribuição do ticket à agente monitorada (atividade "atribu*" no histórico)
+  const agenteFn = agente.toLowerCase().split(' ')[0];
+  const assignTs = msgs
+    .filter(m => m.message_type === 2 && /atribu/i.test(m.content || '') &&
+                 new RegExp(agenteFn, 'i').test(m.content || ''))
+    .map(m => m.created_at)
+    .sort((a, b) => a - b)[0] ?? null;
+
+  // Maior gap: conta a partir da atribuição à agente (tempo em fila/Claudia não conta)
   let maxGapBH = 0;
-  const allGapEvents = [...clientMsgs, ...agentOut].sort((a, b) => a.created_at - b.created_at);
+  const gapClientMsgs = assignTs != null ? clientMsgs.filter(m => m.created_at >= assignTs) : clientMsgs;
+  const allGapEvents = [...gapClientMsgs, ...agentOut].sort((a, b) => a.created_at - b.created_at);
   let waitStart = null;
   for (const m of allGapEvents) {
     if (m.message_type === 0) {
@@ -2852,7 +2861,7 @@ async function auditAnalyzeTicket(ticket, absences) {
     }
   }
   if (waitStart !== null) {
-    const bh = auditBhMins(waitStart, resolvedAt || allGapEvents.at(-1)?.created_at || waitStart);
+    const bh = auditBhMins(waitStart, resolvedAt || gapClientMsgs.at(-1)?.created_at || agentOut.at(-1)?.created_at || waitStart);
     if (bh > maxGapBH) maxGapBH = bh;
   }
 
