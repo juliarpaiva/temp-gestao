@@ -237,16 +237,14 @@ tr:hover td { background: var(--surf2); }
             <tr>
               <th rowspan="2">Agente</th>
               <th rowspan="2">Tickets</th>
-              <th colspan="2" title="Adiado antes da 1ª resposta">Antes 1ª resp.</th>
-              <th colspan="2" title="Adiado com cliente esperando, depois da 1ª resposta">Depois 1ª resp.</th>
+              <th colspan="3" title="Adiado antes da 1ª resposta">Antes 1ª resp.</th>
+              <th colspan="3" title="Adiado com cliente esperando, depois da 1ª resposta">Depois 1ª resp.</th>
               <th colspan="2" title="Adiado várias vezes sem atualizar o cliente">Adiado várias vezes</th>
               <th colspan="2" title="Mais de 1 dia útil sem mensagem ao cliente">&gt;1 dia útil</th>
-              <th rowspan="2" title="Adiamentos sem nota em ±30 min">Adiam. s/nota</th>
-              <th rowspan="2" title="% de adiamentos sem nota">% s/nota</th>
             </tr>
             <tr>
-              <th style="font-size:10px">Total</th><th style="font-size:10px;color:var(--ok)">Após valid.</th>
-              <th style="font-size:10px">Total</th><th style="font-size:10px;color:var(--ok)">Após valid.</th>
+              <th style="font-size:10px">Total</th><th style="font-size:10px;color:var(--ok)">Após valid.</th><th style="font-size:10px;color:var(--warn)">Sem nota</th>
+              <th style="font-size:10px">Total</th><th style="font-size:10px;color:var(--ok)">Após valid.</th><th style="font-size:10px;color:var(--warn)">Sem nota</th>
               <th style="font-size:10px">Total</th><th style="font-size:10px;color:var(--ok)">Após valid.</th>
               <th style="font-size:10px">Total</th><th style="font-size:10px;color:var(--ok)">Após valid.</th>
             </tr>
@@ -268,7 +266,6 @@ tr:hover td { background: var(--surf2); }
           <option value="S1post">Adiado com cliente esperando (depois da 1ª resposta)</option>
           <option value="S3">Adiado várias vezes sem atualizar o cliente</option>
           <option value="gap">Mais de 1 dia útil sem mensagem ao cliente</option>
-          <option value="nota">Adiamentos sem motivo registrado</option>
         </select>
       </div>
       <div class="fld">
@@ -394,20 +391,18 @@ function pct(num, den) {
 function n(v) { return Number(v) || 0; }
 
 function renderCards(rows) {
-  const s1pre  = rows.reduce((s,r) => s + n(r.s1_pre_raw), 0);
-  const s1post = rows.reduce((s,r) => s + n(r.s1_post_raw), 0);
-  const s1    = rows.reduce((s,r) => s + n(r.s1_raw), 0);
-  const s3    = rows.reduce((s,r) => s + n(r.s3_raw), 0);
-  const gap   = rows.reduce((s,r) => s + n(r.gap_raw), 0);
-  const sem   = rows.reduce((s,r) => s + n(r.snoozes_sem_nota), 0);
-  const tot   = rows.reduce((s,r) => s + n(r.snoozes_total), 0);
-  const total = rows.reduce((s,r) => s + n(r.total), 0);
+  const s1pre     = rows.reduce((s,r) => s + n(r.s1_pre_raw), 0);
+  const s1post    = rows.reduce((s,r) => s + n(r.s1_post_raw), 0);
+  const s3        = rows.reduce((s,r) => s + n(r.s3_raw), 0);
+  const gap       = rows.reduce((s,r) => s + n(r.gap_raw), 0);
+  const s1preSem  = rows.reduce((s,r) => s + n(r.s1_pre_sem_nota), 0);
+  const s1postSem = rows.reduce((s,r) => s + n(r.s1_post_sem_nota), 0);
+  const total     = rows.reduce((s,r) => s + n(r.total), 0);
   document.getElementById('summary-cards').innerHTML = `
-    <div class="card c-s1pre"  onclick="filterBy('S1pre')"><div class="card-lbl">Adiado antes da 1ª resposta</div><div class="card-val">${s1pre}</div><div class="card-sub">${pct(s1pre,total)} dos tickets</div></div>
-    <div class="card c-s1post" onclick="filterBy('S1post')"><div class="card-lbl">Adiado com cliente esperando (depois da 1ª resposta)</div><div class="card-val">${s1post}</div><div class="card-sub">${pct(s1post,total)} dos tickets</div></div>
+    <div class="card c-s1pre"  onclick="filterBy('S1pre')"><div class="card-lbl">Adiado antes da 1ª resposta</div><div class="card-val">${s1pre}</div><div class="card-sub">${s1pre} casos · ${s1preSem} sem nota</div></div>
+    <div class="card c-s1post" onclick="filterBy('S1post')"><div class="card-lbl">Adiado com cliente esperando (depois da 1ª resposta)</div><div class="card-val">${s1post}</div><div class="card-sub">${s1post} casos · ${s1postSem} sem nota</div></div>
     <div class="card c-s3"    onclick="filterBy('S3')"><div class="card-lbl">Adiado várias vezes sem atualizar o cliente</div><div class="card-val">${s3}</div><div class="card-sub">${pct(s3,total)} dos tickets</div></div>
     <div class="card c-gap"   onclick="filterBy('gap')"><div class="card-lbl">Mais de 1 dia útil sem mensagem ao cliente</div><div class="card-val">${gap}</div><div class="card-sub">${pct(gap,total)} dos tickets</div></div>
-    <div class="card c-nota"  onclick="filterBy('nota')"><div class="card-lbl">Adiamentos sem motivo registrado</div><div class="card-val">${sem}</div><div class="card-sub">${pct(sem,tot)} dos adiamentos</div></div>
     <div class="card c-ok"    onclick="filterBy('')"><div class="card-lbl">Total resolvidos</div><div class="card-val">${total}</div><div class="card-sub">${rows.length} agentes</div></div>
   `;
 }
@@ -416,22 +411,25 @@ function renderTable(rows) {
   const tbody = document.getElementById('agent-tbody');
   if (!rows.length) { tbody.innerHTML = '<tr><td colspan="12" class="empty">Sem dados. Use "Reprocessar" para calcular.</td></tr>'; return; }
   tbody.innerHTML = rows.map(r => {
-    const sem = n(r.snoozes_sem_nota), tot = n(r.snoozes_total);
     const ag = r.agente.replace(/'/g, "\\'");
     function cell(raw, valid, type, cls) {
       const click = raw > 0 ? ` style="cursor:pointer" onclick="filterBy('${type}','${ag}')"` : '';
       const vl = valid || 0;
       return `<td class="${cls}"${click}>${raw}</td><td class="n-muted" style="font-size:12px">${vl || '—'}</td>`;
     }
+    function cellNote3(raw, valid, semNota, type, cls) {
+      const click = raw > 0 ? ` style="cursor:pointer" onclick="filterBy('${type}','${ag}')"` : '';
+      const vl = valid || 0;
+      const sn = semNota || 0;
+      return `<td class="${cls}"${click}>${raw}</td><td class="n-muted" style="font-size:12px">${vl || '—'}</td><td class="${sn > 0 ? 'n-s1' : 'n-muted'}" style="font-size:12px">${sn || '—'}</td>`;
+    }
     return `<tr>
       <td><strong>${r.agente}</strong></td>
       <td>${r.total}</td>
-      ${cell(n(r.s1_pre_raw),  n(r.s1_pre_validated),  'S1pre',  'n-s1pre')}
-      ${cell(n(r.s1_post_raw), n(r.s1_post_validated), 'S1post', 'n-s1post')}
+      ${cellNote3(n(r.s1_pre_raw),  n(r.s1_pre_validated),  n(r.s1_pre_sem_nota),  'S1pre',  'n-s1pre')}
+      ${cellNote3(n(r.s1_post_raw), n(r.s1_post_validated), n(r.s1_post_sem_nota), 'S1post', 'n-s1post')}
       ${cell(n(r.s3_raw),      n(r.s3_validated),      'S3',     'n-s3')}
       ${cell(n(r.gap_raw),     n(r.gap_validated),     'gap',    'n-gap')}
-      <td class="${sem > 0 ? 'n-s1' : 'n-muted'}">${sem}</td>
-      <td class="${sem/tot > .5 ? 'n-s3' : 'n-muted'}">${pct(sem,tot)}</td>
     </tr>`;
   }).join('');
 }
@@ -641,8 +639,9 @@ function renderTimeline(id, data) {
       if (e.clientWaiting)  flags.push(`<span class="tl-flag warn">cliente esperando</span>`);
       if (!e.hadPrior && e.clientWaiting) flags.push(`<span class="tl-flag warn">sem resposta anterior</span>`);
       if (e.hadPrior && e.clientWaiting)  flags.push(`<span class="tl-flag">com resposta anterior</span>`);
-      if (e.hadNote)   flags.push(`<span class="tl-flag ok">nota em 30min</span>`);
-      if (!e.hadNote)  flags.push(`<span class="tl-flag warn">sem nota em 30min</span>`);
+      if (!e.clientWaiting) flags.push(`<span class="tl-flag">aguardando cliente</span>`);
+      else if (e.hadNote)   flags.push(`<span class="tl-flag ok">com nota</span>`);
+      else                  flags.push(`<span class="tl-flag warn">sem nota</span>`);
       return `<div class="tl-item tl-snooze ${cls}">
         <div class="tl-time">${time}</div>
         <div class="tl-body"><span class="tl-kind">⏸ ${e.sender} — adiamento</span>

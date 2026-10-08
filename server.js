@@ -2539,6 +2539,8 @@ async function initDb() {
         is_s1            BOOLEAN DEFAULT FALSE,
         is_s1_pre        BOOLEAN DEFAULT FALSE,
         is_s1_post       BOOLEAN DEFAULT FALSE,
+        s1_pre_com_nota  BOOLEAN DEFAULT FALSE,
+        s1_post_com_nota BOOLEAN DEFAULT FALSE,
         is_s3            BOOLEAN DEFAULT FALSE,
         s3_max_gap_bh    NUMERIC DEFAULT 0,
         max_gap_bh       NUMERIC DEFAULT 0,
@@ -2568,6 +2570,13 @@ async function initDb() {
   await pool.query(`ALTER TABLE support_bi.csat_users ALTER COLUMN password_hash DROP NOT NULL`).catch(() => {});
   await pool.query(`ALTER TABLE support_bi.audit_snooze_tickets ADD COLUMN IF NOT EXISTS is_s1_pre BOOLEAN DEFAULT FALSE`).catch(() => {});
   await pool.query(`ALTER TABLE support_bi.audit_snooze_tickets ADD COLUMN IF NOT EXISTS is_s1_post BOOLEAN DEFAULT FALSE`).catch(() => {});
+  const _auditHasCol = async col => (await pool.query(
+    `SELECT 1 FROM information_schema.columns WHERE table_schema='support_bi' AND table_name='audit_snooze_tickets' AND column_name=$1`, [col]
+  )).rows.length > 0;
+  if (!await _auditHasCol('s1_pre_com_nota'))
+    await pool.query(`ALTER TABLE support_bi.audit_snooze_tickets ADD COLUMN s1_pre_com_nota BOOLEAN DEFAULT FALSE`);
+  if (!await _auditHasCol('s1_post_com_nota'))
+    await pool.query(`ALTER TABLE support_bi.audit_snooze_tickets ADD COLUMN s1_post_com_nota BOOLEAN DEFAULT FALSE`);
   await auditSeedAbsences().catch(e => console.error('[initDb] seed ausências:', e.message));
   console.log('[initDb] banco de dados pronto.');
 }
@@ -2777,6 +2786,27 @@ async function auditAnalyzeTicket(ticket, absences) {
   }
   const isS1 = isS1Pre || isS1Post;
 
+  // Nota nos adiamentos que geraram S1pre / S1post
+  let s1PreComNota = false, s1PostComNota = false;
+  if (isS1Pre) {
+    const s1PreSnoozes = effectiveSnoozes.filter(act => {
+      const { waiting } = clientWaitingAt(act.created_at);
+      return waiting && !agentOut.some(m => m.created_at < act.created_at);
+    });
+    s1PreComNota = s1PreSnoozes.length > 0 &&
+      s1PreSnoozes.every(act => notes.some(n => n.created_at >= act.created_at - 1800 && n.created_at <= act.created_at + 1800));
+  }
+  if (isS1Post) {
+    // Todos os adiamentos efetivos onde o cliente estava esperando e já havia resposta anterior
+    const s1PostSnoozes = effectiveSnoozes.filter(act => {
+      const { waiting } = clientWaitingAt(act.created_at);
+      return waiting && agentOut.some(m => m.created_at < act.created_at);
+    });
+    // "com nota" só se TODOS tiveram nota; qualquer um sem nota → false
+    s1PostComNota = s1PostSnoozes.length > 0 &&
+      s1PostSnoozes.every(act => notes.some(n => n.created_at >= act.created_at - 1800 && n.created_at <= act.created_at + 1800));
+  }
+
   // S3: grupo de 2+ adiamentos efetivos onde havia cliente esperando em CADA adiamento do grupo,
   //     sem msg da agente entre eles, E ≥ 2h úteis entre 1º e último do grupo
   let isS3 = false, s3MaxGapBH = 0;
@@ -2833,7 +2863,7 @@ async function auditAnalyzeTicket(ticket, absences) {
     id: ticket.id, agente, snoozedBy,
     nSnoozes: snoozeActs.length,
     snoozesCom, snoozesSem,
-    isS1, isS1Pre, isS1Post, isS3, s3MaxGapBH, maxGapBH,
+    isS1, isS1Pre, isS1Post, s1PreComNota, s1PostComNota, isS3, s3MaxGapBH, maxGapBH,
     hasBigGap: maxGapBH >= AUDIT_BH_DAY,
     noteCount: notes.length,
     excludedAbsence, resolvedAt,
@@ -2890,13 +2920,15 @@ async function auditComputeRange(fromDate, toDate, onProgress = null) {
     await pool.query(`
       INSERT INTO support_bi.audit_snooze_tickets
         (id, computed_at, agente, snoozed_by, n_snoozes, snoozes_com_nota, snoozes_sem_nota,
-         is_s1, is_s1_pre, is_s1_post, is_s3, s3_max_gap_bh, max_gap_bh, has_big_gap, note_count, excluded_absence, resolved_at, data)
-      VALUES ($1, NOW()::date, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+         is_s1, is_s1_pre, is_s1_post, is_s3, s3_max_gap_bh, max_gap_bh, has_big_gap, note_count, excluded_absence, resolved_at, data,
+         s1_pre_com_nota, s1_post_com_nota)
+      VALUES ($1, NOW()::date, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
       ON CONFLICT (id) DO UPDATE SET
         computed_at=EXCLUDED.computed_at, agente=EXCLUDED.agente, snoozed_by=EXCLUDED.snoozed_by,
         n_snoozes=EXCLUDED.n_snoozes, snoozes_com_nota=EXCLUDED.snoozes_com_nota,
         snoozes_sem_nota=EXCLUDED.snoozes_sem_nota, is_s1=EXCLUDED.is_s1,
         is_s1_pre=EXCLUDED.is_s1_pre, is_s1_post=EXCLUDED.is_s1_post,
+        s1_pre_com_nota=EXCLUDED.s1_pre_com_nota, s1_post_com_nota=EXCLUDED.s1_post_com_nota,
         is_s3=EXCLUDED.is_s3, s3_max_gap_bh=EXCLUDED.s3_max_gap_bh, max_gap_bh=EXCLUDED.max_gap_bh,
         has_big_gap=EXCLUDED.has_big_gap, note_count=EXCLUDED.note_count,
         excluded_absence=EXCLUDED.excluded_absence, resolved_at=EXCLUDED.resolved_at, data=EXCLUDED.data
@@ -2904,6 +2936,7 @@ async function auditComputeRange(fromDate, toDate, onProgress = null) {
       r.id, r.agente, r.snoozedBy, r.nSnoozes, r.snoozesCom, r.snoozesSem,
       r.isS1, r.isS1Pre, r.isS1Post, r.isS3, r.s3MaxGapBH, r.maxGapBH, r.hasBigGap,
       r.noteCount, r.excludedAbsence, r.resolvedAt, JSON.stringify(r),
+      r.s1PreComNota, r.s1PostComNota,
     ]).catch(e => console.error('[audit] upsert ticket', r.id, e.message));
   }
 
@@ -3054,6 +3087,8 @@ app.get('/audit/data', auditRequireMgmt, async (req, res) => {
         SUM(t.n_snoozes)        FILTER (WHERE NOT t.excluded_absence)         AS snoozes_total,
         MAX(t.s3_max_gap_bh)    FILTER (WHERE t.is_s3 AND NOT t.excluded_absence) AS s3_max_gap_bh,
         MAX(t.max_gap_bh)       FILTER (WHERE t.has_big_gap AND NOT t.excluded_absence) AS max_gap_bh,
+        COUNT(*) FILTER (WHERE t.is_s1_pre AND NOT t.excluded_absence AND NOT COALESCE(t.s1_pre_com_nota, FALSE))  AS s1_pre_sem_nota,
+        COUNT(*) FILTER (WHERE t.is_s1_post AND NOT t.excluded_absence AND NOT COALESCE(t.s1_post_com_nota, FALSE)) AS s1_post_sem_nota,
         COUNT(*) FILTER (WHERE v1pre.status = 'confirmed')                    AS s1_pre_validated,
         COUNT(*) FILTER (WHERE v1post.status = 'confirmed')                   AS s1_post_validated,
         COUNT(*) FILTER (WHERE v1.status = 'confirmed')                       AS s1_validated,
@@ -3093,7 +3128,6 @@ app.get('/audit/tickets', auditRequireMgmt, async (req, res) => {
     else if (type === 'S1')  where += ` AND t.is_s1 = TRUE AND t.excluded_absence = FALSE`;
     else if (type === 'S3')  where += ` AND t.is_s3 = TRUE AND t.excluded_absence = FALSE`;
     else if (type === 'gap') where += ` AND t.has_big_gap = TRUE AND t.excluded_absence = FALSE`;
-    else if (type === 'nota') where += ` AND t.snoozes_sem_nota > 0 AND t.excluded_absence = FALSE`;
     else where += ` AND (t.is_s1 OR t.is_s3 OR t.has_big_gap) AND t.excluded_absence = FALSE`;
     if (agent) { params.push(agent); where += ` AND t.agente = $${params.length}`; }
 
