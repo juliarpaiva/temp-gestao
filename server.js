@@ -3008,14 +3008,33 @@ async function auditComputeRange(fromDate, toDate, onProgress = null) {
 
   // Analisa em batches e atualiza progresso
   const results = [];
+  const failedIds = [];
   const CONC = 3;
   for (let i = 0; i < tickets.length; i += CONC) {
-    const batch = await Promise.all(tickets.slice(i, i + CONC).map(t => auditAnalyzeTicket(t, absences, extractCtx)));
-    results.push(...batch.filter(Boolean));
+    const batchTickets = tickets.slice(i, i + CONC);
+    const batch = await Promise.all(batchTickets.map(t => auditAnalyzeTicket(t, absences, extractCtx)));
+    for (let j = 0; j < batch.length; j++) {
+      if (batch[j]) results.push(batch[j]);
+      else { const tid = batchTickets[j].id; failedIds.push(tid); console.warn(`[audit] falha #${tid}`); }
+    }
     if (onProgress) {
       const analyzed = i + CONC;
       const progress = 10 + Math.round((analyzed / tickets.length) * 85);
-      onProgress({ step: 'analisando', progress: Math.min(progress, 95), total: tickets.length, analyzed: results.length });
+      onProgress({ step: 'analisando', progress: Math.min(progress, 95), total: tickets.length, analyzed: results.length, failed: failedIds.length });
+    }
+  }
+
+  // Marca tickets que falharam para retry posterior
+  if (failedIds.length) {
+    console.warn(`[audit] ${failedIds.length} tickets com falha: ${failedIds.join(', ')}`);
+    const failedAt = new Date().toISOString();
+    for (const id of failedIds) {
+      await pool.query(
+        `UPDATE support_bi.audit_snooze_tickets
+         SET data = COALESCE(data, '{}'::jsonb) || $1::jsonb, computed_at = NOW()::date
+         WHERE id = $2`,
+        [JSON.stringify({ failed: true, failedAt, assignSource: null }), id]
+      ).catch(e => console.error('[audit] mark-failed', id, e.message));
     }
   }
 
@@ -3044,8 +3063,84 @@ async function auditComputeRange(fromDate, toDate, onProgress = null) {
     ]).catch(e => console.error('[audit] upsert ticket', r.id, e.message));
   }
 
-  if (onProgress) onProgress({ step: 'concluído', progress: 100, total: tickets.length, analyzed: results.length });
-  return { total: tickets.length, analyzed: results.length };
+  if (onProgress) onProgress({ step: 'concluído', progress: 100, total: tickets.length, analyzed: results.length, failed: failedIds.length });
+  return { total: tickets.length, analyzed: results.length, failed: failedIds.length };
+}
+
+async function auditRetryFailed(fromDate, toDate, onProgress = null) {
+  const r = await pool.query(`
+    SELECT id FROM support_bi.audit_snooze_tickets
+    WHERE (to_timestamp(resolved_at) AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $1 AND $2
+      AND ((data->>'failed')::boolean = true OR data->>'assignSource' IS NULL)
+    ORDER BY id`, [fromDate, toDate]);
+  const ids = r.rows.map(x => x.id);
+  if (!ids.length) {
+    if (onProgress) onProgress({ step: 'concluído', progress: 100, total: 0, analyzed: 0, failed: 0 });
+    return { retried: 0, succeeded: 0, stillFailed: 0 };
+  }
+  console.log(`[audit-retry] ${ids.length} tickets para retry (${fromDate}→${toDate})`);
+  if (onProgress) onProgress({ step: `tentando ${ids.length} tickets`, progress: 5, total: ids.length, analyzed: 0, failed: 0 });
+
+  const absRows  = await pool.query(`SELECT agent, start_date::text, end_date::text, type FROM support_bi.audit_absences`);
+  const absences = absRows.rows;
+  const agentsRaw = await auditCc(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/agents`).catch(() => []);
+  const agentsArr = Array.isArray(agentsRaw) ? agentsRaw : (agentsRaw?.data || []);
+  const BOT_AGENT_RE = /claudia|bot|automat|system/i;
+  const humanFirstNames = new Set(
+    agentsArr.filter(a => !BOT_AGENT_RE.test(a.name || '')).map(a => (a.name || '').toLowerCase().split(' ')[0]).filter(Boolean)
+  );
+  const extractRawMap = await fetchAuditExtractMap(fromDate, toDate).catch(() => new Map());
+  const extractCtx = { map: extractRawMap, humanFirstNames };
+
+  let succeeded = 0, stillFailed = 0;
+  const CONC = 3;
+  for (let i = 0; i < ids.length; i += CONC) {
+    const chunk = ids.slice(i, i + CONC);
+    await Promise.all(chunk.map(async id => {
+      try {
+        const ticket = await auditCc(`/api/v1/accounts/${CLOUDCHAT_ACCOUNT}/conversations/${id}`);
+        if (!ticket?.id) { stillFailed++; console.warn(`[audit-retry] #${id} sem ticket`); return; }
+        const result = await auditAnalyzeTicket(ticket, absences, extractCtx);
+        if (!result) { stillFailed++; console.warn(`[audit-retry] #${id} análise nula`); return; }
+        await pool.query(`
+          INSERT INTO support_bi.audit_snooze_tickets
+            (id, computed_at, agente, snoozed_by, n_snoozes, snoozes_com_nota, snoozes_sem_nota,
+             is_s1, is_s1_pre, is_s1_post, is_s3, s3_max_gap_bh, max_gap_bh, has_big_gap, note_count, excluded_absence, resolved_at, data,
+             s1_pre_com_nota, s1_post_com_nota)
+          VALUES ($1, NOW()::date, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+          ON CONFLICT (id) DO UPDATE SET
+            computed_at=EXCLUDED.computed_at, agente=EXCLUDED.agente, snoozed_by=EXCLUDED.snoozed_by,
+            n_snoozes=EXCLUDED.n_snoozes, snoozes_com_nota=EXCLUDED.snoozes_com_nota,
+            snoozes_sem_nota=EXCLUDED.snoozes_sem_nota, is_s1=EXCLUDED.is_s1,
+            is_s1_pre=EXCLUDED.is_s1_pre, is_s1_post=EXCLUDED.is_s1_post,
+            s1_pre_com_nota=EXCLUDED.s1_pre_com_nota, s1_post_com_nota=EXCLUDED.s1_post_com_nota,
+            is_s3=EXCLUDED.is_s3, s3_max_gap_bh=EXCLUDED.s3_max_gap_bh, max_gap_bh=EXCLUDED.max_gap_bh,
+            has_big_gap=EXCLUDED.has_big_gap, note_count=EXCLUDED.note_count,
+            excluded_absence=EXCLUDED.excluded_absence, resolved_at=EXCLUDED.resolved_at, data=EXCLUDED.data
+        `, [result.id, result.agente, result.snoozedBy, result.nSnoozes, result.snoozesCom, result.snoozesSem,
+            result.isS1, result.isS1Pre, result.isS1Post, result.isS3, result.s3MaxGapBH, result.maxGapBH, result.hasBigGap,
+            result.noteCount, result.excludedAbsence, result.resolvedAt, JSON.stringify(result),
+            result.s1PreComNota, result.s1PostComNota]);
+        succeeded++;
+        console.log(`[audit-retry] #${id} OK (${result.assignSource})`);
+      } catch (e) {
+        stillFailed++;
+        console.warn(`[audit-retry] #${id} falhou: ${e.message}`);
+        await pool.query(
+          `UPDATE support_bi.audit_snooze_tickets
+           SET data = COALESCE(data, '{}'::jsonb) || jsonb_build_object('failed', true, 'failedAt', $1::text, 'failCount', COALESCE((data->>'failCount')::int, 0) + 1)
+           WHERE id = $2`, [new Date().toISOString(), id]
+        ).catch(() => {});
+      }
+    }));
+    if (onProgress) {
+      const done = Math.min(i + CONC, ids.length);
+      onProgress({ step: 'tentando', progress: Math.round((done / ids.length) * 95), total: ids.length, analyzed: succeeded, failed: stillFailed });
+    }
+  }
+  console.log(`[audit-retry] concluído: ${succeeded}/${ids.length} OK, ${stillFailed} ainda falhos`);
+  if (onProgress) onProgress({ step: 'concluído', progress: 100, total: ids.length, analyzed: succeeded, failed: stillFailed });
+  return { retried: ids.length, succeeded, stillFailed };
 }
 
 function previousBusinessDate() {
@@ -3063,6 +3158,12 @@ cron.schedule('30 6 * * 1-5', async () => {
     console.log('[audit-cron] iniciando computo para', prev);
     await auditComputeRange(prev, prev);
     console.log('[audit-cron] concluído para', prev);
+    // Retry automático de tickets com falha dos últimos 7 dias
+    const sevenAgo = new Date();
+    sevenAgo.setUTCHours(sevenAgo.getUTCHours() - 3);
+    sevenAgo.setUTCDate(sevenAgo.getUTCDate() - 7);
+    const { retried, succeeded } = await auditRetryFailed(sevenAgo.toISOString().slice(0, 10), prev);
+    if (retried > 0) console.log(`[audit-cron] retry: ${succeeded}/${retried} recuperados`);
   } catch (e) {
     console.error('[audit-cron] erro:', e.message);
   }
@@ -3093,6 +3194,7 @@ cron.schedule('0 7 * * 1', async () => {
           COUNT(*)                                                     AS total
         FROM support_bi.audit_snooze_tickets
         WHERE (to_timestamp(resolved_at) AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $1::date AND $2::date
+          AND (data->>'failed') IS DISTINCT FROM 'true'
       `, [f, t]);
       return r.rows[0];
     }
@@ -3101,6 +3203,7 @@ cron.schedule('0 7 * * 1', async () => {
       SELECT COUNT(DISTINCT t.id) AS pendentes
       FROM support_bi.audit_snooze_tickets t
       WHERE (t.is_s1 OR t.is_s3 OR t.has_big_gap) AND NOT t.excluded_absence
+        AND (t.data->>'failed') IS DISTINCT FROM 'true'
         AND NOT EXISTS (
           SELECT 1 FROM support_bi.audit_validations v
           WHERE v.ticket_id = t.id
@@ -3211,11 +3314,20 @@ app.get('/audit/data', auditRequireMgmt, async (req, res) => {
       LEFT JOIN support_bi.audit_validations vg ON vg.ticket_id = t.id AND vg.indicator = 'gap'
       WHERE (to_timestamp(t.resolved_at) AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $1::date AND $2::date
         AND t.agente = ANY(ARRAY['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz'])
+        AND (t.data->>'failed') IS DISTINCT FROM 'true'
       GROUP BY t.agente
       ORDER BY t.agente
     `, [from, to]);
 
-    res.json({ from, to, byAgent: rows.rows });
+    const failedRow = await pool.query(`
+      SELECT COUNT(*) AS n FROM support_bi.audit_snooze_tickets
+      WHERE (to_timestamp(resolved_at) AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $1::date AND $2::date
+        AND agente = ANY(ARRAY['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz'])
+        AND (data->>'failed')::boolean = true
+    `, [from, to]);
+    const failedCount = parseInt(failedRow.rows[0]?.n || 0);
+
+    res.json({ from, to, byAgent: rows.rows, failedCount });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -3226,7 +3338,8 @@ app.get('/audit/tickets', auditRequireMgmt, async (req, res) => {
 
     const params = [from, to];
     let where = `(to_timestamp(t.resolved_at) AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN $1::date AND $2::date
-        AND t.agente = ANY(ARRAY['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz'])`;
+        AND t.agente = ANY(ARRAY['Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz'])
+        AND (t.data->>'failed') IS DISTINCT FROM 'true'`;
     if (type === 'S1pre')  where += ` AND t.is_s1_pre = TRUE AND t.excluded_absence = FALSE`;
     else if (type === 'S1post') where += ` AND t.is_s1_post = TRUE AND t.excluded_absence = FALSE`;
     else if (type === 'S1')  where += ` AND t.is_s1 = TRUE AND t.excluded_absence = FALSE`;
@@ -3416,7 +3529,7 @@ app.post('/audit/run', auditRequireMgmt, express.json(), (req, res) => {
   }
 
   const jobId = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-  const job = { jobId, from, to: toDate, status: 'running', step: 'iniciando', progress: 0, total: 0, analyzed: 0, startedAt: new Date().toISOString() };
+  const job = { jobId, from, to: toDate, status: 'running', step: 'iniciando', progress: 0, total: 0, analyzed: 0, failed: 0, startedAt: new Date().toISOString() };
   _auditJobs.set(jobId, job);
   // Limpa jobs antigos (mantém últimos 10)
   if (_auditJobs.size > 10) { const oldest = [..._auditJobs.keys()][0]; _auditJobs.delete(oldest); }
@@ -3431,6 +3544,46 @@ app.post('/audit/run', auditRequireMgmt, express.json(), (req, res) => {
     } catch (e) {
       job.status = 'error'; job.error = e.message;
       console.error(`[audit/run] job=${jobId} erro:`, e.message);
+    }
+  })();
+
+  res.json({ ok: true, jobId });
+});
+
+// POST /audit/retry-failed — reprocessa tickets com falha
+app.post('/audit/retry-failed', auditRequireMgmt, express.json(), (req, res) => {
+  const { from, to } = req.body || {};
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  if (!from || !DATE_RE.test(from)) return res.status(400).json({ error: 'from obrigatório (AAAA-MM-DD)' });
+  const toDate = (to && DATE_RE.test(to)) ? to : from;
+
+  if (!req.body?.force) {
+    const nowBrt  = new Date(Date.now() - 3 * 3600000);
+    const brtMins = nowBrt.getUTCHours() * 60 + nowBrt.getUTCMinutes();
+    const brtDay  = nowBrt.getUTCDay();
+    if (brtDay >= 1 && brtDay <= 5 && brtMins >= 9 * 60 && brtMins < 18 * 60 + 48) {
+      return res.status(423).json({ error: 'Reprocessamento manual bloqueado durante o horário comercial (9h–18h48). Tente após as 18h48 ou use "Forçar agora".' });
+    }
+  }
+
+  for (const [, job] of _auditJobs) {
+    if (job.status === 'running') return res.status(409).json({ error: 'Já há um job em andamento', jobId: job.jobId });
+  }
+
+  const jobId = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const job = { jobId, from, to: toDate, status: 'running', step: 'iniciando retry', progress: 0, total: 0, analyzed: 0, failed: 0, startedAt: new Date().toISOString() };
+  _auditJobs.set(jobId, job);
+  if (_auditJobs.size > 10) { const oldest = [..._auditJobs.keys()][0]; _auditJobs.delete(oldest); }
+
+  console.log(`[audit/retry-failed] job=${jobId} por=${req.auditEmail} período=${from}→${toDate}`);
+  (async () => {
+    try {
+      await auditRetryFailed(from, toDate, (prog) => Object.assign(job, prog));
+      job.status = 'done';
+      console.log(`[audit/retry-failed] job=${jobId} concluído: ${job.analyzed}/${job.total}`);
+    } catch (e) {
+      job.status = 'error'; job.error = e.message;
+      console.error(`[audit/retry-failed] job=${jobId} erro:`, e.message);
     }
   })();
 

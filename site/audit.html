@@ -215,6 +215,7 @@ tr:hover td { background: var(--surf2); }
   <div id="view-dashboard">
     <div id="cards-base" style="font-size:12px;color:var(--muted);margin-bottom:8px"></div>
     <div class="cards" id="summary-cards"></div>
+    <div id="failed-warning" style="display:none;margin-top:8px;font-size:12px;color:var(--muted);padding:6px 10px;border-left:3px solid var(--muted);background:var(--surface)"></div>
     <div class="chart-wrap" id="chart-section" style="display:none">
       <div class="chart-title">Últimas 8 semanas</div>
       <div class="chart-body" id="chart-bars"></div>
@@ -326,6 +327,8 @@ tr:hover td { background: var(--surf2); }
     </p>
     <button class="btn btn-primary" onclick="startReprocess(false)">Iniciar reprocessamento</button>
     <button class="btn btn-ghost" id="btn-force" style="display:none" onclick="startReprocess(true)">Forçar agora (fora do horário)</button>
+    <button class="btn btn-ghost" onclick="startRetryFailed()" style="margin-left:8px">Reprocessar falhados</button>
+    <button class="btn btn-ghost" id="btn-retry-force" style="display:none;margin-left:4px" onclick="startRetryFailed(true)">Forçar falhados agora</button>
     <div id="job-progress" style="margin-top:16px;display:none">
       <div class="progress-wrap">
         <div class="progress-label" id="job-label">Iniciando…</div>
@@ -377,7 +380,7 @@ async function loadDashboard() {
     const r = await fetch(`/audit/data?from=${from}&to=${to}`);
     if (!r.ok) { const d = await r.json(); throw new Error(d.error || r.status); }
     const d = await r.json();
-    renderCards(d.byAgent || []);
+    renderCards(d.byAgent || [], d.failedCount || 0);
     renderTable(d.byAgent || []);
     loadChart();
   } catch(e) {
@@ -394,7 +397,7 @@ function pct(num, den) {
 }
 function n(v) { return Number(v) || 0; }
 
-function renderCards(rows) {
+function renderCards(rows, failedCount = 0) {
   const s1pre     = rows.reduce((s,r) => s + n(r.s1_pre_raw), 0);
   const s1post    = rows.reduce((s,r) => s + n(r.s1_post_raw), 0);
   const s3        = rows.reduce((s,r) => s + n(r.s3_raw), 0);
@@ -405,6 +408,8 @@ function renderCards(rows) {
   const pl = n => n === 1 ? 'caso' : 'casos';
   document.getElementById('cards-base').textContent =
     `Base: ${total} ticket${total !== 1 ? 's' : ''} resolvidos por ${rows.length} agente${rows.length !== 1 ? 's' : ''} no período`;
+  const fw = document.getElementById('failed-warning');
+  if (fw) { fw.style.display = failedCount > 0 ? '' : 'none'; if (failedCount > 0) fw.textContent = `⚠ ${failedCount} ticket${failedCount !== 1 ? 's' : ''} não pôde${failedCount !== 1 ? 'ram' : ''} ser analisado${failedCount !== 1 ? 's' : ''} no período. Use "Reprocessar falhados" para tentar novamente.`; }
   document.getElementById('summary-cards').innerHTML = `
     <div class="card c-s1pre"  onclick="filterBy('S1pre')"><div class="card-lbl">Adiado antes da 1ª resposta</div><div class="card-val">${s1pre}</div><div class="card-sub">${pct(s1pre,total)} dos tickets</div><div class="card-sub2">${s1preSem} ${pl(s1preSem)} sem nota</div></div>
     <div class="card c-s1post" onclick="filterBy('S1post')"><div class="card-lbl">Adiado com cliente esperando (depois da 1ª resposta)</div><div class="card-val">${s1post}</div><div class="card-sub">${pct(s1post,total)} dos tickets</div><div class="card-sub2">${s1postSem} ${pl(s1postSem)} sem nota</div></div>
@@ -775,7 +780,7 @@ function pollJob(jobId, fromDate, toDate) {
       const r = await fetch('/audit/run/status/'+jobId);
       const d = await r.json();
       document.getElementById('job-label').textContent =
-        d.status === 'done'  ? `Concluído: ${d.analyzed} de ${d.total} tickets analisados` :
+        d.status === 'done'  ? `Concluído: ${d.analyzed} de ${d.total} tickets analisados${d.failed ? ` · ⚠ ${d.failed} falharam` : ''}` :
         d.status === 'error' ? `Erro: ${d.error}` :
         `${d.step || 'processando'}… ${d.analyzed}/${d.total || '?'} tickets`;
       document.getElementById('job-fill').style.width = (d.progress||0)+'%';
@@ -785,6 +790,34 @@ function pollJob(jobId, fromDate, toDate) {
       else if (d.status === 'done') { setTimeout(() => switchView('dashboard'), 1500); }
     } catch {}
   }, 1200);
+}
+
+async function startRetryFailed(force = false) {
+  const fromVal = document.getElementById('from').value;
+  const toVal   = document.getElementById('to').value;
+  if (!fromVal) return alert('Defina o período no filtro acima.');
+  try {
+    const body = { from: fromVal, to: toVal || fromVal };
+    if (force) body.force = true;
+    const r = await fetch('/audit/retry-failed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const d = await r.json();
+    if (r.status === 423) {
+      document.getElementById('job-progress').style.display = '';
+      document.getElementById('job-label').textContent = '⏰ ' + d.error;
+      document.getElementById('job-fill').style.width = '0%';
+      document.getElementById('job-info').textContent = 'Use "Forçar agora" para ignorar o bloqueio';
+      document.getElementById('btn-retry-force').style.display = '';
+      return;
+    }
+    if (!r.ok) return alert('Erro: ' + d.error);
+    document.getElementById('btn-retry-force').style.display = 'none';
+    document.getElementById('job-progress').style.display = '';
+    pollJob(d.jobId, fromVal, toVal || fromVal);
+  } catch(e) { alert('Erro: ' + e.message); }
 }
 
 // Filtro de tickets responde ao select
