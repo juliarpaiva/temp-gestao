@@ -235,7 +235,7 @@ Se `total_avaliados = 0` (sem avaliações no dia), usa volume de negativos abso
 
 #### Respondidos (por agentes monitoradas)
 
-- **Fórmula:** `COUNT(*) WHERE ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa') AND resolved_at_local >= d0 AND resolved_at_local < d1`
+- **Fórmula:** `COUNT(*) WHERE ticket_status = 'resolved' AND agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz') AND resolved_at_local >= d0 AND resolved_at_local < d1`
 - **Campo de data:** `resolved_at_local`.
 - **Nota:** Este é um subconjunto do volume; não abrange todas as resoluções (exclui Claudia, outros agentes, tickets abertos/pendentes).
 
@@ -293,7 +293,7 @@ Se `total_avaliados = 0` (sem avaliações no dia), usa volume de negativos abso
 
 ### 4.3 Métricas Operacionais — Tabela por Agente
 
-Agentes exibidas: `'Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa'` (exato, case-sensitive no IN).
+Agentes exibidas: `'Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz'` (exato, case-sensitive no IN).
 
 #### Volume por Agente
 
@@ -399,7 +399,7 @@ Todos os filtros alteram `d0` e `d1` e recarregam via `GET /kpis-semanais` com o
 Filtros se **substituem mutuamente** (não se combinam).
 
 **Filtros implícitos permanentes (não aparecem na UI):**
-- Tabela por agente: apenas `'Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa'`
+- Tabela por agente: apenas `'Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz'`
 - Claudia: `ILIKE '%claudia%' AND NOT ILIKE '%projetos%'`
 - TER: exclui tickets com `first_agent_resolution_time_min >= 2880` (48h)
 - Indevidas: excluídas do CSAT usando `NOT IN (lista de ids)`
@@ -434,13 +434,13 @@ Definidas em duas listas com nomes diferentes, usadas em contextos diferentes:
 
 **Lista 1 — detecção em `runDailyReport()` (Painel CSAT diário):**
 ```javascript
-const AGENTES = ['Mari', 'Fernanda', 'Fer', 'Paty', 'Lu Almeida', 'Rafa'];
+const AGENTES = ['Mari', 'Fernanda', 'Fer', 'Paty', 'Lu Almeida', 'Rafa', 'Natchely'];
 ```
 A detecção usa `nome.includes(a)` — substring, não igualdade exata. Exemplo: `"Fernanda Cavalcante"` passa porque contém `"Fernanda"`.
 
 **Lista 2 — queries DW em Métricas Operacionais:**
 ```sql
-agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa')
+agent_on_resolution_name IN ('Mari','Fernanda Cavalcante','Paty','Lu Almeida','Rafa','Natchely Ortiz')
 ```
 Igualdade exata. `'Fernanda'` sem sobrenome **não bate** nesta lista.
 
@@ -576,7 +576,7 @@ Se um webhook de indevida chegar e o cache não for invalidado por alguma falha,
 | **N1 / N2** | N1 = Claudia resolve. N2 = humano resolve. Não é um campo no banco; é inferido pelo nome do agente de resolução. |
 | **Semana** | Dom a Sáb. Âncora = domingo. |
 | **Acumulado** | Período fixo de 2026-02-01 até hoje. |
-| **Agentes monitoradas** | Mari, Fernanda Cavalcante, Paty, Lu Almeida, Rafa. Exato no DW. |
+| **Agentes monitoradas** | Mari, Fernanda Cavalcante, Paty, Lu Almeida, Rafa, Natchely Ortiz. Exato no DW. |
 | **Claudia** | IA de atendimento. Detectada por `agent_on_resolution_name ILIKE '%claudia%' AND NOT ILIKE '%projetos%'`. |
 | **`resolved_at_local`** | Timestamp de resolução do ticket, no fuso horário local, campo do DW. |
 | **`created_at_local`** | Timestamp de criação do ticket, no fuso horário local, campo do DW. |
